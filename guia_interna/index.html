@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Be•Travel — Guía de Formación · Agente de Viajes</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --teal:#0F3D3E;--beige:#E6E1D8;--bronze:#B08A5A;--dark:#2B2B2B;--white:#fff;
+  --safe:#1A6B4A;--warn:#C47B0A;--danger:#B83232;
+  --t05:rgba(15,61,62,.05);--t10:rgba(15,61,62,.10);--t15:rgba(15,61,62,.15);
+}
+body{font-family:'Inter',sans-serif;background:var(--beige);color:var(--dark);-webkit-font-smoothing:antialiased}
+
+/* NAV */
+.nav{background:var(--teal);position:sticky;top:0;z-index:60;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.nav-brand{font-size:16px;font-weight:700;color:var(--beige);letter-spacing:-.3px;white-space:nowrap}
+.nav-brand span{color:var(--bronze)}
+.nav-sub{font-size:10px;color:rgba(230,225,216,.45);letter-spacing:2px;text-transform:uppercase;display:none}
+@media(min-width:900px){.nav-sub{display:block}}
+.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:7px 14px;font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;border:none;border-radius:2px;cursor:pointer;background:transparent;color:rgba(230,225,216,.5);transition:all .2s;white-space:nowrap}
+.tab:hover{color:var(--beige);background:rgba(230,225,216,.08)}
+.tab.on{background:var(--bronze);color:#fff}
+
+/* PANELS */
+.panel{display:none;max-width:960px;margin:0 auto;padding:40px 24px 72px;animation:fadeIn .35s ease}
+.panel.on{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* UTILS */
+.lbl{font-size:10px;font-weight:700;color:var(--bronze);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:14px}
+.mb16{margin-bottom:16px}.mb24{margin-bottom:24px}.mb32{margin-bottom:32px}
+.hero{background:var(--teal);border-radius:3px;padding:32px 36px;margin-bottom:32px}
+.hero h2{font-family:'DM Serif Display',serif;font-size:27px;color:var(--beige);line-height:1.25;margin-bottom:12px;font-weight:400}
+.hero h2 em{font-style:italic;color:var(--bronze)}
+.hero p{font-size:13.5px;color:rgba(230,225,216,.72);line-height:1.7;max-width:680px}
+.hero p strong{color:var(--beige);font-weight:600}
+
+.badge{display:inline-block;padding:3px 10px;border-radius:2px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.b-n1{background:rgba(26,107,74,.12);color:var(--safe)}
+.b-n2{background:rgba(176,138,90,.18);color:#8a6030}
+.b-teal{background:var(--t10);color:var(--teal)}
+
+.card{background:var(--white);border-radius:3px;padding:24px 26px;box-shadow:0 1px 5px rgba(15,61,62,.07);margin-bottom:16px}
+.card h3{font-size:14px;font-weight:700;color:var(--teal);margin-bottom:10px}
+.card p,.card li{font-size:13px;line-height:1.7;opacity:.85}
+.card p strong,.card li strong{color:var(--teal);opacity:1}
+.card ul,.card ol{padding-left:20px;margin-top:8px}
+.card li{margin-bottom:8px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+@media(max-width:680px){.g2{grid-template-columns:1fr}}
+
+.alert{border-radius:3px;padding:16px 20px;margin-bottom:16px;font-size:13px;line-height:1.7}
+.alert strong{font-weight:700}
+.a-warn{background:rgba(196,123,10,.08);border-left:3px solid var(--warn)}
+.a-warn strong{color:var(--warn)}
+.a-danger{background:rgba(184,50,50,.06);border-left:3px solid var(--danger)}
+.a-danger strong{color:var(--danger)}
+.a-safe{background:rgba(26,107,74,.07);border-left:3px solid var(--safe)}
+.a-safe strong{color:var(--safe)}
+.a-bronze{background:rgba(176,138,90,.1);border-left:3px solid var(--bronze)}
+.a-bronze strong{color:var(--bronze)}
+
+/* TABLES + SEARCH */
+.search{width:100%;padding:12px 16px;font-family:'Inter',sans-serif;font-size:14px;background:var(--white);border:1px solid var(--t15);border-radius:2px;outline:none;margin-bottom:14px;transition:border-color .2s}
+.search:focus{border-color:var(--teal)}
+.tw{background:var(--white);border-radius:3px;overflow:hidden;box-shadow:0 1px 5px rgba(15,61,62,.07);margin-bottom:28px}
+table{width:100%;border-collapse:collapse}
+thead tr{background:var(--teal)}
+thead th{padding:11px 16px;font-size:10px;font-weight:600;color:var(--beige);text-transform:uppercase;letter-spacing:1.2px;text-align:left}
+tbody tr{border-bottom:1px solid rgba(15,61,62,.06)}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#f7f5f2}
+tbody td{padding:11px 16px;font-size:13px;line-height:1.5;vertical-align:top}
+td.code{font-weight:700;color:var(--teal);letter-spacing:1px;width:80px}
+td.dim{opacity:.55;font-size:12px}
+
+/* FLASHCARDS */
+.fc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:28px}
+.fc{background:var(--white);border-radius:3px;padding:18px 14px;text-align:center;cursor:pointer;box-shadow:0 1px 5px rgba(15,61,62,.07);border:1px solid transparent;transition:all .2s;user-select:none}
+.fc:hover{border-color:var(--bronze)}
+.fc .q{font-size:20px;font-weight:700;color:var(--teal);letter-spacing:2px}
+.fc .a{font-size:11.5px;color:var(--dark);margin-top:6px;min-height:16px;line-height:1.4}
+.fc .a.hidden{visibility:hidden}
+.fc .hint{font-size:9px;color:var(--bronze);letter-spacing:1.5px;text-transform:uppercase;margin-top:8px}
+
+/* ACCORDION */
+.acc{background:var(--white);border-radius:3px;box-shadow:0 1px 5px rgba(15,61,62,.07);margin-bottom:10px;overflow:hidden}
+.acc-head{padding:16px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.acc-head h4{font-size:13.5px;font-weight:700;color:var(--teal)}
+.acc-head .arrow{color:var(--bronze);font-size:14px;transition:transform .25s;flex-shrink:0}
+.acc.open .arrow{transform:rotate(90deg)}
+.acc-body{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.acc.open .acc-body{max-height:800px}
+.acc-body-inner{padding:0 20px 18px;font-size:13px;line-height:1.75;opacity:.85}
+.acc-body-inner strong{color:var(--teal);opacity:1}
+.acc-body-inner ul{padding-left:18px;margin-top:6px}
+.acc-body-inner li{margin-bottom:6px}
+.acc-body-inner code{font-family:monospace;background:var(--t05);padding:1px 6px;border-radius:2px;color:var(--teal);font-size:12px;font-weight:600}
+
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div style="display:flex;align-items:center;gap:20px">
+    <div class="nav-brand">Be<span>•</span>Travel</div>
+    <div class="nav-sub">Guía de formación · Agente de viajes</div>
+  </div>
+  <div class="tabs">
+    <button class="tab on" onclick="sw('inicio',this)">Inicio</button>
+    <button class="tab" onclick="sw('iata',this)">1 · Códigos IATA</button>
+    <button class="tab" onclick="sw('pnr',this)">2 · PNR</button>
+    <button class="tab" onclick="sw('tarifas',this)">3 · Tarifas</button>
+    <button class="tab" onclick="sw('gds',this)">4 · GDS / NDC</button>
+    <button class="tab" onclick="sw('docs',this)">5 · Documentación</button>
+    <button class="tab" onclick="sw('hotel',this)">6 · Hotelería</button>
+    <button class="tab" onclick="sw('quiz',this)">Glosario</button>
+  </div>
+</div>
+
+<!-- ═══════════ INICIO ═══════════ -->
+<div class="panel on" id="panel-inicio">
+  <div class="hero">
+    <h2>El criterio se entrena.<br><em>Esta guía es el punto de partida.</em></h2>
+    <p>Cualquier agencia puede emitir un ticket. El diferencial de Be•Travel es el <strong>juicio previo al ticket</strong>: entender qué se reserva, bajo qué condiciones, por qué canal y con qué documentación. Esta guía cubre la base técnica que hace posible ese criterio.</p>
+  </div>
+
+  <div class="lbl">Cómo usar esta guía</div>
+  <div class="g2">
+    <div class="card">
+      <h3><span class="badge b-n1">Nivel 1</span>&nbsp; Base obligatoria</h3>
+      <p>Conceptos que todo agente debe dominar antes de tocar una reserva real: códigos, estructura del PNR, condiciones tarifarias básicas y requisitos documentarios.</p>
+    </div>
+    <div class="card">
+      <h3><span class="badge b-n2">Nivel 2</span>&nbsp; Operación profesional</h3>
+      <p>Lo que separa a un emisor de un agente con criterio: canales de emisión, dónde está el margen, riesgos (ADM, Art. 22) y gestión post-venta.</p>
+    </div>
+  </div>
+
+  <div class="alert a-bronze"><strong>Regla de oro Be•Travel:</strong> nunca se reserva lo que no se entiende. Si no podés explicarle al cliente las condiciones de cambio, la franquicia de equipaje y el time limit de una tarifa, todavía no estás en condiciones de reservarla.</div>
+
+  <div class="lbl" style="margin-top:32px">Contenido</div>
+  <div class="card">
+    <ol>
+      <li><strong>Códigos IATA</strong> — Aeropuertos, ciudades multi-aeropuerto y aerolíneas. Con flashcards para memorizar.</li>
+      <li><strong>El PNR</strong> — Qué es, sus 5 elementos obligatorios, códigos de estado y errores que cuestan dinero.</li>
+      <li><strong>Tarifas</strong> — El checklist de 10 puntos antes de reservar. El módulo más importante de la guía.</li>
+      <li><strong>GDS y canales de emisión</strong> — Cómo se distribuye el contenido aéreo, qué es NDC y por qué el canal define el margen.</li>
+      <li><strong>Documentación del pasajero</strong> — Pasaportes, visas, menores, salud. Donde un error destruye la relación con el cliente.</li>
+      <li><strong>Glosario + Quiz final</strong> — Autoevaluación de 10 preguntas con puntaje.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- ═══════════ MÓDULO 1: IATA ═══════════ -->
+<div class="panel" id="panel-iata">
+  <div class="hero">
+    <h2>Módulo 1 · Códigos IATA <em>— el idioma de la industria</em></h2>
+    <p>IATA (International Air Transport Association) estandariza la comunicación global del transporte aéreo. Los <strong>aeropuertos usan códigos de 3 letras</strong> y las <strong>aerolíneas códigos de 2 caracteres</strong>. Un agente que duda con los códigos pierde velocidad y credibilidad frente a proveedores y clientes.</p>
+  </div>
+
+  <span class="badge b-n1">Nivel 1</span>
+  <div class="lbl" style="margin-top:14px">Concepto clave: ciudad ≠ aeropuerto</div>
+  <div class="alert a-warn"><strong>Las ciudades con varios aeropuertos tienen código propio de ciudad.</strong> Buenos Aires es <strong>BUE</strong> (contiene EZE y AEP). Al cotizar, siempre verificá en qué aeropuerto opera cada vuelo: una conexión GIG→SDU o LHR→LGW implica traslado terrestre entre aeropuertos, con tiempo y costo.</div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Ciudad</th><th>Código ciudad</th><th>Aeropuertos</th></tr></thead>
+      <tbody>
+        <tr><td>Buenos Aires</td><td class="code">BUE</td><td>EZE (Ezeiza) · AEP (Aeroparque)</td></tr>
+        <tr><td>San Pablo</td><td class="code">SAO</td><td>GRU (Guarulhos) · CGH (Congonhas) · VCP (Viracopos)</td></tr>
+        <tr><td>Río de Janeiro</td><td class="code">RIO</td><td>GIG (Galeão) · SDU (Santos Dumont)</td></tr>
+        <tr><td>Nueva York</td><td class="code">NYC</td><td>JFK · EWR (Newark) · LGA (LaGuardia)</td></tr>
+        <tr><td>Londres</td><td class="code">LON</td><td>LHR (Heathrow) · LGW (Gatwick) · STN (Stansted) · LTN (Luton)</td></tr>
+        <tr><td>París</td><td class="code">PAR</td><td>CDG (Charles de Gaulle) · ORY (Orly)</td></tr>
+        <tr><td>Milán</td><td class="code">MIL</td><td>MXP (Malpensa) · LIN (Linate) · BGY (Bérgamo)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="lbl">Aeropuertos — buscá y filtrá</div>
+  <input type="text" class="search" id="s-apt" placeholder="Buscar por código, ciudad o país… (ej: EZE, Madrid, Brasil)" onkeyup="filt('s-apt','t-apt')">
+  <div class="tw">
+    <table id="t-apt">
+      <thead><tr><th>Código</th><th>Aeropuerto / Ciudad</th><th>País</th></tr></thead>
+      <tbody>
+        <tr><td class="code">EZE</td><td>Ezeiza – Ministro Pistarini, Buenos Aires</td><td class="dim">Argentina</td></tr>
+        <tr><td class="code">AEP</td><td>Aeroparque Jorge Newbery, Buenos Aires</td><td class="dim">Argentina</td></tr>
+        <tr><td class="code">COR</td><td>Córdoba – Ing. Taravella</td><td class="dim">Argentina</td></tr>
+        <tr><td class="code">MDZ</td><td>Mendoza – El Plumerillo</td><td class="dim">Argentina</td></tr>
+        <tr><td class="code">BRC</td><td>San Carlos de Bariloche</td><td class="dim">Argentina</td></tr>
+        <tr><td class="code">IGR</td><td>Puerto Iguazú – Cataratas</td><td class="dim">Argentina</td></tr>
+        <tr><td class="code">SLA</td><td>Salta – Martín M. de Güemes</td><td class="dim">Argentina</td></tr>
+        <tr><td class="code">TUC</td><td>Tucumán – Benjamín Matienzo</td><td class="dim">Argentina</td></tr>
+        <tr><td class="code">USH</td><td>Ushuaia – Malvinas Argentinas</td><td class="dim">Argentina</td></tr>
+        <tr><td class="code">FTE</td><td>El Calafate</td><td class="dim">Argentina</td></tr>
+        <tr><td class="code">NQN</td><td>Neuquén</td><td class="dim">Argentina</td></tr>
+        <tr><td class="code">ROS</td><td>Rosario – Islas Malvinas</td><td class="dim">Argentina</td></tr>
+        <tr><td class="code">GRU</td><td>San Pablo – Guarulhos</td><td class="dim">Brasil</td></tr>
+        <tr><td class="code">GIG</td><td>Río de Janeiro – Galeão</td><td class="dim">Brasil</td></tr>
+        <tr><td class="code">FLN</td><td>Florianópolis</td><td class="dim">Brasil</td></tr>
+        <tr><td class="code">SSA</td><td>Salvador de Bahía</td><td class="dim">Brasil</td></tr>
+        <tr><td class="code">SCL</td><td>Santiago – A. Merino Benítez</td><td class="dim">Chile</td></tr>
+        <tr><td class="code">MVD</td><td>Montevideo – Carrasco</td><td class="dim">Uruguay</td></tr>
+        <tr><td class="code">PDP</td><td>Punta del Este</td><td class="dim">Uruguay</td></tr>
+        <tr><td class="code">ASU</td><td>Asunción – Silvio Pettirossi</td><td class="dim">Paraguay</td></tr>
+        <tr><td class="code">LIM</td><td>Lima – Jorge Chávez</td><td class="dim">Perú</td></tr>
+        <tr><td class="code">BOG</td><td>Bogotá – El Dorado</td><td class="dim">Colombia</td></tr>
+        <tr><td class="code">PTY</td><td>Ciudad de Panamá – Tocumen</td><td class="dim">Panamá</td></tr>
+        <tr><td class="code">MEX</td><td>Ciudad de México – Benito Juárez</td><td class="dim">México</td></tr>
+        <tr><td class="code">CUN</td><td>Cancún</td><td class="dim">México</td></tr>
+        <tr><td class="code">PUJ</td><td>Punta Cana</td><td class="dim">Rep. Dominicana</td></tr>
+        <tr><td class="code">HAV</td><td>La Habana – José Martí</td><td class="dim">Cuba</td></tr>
+        <tr><td class="code">MIA</td><td>Miami International</td><td class="dim">EE.UU.</td></tr>
+        <tr><td class="code">JFK</td><td>Nueva York – John F. Kennedy</td><td class="dim">EE.UU.</td></tr>
+        <tr><td class="code">MCO</td><td>Orlando International</td><td class="dim">EE.UU.</td></tr>
+        <tr><td class="code">LAX</td><td>Los Ángeles International</td><td class="dim">EE.UU.</td></tr>
+        <tr><td class="code">ATL</td><td>Atlanta – Hartsfield-Jackson</td><td class="dim">EE.UU.</td></tr>
+        <tr><td class="code">YYZ</td><td>Toronto – Pearson</td><td class="dim">Canadá</td></tr>
+        <tr><td class="code">MAD</td><td>Madrid – Barajas</td><td class="dim">España</td></tr>
+        <tr><td class="code">BCN</td><td>Barcelona – El Prat</td><td class="dim">España</td></tr>
+        <tr><td class="code">LIS</td><td>Lisboa – Humberto Delgado</td><td class="dim">Portugal</td></tr>
+        <tr><td class="code">CDG</td><td>París – Charles de Gaulle</td><td class="dim">Francia</td></tr>
+        <tr><td class="code">LHR</td><td>Londres – Heathrow</td><td class="dim">Reino Unido</td></tr>
+        <tr><td class="code">FCO</td><td>Roma – Fiumicino</td><td class="dim">Italia</td></tr>
+        <tr><td class="code">AMS</td><td>Ámsterdam – Schiphol</td><td class="dim">Países Bajos</td></tr>
+        <tr><td class="code">FRA</td><td>Frankfurt am Main</td><td class="dim">Alemania</td></tr>
+        <tr><td class="code">ZRH</td><td>Zúrich</td><td class="dim">Suiza</td></tr>
+        <tr><td class="code">IST</td><td>Estambul</td><td class="dim">Turquía</td></tr>
+        <tr><td class="code">DXB</td><td>Dubái International</td><td class="dim">Emiratos Árabes</td></tr>
+        <tr><td class="code">DOH</td><td>Doha – Hamad</td><td class="dim">Catar</td></tr>
+        <tr><td class="code">TLV</td><td>Tel Aviv – Ben Gurión</td><td class="dim">Israel</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="lbl">Aerolíneas — buscá y filtrá</div>
+  <input type="text" class="search" id="s-air" placeholder="Buscar aerolínea o código… (ej: AR, LATAM, Iberia)" onkeyup="filt('s-air','t-air')">
+  <div class="tw">
+    <table id="t-air">
+      <thead><tr><th>Código</th><th>Aerolínea</th><th>Relevancia para el mercado argentino</th></tr></thead>
+      <tbody>
+        <tr><td class="code">AR</td><td>Aerolíneas Argentinas</td><td class="dim">Cabotaje + regional + Madrid/Roma/Miami</td></tr>
+        <tr><td class="code">LA</td><td>LATAM Airlines</td><td class="dim">Regional + conexiones vía SCL/GRU/LIM</td></tr>
+        <tr><td class="code">FO</td><td>Flybondi</td><td class="dim">Low cost cabotaje + regional</td></tr>
+        <tr><td class="code">JA</td><td>JetSMART</td><td class="dim">Low cost cabotaje + regional</td></tr>
+        <tr><td class="code">G3</td><td>GOL Linhas Aéreas</td><td class="dim">Brasil</td></tr>
+        <tr><td class="code">AD</td><td>Azul Linhas Aéreas</td><td class="dim">Brasil, red doméstica extensa</td></tr>
+        <tr><td class="code">CM</td><td>Copa Airlines</td><td class="dim">Hub PTY, todo Centroamérica/Caribe</td></tr>
+        <tr><td class="code">AV</td><td>Avianca</td><td class="dim">Hub BOG</td></tr>
+        <tr><td class="code">AA</td><td>American Airlines</td><td class="dim">EZE–MIA/JFK/DFW</td></tr>
+        <tr><td class="code">UA</td><td>United Airlines</td><td class="dim">EZE–IAH/EWR</td></tr>
+        <tr><td class="code">DL</td><td>Delta Air Lines</td><td class="dim">EZE–ATL</td></tr>
+        <tr><td class="code">AM</td><td>Aeroméxico</td><td class="dim">Hub MEX</td></tr>
+        <tr><td class="code">IB</td><td>Iberia</td><td class="dim">EZE–MAD, conexión a toda Europa</td></tr>
+        <tr><td class="code">UX</td><td>Air Europa</td><td class="dim">EZE–MAD, alternativa competitiva</td></tr>
+        <tr><td class="code">AF</td><td>Air France</td><td class="dim">EZE–CDG</td></tr>
+        <tr><td class="code">KL</td><td>KLM</td><td class="dim">EZE–AMS</td></tr>
+        <tr><td class="code">LH</td><td>Lufthansa</td><td class="dim">EZE–FRA</td></tr>
+        <tr><td class="code">BA</td><td>British Airways</td><td class="dim">EZE–LHR</td></tr>
+        <tr><td class="code">AZ</td><td>ITA Airways</td><td class="dim">EZE–FCO</td></tr>
+        <tr><td class="code">TP</td><td>TAP Air Portugal</td><td class="dim">Vía GRU/GIG a LIS</td></tr>
+        <tr><td class="code">TK</td><td>Turkish Airlines</td><td class="dim">EZE–IST vía GRU, red global</td></tr>
+        <tr><td class="code">EK</td><td>Emirates</td><td class="dim">EZE–DXB vía GIG</td></tr>
+        <tr><td class="code">QR</td><td>Qatar Airways</td><td class="dim">Vía GRU/DOH, red global</td></tr>
+        <tr><td class="code">ET</td><td>Ethiopian Airlines</td><td class="dim">EZE–ADD vía GRU, África</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="lbl">Flashcards — tocá para revelar</div>
+  <div class="fc-grid" id="fc-grid"></div>
+</div>
+
+<!-- ═══════════ MÓDULO 2: PNR ═══════════ -->
+<div class="panel" id="panel-pnr">
+  <div class="hero">
+    <h2>Módulo 2 · El PNR <em>— la unidad mínima de la operación aérea</em></h2>
+    <p>PNR significa <strong>Passenger Name Record</strong>: el registro electrónico que contiene toda la información de una reserva. Se identifica con un <strong>código localizador (record locator)</strong> de 6 caracteres alfanuméricos, ej: <strong>XK4T9B</strong>. Todo lo que hacés como agente vive dentro de un PNR.</p>
+  </div>
+
+  <span class="badge b-n1">Nivel 1</span>
+  <div class="lbl" style="margin-top:14px">Los 5 elementos obligatorios de todo PNR</div>
+  <div class="card">
+    <ol>
+      <li><strong>Name (Nombre):</strong> apellido/nombre del pasajero, exactamente como figura en el documento de viaje. Es el elemento más crítico.</li>
+      <li><strong>Itinerary (Itinerario):</strong> los segmentos de vuelo (o servicios) reservados, con fecha, ruta, clase y horario.</li>
+      <li><strong>Phone (Contacto):</strong> teléfono/email de contacto. Fundamental para que la aerolínea notifique cambios de horario.</li>
+      <li><strong>Ticketing (Emisión):</strong> instrucción o plazo de emisión del ticket (time limit).</li>
+      <li><strong>Received from:</strong> quién solicitó la reserva o modificación. Es la trazabilidad interna del PNR.</li>
+    </ol>
+  </div>
+
+  <div class="alert a-danger"><strong>El error más caro: el nombre.</strong> El nombre del ticket debe coincidir letra por letra con el pasaporte. Las aerolíneas distinguen entre <strong>corrección</strong> (error tipográfico menor, muchas veces gratuita o con cargo bajo) y <strong>cambio de nombre</strong> (otra persona: prohibido en la mayoría de las tarifas — implica perder el ticket). Verificá el nombre contra el documento ANTES de emitir, siempre.</div>
+
+  <div class="lbl">Códigos de estado de segmento</div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Código</th><th>Significado</th><th>Qué hacer</th></tr></thead>
+      <tbody>
+        <tr><td class="code">HK</td><td>Holds Confirmed — segmento confirmado</td><td class="dim">Estado normal. Listo para emitir.</td></tr>
+        <tr><td class="code">HL</td><td>Waitlist — en lista de espera</td><td class="dim">No emitir. Monitorear o buscar alternativa.</td></tr>
+        <tr><td class="code">TK</td><td>Cambio de horario, nuevo horario confirmado</td><td class="dim">Informar al pasajero y aceptar el cambio (pasar a HK).</td></tr>
+        <tr><td class="code">UN</td><td>Vuelo cancelado por la aerolínea</td><td class="dim">Reacomodar o gestionar reembolso. Avisar al PAX de inmediato.</td></tr>
+        <tr><td class="code">UC</td><td>Solicitud no aceptada / no confirmada</td><td class="dim">Remover el segmento y rehacer la reserva.</td></tr>
+        <tr><td class="code">NO</td><td>No action taken</td><td class="dim">Segmento sin efecto; limpiar del PNR.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="lbl">Elementos complementarios</div>
+  <div class="g2">
+    <div class="card">
+      <h3>SSR — Special Service Request</h3>
+      <p>Pedidos que requieren acción de la aerolínea: comidas especiales (VGML vegetariana, KSML kosher), silla de ruedas (WCHR), menor sin acompañante (UMNR), infante (INFT), pasaporte (DOCS — obligatorio en muchos mercados).</p>
+    </div>
+    <div class="card">
+      <h3>OSI y Remarks</h3>
+      <p><strong>OSI</strong> (Other Service Information): información para la aerolínea que no requiere respuesta. <strong>Remarks:</strong> notas internas de la agencia dentro del PNR — usalas para dejar trazabilidad de cada gestión (quién pidió qué y cuándo).</p>
+    </div>
+  </div>
+
+  <span class="badge b-n2">Nivel 2</span>
+  <div style="margin-top:14px">
+    <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>PNR del GDS vs. PNR de la aerolínea</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">Cuando reservás por GDS, se genera un localizador del GDS <strong>y</strong> un localizador propio de la aerolínea (a veces distinto). Para gestiones directas con la aerolínea (web check-in, selección de asientos), el pasajero suele necesitar el <strong>localizador de la aerolínea</strong>. Buen hábito: incluir ambos en la confirmación al cliente.</div></div></div>
+    <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Time limit: la reserva no es el ticket</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">Una reserva HK sin emitir tiene fecha límite (<code>TL</code>). Si no se emite antes, <strong>la aerolínea cancela los segmentos automáticamente</strong> y la tarifa cotizada se pierde. Además, la tarifa no está garantizada hasta la emisión: puede subir entre la reserva y el ticketing. Regla operativa: cotización enviada al cliente = time limit informado por escrito.</div></div></div>
+    <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Churning y prácticas penalizadas</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner"><strong>Churning</strong> es reservar y cancelar repetidamente los mismos segmentos para extender time limits o bloquear espacio. Las aerolíneas lo detectan y lo penalizan con <strong>ADM</strong> (Agency Debit Memo: nota de débito contra la agencia/consolidador). Otras prácticas penalizadas: segmentos ficticios, reservas especulativas de grupos sin intención real, duplicados. En un modelo B2B con márgenes finos, un ADM puede borrar la ganancia de varias operaciones.</div></div></div>
+    <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>PNR de grupo (relevante para Be•Travel)</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">A partir de <strong>10 pasajeros</strong> en el mismo vuelo se opera como grupo: tarifa negociada con la aerolínea, nombres que pueden cargarse después (name list con plazo), depósitos y cronograma de pagos propio. El PNR grupal puede <strong>dividirse (split)</strong> si parte del grupo cambia itinerario. Las condiciones de grupo son contractuales: penalidades por reducción de plazas (attrition) y fechas de corte que hay que calendarizar desde el día uno.</div></div></div>
+  </div>
+</div>
+
+<!-- ═══════════ MÓDULO 3: TARIFAS ═══════════ -->
+<div class="panel" id="panel-tarifas">
+  <div class="hero">
+    <h2>Módulo 3 · Tarifas <em>— el checklist antes de reservar</em></h2>
+    <p>Acá se define si la operación deja margen o deja problemas. Una tarifa no es un precio: es un <strong>contrato con condiciones</strong>. El agente profesional lee las condiciones antes de cotizar, no después del reclamo.</p>
+  </div>
+
+  <span class="badge b-n1">Nivel 1</span>
+  <div class="lbl" style="margin-top:14px">Estructura de un precio aéreo</div>
+  <div class="card">
+    <p><strong>Precio final = Tarifa base + cargos del transportador (YQ/YR) + tasas e impuestos + percepciones locales.</strong></p>
+    <ul>
+      <li><strong>Tarifa base (fare):</strong> lo que fija la aerolínea según clase de reserva. Es la base sobre la que se calcula el over/markup.</li>
+      <li><strong>YQ / YR:</strong> cargos de combustible o servicio del transportador. Pueden ser una porción enorme del total.</li>
+      <li><strong>Tasas:</strong> aeroportuarias, de seguridad, migraciones — varían por país y aeropuerto.</li>
+      <li><strong>Percepciones (Argentina):</strong> cargas impositivas locales sobre venta de pasajes al exterior. Verificar el régimen vigente al cotizar, cambia con frecuencia.</li>
+    </ul>
+  </div>
+
+  <div class="lbl">Clase de cabina ≠ clase de reserva (RBD)</div>
+  <div class="alert a-warn"><strong>La cabina es dónde viajás; la clase de reserva (RBD) es qué contrato comprás.</strong> Dentro de Economy hay múltiples letras (Y, B, M, H, K, L, Q…) con precios y condiciones distintas. Y = full flexible; las letras más baratas suelen ser las más restrictivas. En business, típicamente J, C, D, I. La letra determina condiciones, acumulación de millas y disponibilidad para cambios.</div>
+
+  <div class="lbl">El checklist de 10 puntos — antes de reservar, siempre</div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>01 · Condiciones de cambio</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">¿La tarifa permite cambios? ¿Con qué penalidad? Un cambio siempre implica <strong>penalidad + diferencia de tarifa</strong> a la clase disponible al momento del cambio — que casi siempre es más cara. "Cambio permitido" nunca significa "cambio gratis".</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>02 · Condiciones de reembolso</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">¿Es reembolsable? ¿Con penalidad? ¿Solo reembolsan tasas? Muchas tarifas económicas son <strong>no reembolsables</strong>: ante cancelación solo se recuperan algunas tasas. Informalo por escrito antes de emitir — es la principal fuente de conflictos con clientes.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>03 · No-show</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">Si el pasajero no se presenta al vuelo sin aviso previo, la mayoría de las tarifas <strong>cancelan todos los tramos siguientes</strong> y pierden valor total o parcial. Regla para el cliente: ante cualquier imprevisto, avisar ANTES de la salida del vuelo — eso preserva opciones.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>04 · Franquicia de equipaje</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">¿Cuántas piezas (PC) o kilos incluye? Las tarifas <strong>light/basic</strong> pueden no incluir valija despachada, e incluso restringir el carry-on. En corporativo, un ejecutivo que descubre en el aeropuerto que su tarifa no incluye valija es una crisis de confianza evitable. Verificá también franquicias distintas por tramo en itinerarios con varias aerolíneas.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>05 · Time limit de emisión</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">¿Hasta cuándo puedo mantener la reserva sin emitir? La tarifa <strong>no está garantizada hasta la emisión</strong>. Con clientes corporativos que demoran aprobaciones internas, el time limit es información comercial crítica: comunicalo en cada cotización.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>06 · Validez y estadías mínima/máxima</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">Algunas tarifas exigen estadía mínima (ej: noche de sábado) o tienen validez máxima (ej: 1 mes, 3 meses). Afecta directamente la cotización de programas con regreso abierto o extensiones.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>07 · Conexiones: MCT y aeropuertos</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner"><strong>MCT (Minimum Connecting Time):</strong> el tiempo mínimo legal de conexión en cada aeropuerto. Si los vuelos están en el mismo ticket y el MCT se cumple, la aerolínea es responsable ante pérdida de conexión. Si son <strong>tickets separados, el riesgo es del pasajero</strong> (y de la agencia que lo armó sin advertirlo). Verificá también cambios de aeropuerto en la conexión y necesidad de visa de tránsito.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>08 · Tipo de tarifa: publicada, negociada, NDC</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner"><strong>Publicada (GDS-S):</strong> visible en el sistema, disponible para cualquier agencia. <strong>Negociada/confidencial:</strong> acuerdos del consolidador con la aerolínea, mejor precio neto. <strong>NDC:</strong> contenido distribuido por conexión directa con la aerolínea, con tarifas y ancillaries que no aparecen en el GDS clásico. El tipo de tarifa determina el canal de emisión y el margen (ver Módulo 4).</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>09 · Menores e infantes</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner"><strong>INF</strong> (infante, menor de 2 años sin asiento): paga porcentaje de la tarifa adulto. <strong>CHD</strong> (child, 2–11): descuento variable según tarifa. Verificá que el infante no cumpla 2 años DURANTE el viaje — si vuelve con 2 cumplidos, el tramo de regreso requiere asiento y tarifa CHD.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>10 · Moneda, forma de pago y emisión</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">¿En qué moneda cotiza y en cuál se emite? ¿Qué formas de pago acepta el canal? En Argentina, la brecha cambiaria y las percepciones hacen que la forma de pago modifique el costo real. Confirmá el tipo de cambio aplicable el día de emisión, no el de cotización.</div></div></div>
+
+  <span class="badge b-n2" style="margin-top:24px;display:inline-block">Nivel 2 · Dónde está el margen</span>
+  <div class="g2" style="margin-top:14px">
+    <div class="card">
+      <h3>Tarifa publicada (GDS-S)</h3>
+      <p>La comisión de aerolínea es prácticamente cero. <strong>El margen se construye con over/markup:</strong> la diferencia entre la tarifa neta que te da el canal y el precio final al cliente. Definir el over es una decisión comercial, no un cálculo automático: considerá el valor del servicio, la complejidad de la operación y el segmento.</p>
+    </div>
+    <div class="card">
+      <h3>Tarifa NDC</h3>
+      <p>Puede incluir <strong>comisión de la aerolínea</strong> según acuerdo, más el fee de emisión del canal (que varía según sea self-service u offline). El precio NDC suele ser más competitivo, pero las condiciones de post-venta (cambios, reembolsos) pueden gestionarse distinto que en GDS clásico. Comparar siempre ambos antes de cotizar.</p>
+    </div>
+  </div>
+  <div class="alert a-bronze"><strong>Criterio Be•Travel:</strong> el precio más bajo no es automáticamente la mejor cotización. Una tarifa USD 40 más cara con cambio flexible puede ser la respuesta correcta para un viaje corporativo con agenda incierta. El agente cotiza para el objetivo del cliente, no para ganar una comparación de precios.</div>
+</div>
+
+<!-- ═══════════ MÓDULO 4: GDS/NDC ═══════════ -->
+<div class="panel" id="panel-gds">
+  <div class="hero">
+    <h2>Módulo 4 · GDS y canales de emisión <em>— por dónde pasa el negocio</em></h2>
+    <p>La agencia no le compra directo a la aerolínea: opera a través de una <strong>cadena de distribución</strong>. Entender esa cadena es entender dónde se gana y dónde se pierde plata en cada emisión.</p>
+  </div>
+
+  <span class="badge b-n1">Nivel 1</span>
+  <div class="lbl" style="margin-top:14px">La cadena de distribución aérea</div>
+  <div class="card">
+    <p><strong>Aerolínea → GDS / NDC → Consolidador → Agencia → Cliente</strong></p>
+    <ul>
+      <li><strong>GDS (Global Distribution System):</strong> los sistemas globales de reserva. Los tres grandes: <strong>Amadeus, Sabre y Travelport</strong>. Concentran inventario de cientos de aerolíneas, hoteles y rentadoras.</li>
+      <li><strong>Consolidador:</strong> mayorista con placa IATA y acuerdos con aerolíneas. La agencia sin placa propia <strong>emite a través del consolidador</strong>, que aporta tarifas netas, crédito y soporte de emisión.</li>
+      <li><strong>BSP:</strong> el sistema de IATA que liquida los pagos entre agencias/consolidadores y aerolíneas. Es el motivo por el que los plazos de pago de la industria son estrictos.</li>
+    </ul>
+  </div>
+
+  <div class="lbl">Qué es NDC y por qué importa</div>
+  <div class="card">
+    <p><strong>NDC (New Distribution Capability)</strong> es el estándar de IATA para que las aerolíneas distribuyan contenido por conexión directa, sin pasar por el GDS clásico. Implicancias prácticas:</p>
+    <ul>
+      <li><strong>Tarifas exclusivas:</strong> muchas aerolíneas publican en NDC precios que no cargan en el GDS, o cobran un recargo por emitir vía GDS tradicional.</li>
+      <li><strong>Ancillaries:</strong> asientos, equipaje extra y bundles se compran nativamente en NDC.</li>
+      <li><strong>Post-venta distinta:</strong> los cambios y reembolsos de un ticket NDC se gestionan por el canal que emitió — no siempre con las mismas herramientas del GDS. <strong>El que emite, manda.</strong></li>
+    </ul>
+  </div>
+
+  <span class="badge b-n2">Nivel 2</span>
+  <div class="lbl" style="margin-top:14px">Los canales operativos de Be•Travel</div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Canal</th><th>Tipo</th><th>Fee de emisión</th><th>Criterio de uso</th></tr></thead>
+      <tbody>
+        <tr><td class="code" style="width:auto">ONE DESK·NDC</td><td>Self-service (Netviax)</td><td><strong>USD 15</strong></td><td class="dim">Canal preferido. Mejor margen consistente en reservas NDC autogestionadas.</td></tr>
+        <tr><td class="code" style="width:auto">BT·NDC</td><td>Canal de emisión separado</td><td><strong>USD 30</strong></td><td class="dim">Usar solo cuando ONE DESK no resuelve la necesidad.</td></tr>
+        <tr><td class="code" style="width:auto">Offline</td><td>Mostrador del consolidador</td><td>Variable</td><td class="dim">Último recurso: peor margen. Justificable solo en casos complejos que exceden el self-service.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="alert a-safe"><strong>Regla operativa:</strong> antes de pedir una cotización offline, agotá el self-service. La diferencia de fee (USD 15 vs USD 30 o más) sale directamente del margen de la operación. El canal es una decisión económica, no una comodidad.</div>
+
+  <div class="lbl">Ecosistema de proveedores — quién resuelve qué</div>
+  <div class="g2">
+    <div class="card">
+      <h3>Aéreo</h3>
+      <p><strong>Consolidadores</strong> para emisión (tarifas netas, GDS-S y NDC según canal). El consolidador principal concentra volumen; los secundarios se usan para comparar tarifas negociadas en rutas específicas.</p>
+    </div>
+    <div class="card">
+      <h3>Hotelería y terrestre</h3>
+      <p><strong>Bancos de camas / brokers</strong> (RateHawk, Hotelbeds, MyBeds, Bedsonline) para hotelería transaccional. <strong>Operadores especializados</strong> para producto complejo: interior argentino y LATAM FIT, larga distancia, resorts. <strong>DMCs</strong> para operaciones MICE donde la ejecución en destino es crítica.</p>
+    </div>
+  </div>
+  <div class="alert a-bronze"><strong>Principio de segmentación de proveedores:</strong> volumen transaccional (aéreo estándar, hotel urbano) va por canales self-service de mejor margen. Operaciones con criterio (MICE, incentivos, grupos complejos) van con proveedores donde la relación y la ejecución valen más que el fee. No usar el proveedor de volumen para lo crítico, ni el especializado para lo commodity.</div>
+</div>
+
+<!-- ═══════════ MÓDULO 5: DOCUMENTACIÓN ═══════════ -->
+<div class="panel" id="panel-docs">
+  <div class="hero">
+    <h2>Módulo 5 · Documentación del pasajero <em>— donde el error no se perdona</em></h2>
+    <p>Un pasajero varado en migraciones por documentación insuficiente es <strong>la peor falla posible de una agencia</strong> — sobre todo en B2B, donde el que queda expuesto es el Travel Manager que nos contrató. El agente informa, verifica y deja registro escrito. Siempre.</p>
+  </div>
+
+  <span class="badge b-n1">Nivel 1</span>
+  <div class="lbl" style="margin-top:14px">Pasaporte y DNI</div>
+  <div class="g2">
+    <div class="card">
+      <h3>Pasaporte</h3>
+      <ul>
+        <li><strong>Vigencia mínima 6 meses</strong> desde la fecha de ingreso al destino: es la regla general que exigen la mayoría de los países. Algunos aceptan 3 meses (varios de Europa) — ante la duda, aplicá 6.</li>
+        <li>Estado físico: hojas dañadas o despegadas pueden causar rechazo de embarque.</li>
+        <li>Verificá que haya <strong>páginas libres</strong> para sellos si el itinerario tiene múltiples fronteras.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>DNI en la región</h3>
+      <p>Los argentinos pueden viajar <strong>con DNI (sin pasaporte)</strong> a países del Mercosur y asociados: Brasil, Chile, Uruguay, Paraguay, Bolivia, Perú, Ecuador y Colombia. El DNI debe estar en buen estado y vigente. Para el resto del mundo: pasaporte, sin excepción.</p>
+    </div>
+  </div>
+
+  <div class="lbl">Visas — los casos que más se consultan</div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Destino</th><th>Requisito para argentinos</th><th>Observaciones</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Estados Unidos</strong></td><td>Visa B1/B2</td><td class="dim">Trámite consular con entrevista; demoras variables. Iniciar con meses de anticipación. Vigencia típica 10 años.</td></tr>
+        <tr><td><strong>Canadá</strong></td><td>Visa de visitante (o eTA según el caso)</td><td class="dim">Verificar la condición vigente del pasajero: quienes tuvieron visa canadiense o tienen visa USA válida pueden calificar para eTA en viajes aéreos.</td></tr>
+        <tr><td><strong>Europa Schengen</strong></td><td>Sin visa · regla 90/180</td><td class="dim">Máximo 90 días dentro de cada período de 180. Se exige pasaje de regreso, fondos y seguro médico. Atención al sistema de autorización electrónica ETIAS: verificar si ya es exigible al momento del viaje.</td></tr>
+        <tr><td><strong>Reino Unido</strong></td><td>Sin visa corta estadía + ETA electrónica</td><td class="dim">Fuera de Schengen: sus días no computan en la regla 90/180. Verificar requisito de autorización electrónica vigente.</td></tr>
+        <tr><td><strong>México</strong></td><td>Sin visa</td><td class="dim">Migración estricta: llevar documentación de respaldo (reserva, regreso, fondos).</td></tr>
+        <tr><td><strong>China</strong></td><td>Verificar régimen vigente</td><td class="dim">Ha habido exenciones temporales para argentinos; confirmar SIEMPRE antes de cotizar.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="alert a-safe"><strong>La fuente oficial es TIMATIC</strong> (base de datos de IATA que usan las propias aerolíneas en el check-in), consultable vía IATA Travel Centre. Los requisitos cambian: verificá en cada operación, no de memoria. Y dejá registro escrito de lo informado al pasajero.</div>
+
+  <div class="lbl">Salud, menores y seguros</div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Fiebre amarilla y vacunación</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">Algunos países <strong>exigen</strong> el certificado internacional de vacunación contra fiebre amarilla para ingresar (según ruta y procedencia); para otros es <strong>recomendación sanitaria</strong> (ej: ciertas zonas de Brasil). La vacuna debe aplicarse con al menos <strong>10 días de anticipación</strong>. Derivar la consulta médica al vacunatorio oficial — el agente informa el requisito, no da consejo médico.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Menores de edad</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">Menores argentinos que salen del país <strong>sin ambos padres</strong> necesitan autorización del progenitor ausente (ante escribano, o al momento con la documentación que exige Migraciones). Si viaja solo: autorización de ambos. Verificá también la documentación que acredita el vínculo (partida de nacimiento o DNI donde conste filiación). Este trámite demora: incluirlo en el checklist inicial de toda operación con menores.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Seguro de asistencia al viajero</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">Obligatorio para Schengen (cobertura mínima <strong>€30.000</strong>) y otros destinos; comercialmente imprescindible en todos. Para Be•Travel es además una línea de margen y un diferencial de servicio: nunca entregar una operación sin haber ofrecido asistencia por escrito. Si el cliente la rechaza, que quede registrado.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Nivel 2 · Tránsitos y dobles verificaciones</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">El requisito documentario aplica a <strong>cada país del itinerario, incluidos los tránsitos</strong>. Casos típicos: conexión en EE.UU. exige visa aunque el destino final sea otro; algunos aeropuertos exigen visa de tránsito según nacionalidad y tiempo de conexión. En grupos con pasajeros de <strong>distintas nacionalidades</strong>, verificar requisitos por pasaporte individual — nunca asumir que todo el grupo tiene los mismos requisitos.</div></div></div>
+</div>
+
+<!-- ═══════════ MÓDULO 6: HOTELERÍA ═══════════ -->
+<div class="panel" id="panel-hotel">
+  <div class="hero">
+    <h2>Módulo 6 · Hotelería <em>— tarifas, condiciones y grupos</em></h2>
+    <p>El aéreo es estandarizado; la hotelería es <strong>negociación pura</strong>. La misma habitación puede tener cinco precios distintos según el canal, el régimen y las condiciones. Entender la estructura tarifaria hotelera es entender dónde está el margen y dónde está el riesgo.</p>
+  </div>
+
+  <span class="badge b-n1">Nivel 1</span>
+  <div class="lbl" style="margin-top:14px">Los tipos de tarifa hotelera</div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Tarifa</th><th>Qué es</th><th>Cómo se gana</th></tr></thead>
+      <tbody>
+        <tr><td class="code" style="width:auto">RACK</td><td>La tarifa "de mostrador": el precio máximo publicado por el hotel, sin descuento. Casi nadie la paga.</td><td class="dim">No se trabaja con ella: es la referencia contra la que se mide todo descuento. Sirve para mostrar valor al cliente ("rack USD 300, tu tarifa USD 210").</td></tr>
+        <tr><td class="code" style="width:auto">NETA</td><td>Precio de costo para la agencia, sin comisión incluida. Es la que dan los bancos de camas (RateHawk, Hotelbeds, MyBeds, Bedsonline).</td><td class="dim"><strong>Margen = markup:</strong> la agencia define el precio de venta. Mayor control comercial, mayor responsabilidad de pricing.</td></tr>
+        <tr><td class="code" style="width:auto">COMISIONABLE</td><td>Tarifa de venta al público con comisión para la agencia incluida (típicamente 10–20%). Común en reservas directas con hotel.</td><td class="dim"><strong>Margen = comisión fija.</strong> El precio al cliente es el mismo que si reservara directo. Cobro de comisión a veces lento (post check-out).</td></tr>
+        <tr><td class="code" style="width:auto">CONFIDENCIAL</td><td>Tarifa neta negociada (operador/DMC) que no puede publicarse ni venderse sola: exige empaquetarse con otro servicio.</td><td class="dim">Mejor costo, con restricción de uso. Romper la confidencialidad daña la relación con el proveedor.</td></tr>
+        <tr><td class="code" style="width:auto">DINÁMICA</td><td>Tarifa que fluctúa con la ocupación y demanda en tiempo real (revenue management del hotel).</td><td class="dim">La cotización tiene vida corta: informar validez al cliente. El precio de ayer no existe hoy.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="alert a-warn"><strong>Regla de comparación:</strong> antes de calcular tu markup, verificá si la tarifa que te dio el canal es neta o comisionable. Aplicar markup sobre una comisionable te deja fuera de precio; vender una neta "tal cual" te deja sin margen. Es el error más común del agente en formación.</div>
+
+  <div class="lbl">Regímenes de comidas — la nomenclatura</div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Sigla</th><th>Régimen</th><th>Incluye</th></tr></thead>
+      <tbody>
+        <tr><td class="code">RO / SA</td><td>Room Only / Solo Alojamiento</td><td class="dim">Sin comidas.</td></tr>
+        <tr><td class="code">BB</td><td>Bed & Breakfast</td><td class="dim">Desayuno.</td></tr>
+        <tr><td class="code">HB / MAP</td><td>Half Board / Media pensión</td><td class="dim">Desayuno + una comida (cena, en general).</td></tr>
+        <tr><td class="code">FB / AP</td><td>Full Board / Pensión completa</td><td class="dim">Las tres comidas, sin bebidas.</td></tr>
+        <tr><td class="code">AI</td><td>All Inclusive</td><td class="dim">Comidas + bebidas + snacks según programa del hotel. Estándar en resorts de Caribe.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="lbl">Habitaciones y ocupación</div>
+  <div class="g2">
+    <div class="card">
+      <h3>Tipos de habitación</h3>
+      <p><strong>SGL</strong> (single) · <strong>DBL</strong> (doble, cama matrimonial) · <strong>TWN</strong> (twin, dos camas) · <strong>TPL</strong> (triple) · <strong>QUAD</strong> (cuádruple). La distinción <strong>DBL vs TWN es crítica en corporativo</strong>: dos colegas que comparten habitación necesitan twin — confirmarlo explícitamente, no asumirlo.</p>
+    </div>
+    <div class="card">
+      <h3>La tarifa es por habitación o por persona</h3>
+      <p>Los hoteles urbanos cotizan <strong>por habitación por noche</strong>; los resorts y programas suelen cotizar <strong>por persona en base doble</strong>. Confundir las bases duplica o parte al medio la cotización. Verificá también el costo del <strong>suplemento single</strong>: en grupos, es una de las variables que más mueve el precio final.</p>
+    </div>
+  </div>
+
+  <div class="lbl">Condiciones que se leen antes de confirmar</div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Política de cancelación: reembolsable vs no reembolsable</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">Toda tarifa hotelera tiene una <strong>fecha límite de cancelación sin cargo</strong> (deadline). Después, penalidad: una noche, un porcentaje o el total. Las <strong>NRF (non-refundable)</strong> son más baratas pero se pagan completas al confirmar y no devuelven nada. Criterio: NRF solo cuando el viaje está 100% confirmado — en corporativo con agendas móviles, la flexibilidad suele valer más que el descuento. Registrá el deadline de cada reserva en el calendario operativo: un deadline vencido sin acción es pérdida directa.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>No-show hotelero y early check-out</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">Si el pasajero no se presenta, el hotel cobra la penalidad de no-show (mínimo la primera noche; en NRF, todo). Si el vuelo llega de madrugada, avisar <strong>late arrival</strong> — sin aviso, el hotel puede liberar la habitación. El <strong>early check-out</strong> (irse antes) también puede penalizarse según tarifa.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Impuestos locales y cargos en destino</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">Hay cargos que <strong>no vienen en la tarifa</strong> y se pagan en el hotel: city tax / tasa turística (frecuente en Europa, por persona por noche), <strong>resort fee</strong> (EE.UU., especialmente Las Vegas y Miami — puede superar USD 40/noche), depósitos de garantía con tarjeta. Informarlos por escrito en la cotización: que el pasajero los descubra en el check-out es una queja segura.</div></div></div>
+  <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Horarios: check-in, check-out y day use</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">Estándar: check-in 14/15 hs, check-out 10/12 hs. Con vuelos que llegan a la mañana, la habitación <strong>no está garantizada hasta el horario de check-in</strong> — si el pasajero necesita entrar antes, se cotiza <strong>early check-in</strong> o la noche anterior. <strong>Day use:</strong> uso de habitación por horas diurnas, útil en conexiones largas.</div></div></div>
+
+  <span class="badge b-n2" style="margin-top:20px;display:inline-block">Nivel 2 · Grupos y canales</span>
+  <div style="margin-top:14px">
+    <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Allotment, release y rooming list</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner"><strong>Allotment:</strong> cupo de habitaciones bloqueado para la agencia/operador a tarifa acordada. <strong>Release:</strong> la fecha límite para devolver las habitaciones no vendidas del cupo <strong>sin penalidad</strong> — vencido el release, lo no devuelto se paga. <strong>Rooming list:</strong> el listado de pasajeros con distribución por habitación (nombres, tipo de habitación, requerimientos) que se envía al hotel antes de una fecha de corte. La gestión de releases y cortes es puro calendario: un release olvidado convierte una operación rentable en una pérdida.</div></div></div>
+    <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Contrato de grupo hotelero</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">A partir de ~10 habitaciones se negocia contrato: tarifa fija, cronograma de pagos (depósito + saldos), política de <strong>attrition</strong> (cuántas habitaciones podés reducir sin penalidad, típicamente 10–20%), gratuidades (ej: 1 habitación libre cada 20 pagas) y cláusulas de fuerza mayor. En MICE, sumá: salones, coffee breaks, AV y F&B — cada ítem con su propio mínimo garantizado.</div></div></div>
+    <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Canal por tipo de operación</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner"><strong>Bancos de camas</strong> (RateHawk, Hotelbeds, MyBeds, Bedsonline): hotelería transaccional FIT — tarifa neta, confirmación inmediata, markup propio. Ideal para reservas urbanas estándar. <strong>Directo con hotel:</strong> grupos, estadías largas, corporativo recurrente — mejor negociación y relación. <strong>Operador/DMC:</strong> producto complejo y MICE, donde la ejecución en destino pesa más que el precio de la habitación. Mismo principio que en aéreo: <strong>lo commodity va por el canal de mejor margen; lo crítico va por el canal de mejor ejecución.</strong></div></div></div>
+    <div class="acc"><div class="acc-head" onclick="acc(this)"><h4>Riesgos del banco de camas</h4><span class="arrow">›</span></div><div class="acc-body"><div class="acc-body-inner">Dos riesgos a conocer: <strong>reventa en cadena</strong> (la tarifa pasó por varios intermediarios; ante un problema, la cadena de responsabilidad es lenta) y <strong>overbooking del hotel</strong> que no reconoce la reserva del banco de camas. Mitigación: reconfirmar directamente con el hotel las reservas sensibles (llegadas nocturnas, VIPs, primera operación con un cliente) 48–72 hs antes del check-in, con el número de confirmación del hotel — no solo el localizador del banco de camas.</div></div></div>
+  </div>
+  <div class="alert a-bronze"><strong>Criterio Be•Travel:</strong> en hotelería, el margen se define en el markup pero se protege en el calendario. Deadlines de cancelación, releases y fechas de rooming list son compromisos financieros — se registran el día que se confirma la reserva, no cuando se acerca la fecha.</div>
+</div>
+
+<!-- ═══════════ GLOSARIO ═══════════ -->
+<div class="panel" id="panel-quiz">
+  <div class="hero">
+    <h2>Glosario esencial</h2>
+    <p>Los términos que vas a escuchar todos los días — aéreo, operación y hotelería. Usá el buscador para encontrar rápido.</p>
+  </div>
+
+  <div class="lbl">Glosario rápido</div>
+  <input type="text" class="search" id="s-glo" placeholder="Buscar término… (ej: release, ADM, rack)" onkeyup="filt('s-glo','t-glo')">
+  <div class="tw">
+    <table id="t-glo">
+      <thead><tr><th>Término</th><th>Definición</th></tr></thead>
+      <tbody>
+        <tr><td class="code" style="width:auto">OW / RT</td><td>One Way (solo ida) / Round Trip (ida y vuelta).</td></tr>
+        <tr><td class="code" style="width:auto">Open jaw</td><td>Itinerario que llega a una ciudad y regresa desde otra (EZE–MAD // BCN–EZE).</td></tr>
+        <tr><td class="code" style="width:auto">Stopover</td><td>Parada en una conexión mayor a 24 hs (internacional). Menor a eso: conexión (layover).</td></tr>
+        <tr><td class="code" style="width:auto">Code-share</td><td>Vuelo comercializado por una aerolínea pero operado por otra. Verificá siempre quién OPERA: define equipaje, check-in y servicio.</td></tr>
+        <tr><td class="code" style="width:auto">Interline</td><td>Acuerdo entre aerolíneas para transportar pasajeros/equipaje en un mismo ticket.</td></tr>
+        <tr><td class="code" style="width:auto">ADM</td><td>Agency Debit Memo: nota de débito de la aerolínea contra la agencia por errores de emisión o prácticas indebidas.</td></tr>
+        <tr><td class="code" style="width:auto">BSP</td><td>Billing and Settlement Plan: sistema de liquidación de IATA entre agencias y aerolíneas.</td></tr>
+        <tr><td class="code" style="width:auto">MCT</td><td>Minimum Connecting Time: tiempo mínimo legal de conexión en un aeropuerto.</td></tr>
+        <tr><td class="code" style="width:auto">Over / Markup</td><td>Diferencia entre la tarifa neta del canal y el precio final al cliente. Principal fuente de margen en GDS-S.</td></tr>
+        <tr><td class="code" style="width:auto">Fee</td><td>Cargo por servicio: de emisión (del canal) o de gestión (de la agencia al cliente).</td></tr>
+        <tr><td class="code" style="width:auto">No-show</td><td>Pasajero que no se presenta al vuelo sin aviso. Suele cancelar los tramos siguientes.</td></tr>
+        <tr><td class="code" style="width:auto">Overbooking</td><td>Venta de más plazas que asientos. La aerolínea debe reacomodar y compensar según normativa.</td></tr>
+        <tr><td class="code" style="width:auto">FIT</td><td>Viajero individual con itinerario a medida (vs. grupo o paquete estándar).</td></tr>
+        <tr><td class="code" style="width:auto">DMC</td><td>Destination Management Company: operador receptivo que ejecuta servicios en destino. Clave en MICE.</td></tr>
+        <tr><td class="code" style="width:auto">Attrition</td><td>En grupos: reducción de plazas/habitaciones respecto de lo contratado. Genera penalidades según contrato.</td></tr>
+        <tr><td class="code" style="width:auto">Rack</td><td>Tarifa máxima publicada por el hotel, sin descuento. Referencia contra la que se mide todo precio negociado.</td></tr>
+        <tr><td class="code" style="width:auto">Tarifa neta</td><td>Precio de costo sin comisión incluida. El margen se construye con markup propio. Es la modalidad de los bancos de camas.</td></tr>
+        <tr><td class="code" style="width:auto">Tarifa comisionable</td><td>Tarifa de venta al público con comisión incluida para la agencia (típicamente 10–20%).</td></tr>
+        <tr><td class="code" style="width:auto">Tarifa confidencial</td><td>Neta negociada que no puede publicarse ni venderse sola: exige empaquetarse con otro servicio.</td></tr>
+        <tr><td class="code" style="width:auto">Banco de camas</td><td>Mayorista hotelero online (RateHawk, Hotelbeds, MyBeds, Bedsonline): tarifas netas con confirmación inmediata.</td></tr>
+        <tr><td class="code" style="width:auto">Allotment</td><td>Cupo de habitaciones bloqueado para la agencia/operador a tarifa acordada.</td></tr>
+        <tr><td class="code" style="width:auto">Release</td><td>Fecha límite para devolver habitaciones no vendidas del allotment sin penalidad. Vencido, lo no devuelto se paga.</td></tr>
+        <tr><td class="code" style="width:auto">Rooming list</td><td>Listado de pasajeros con distribución por habitación que se envía al hotel antes de la fecha de corte.</td></tr>
+        <tr><td class="code" style="width:auto">NRF</td><td>Non-refundable: tarifa no reembolsable. Más barata, se paga al confirmar y no devuelve nada ante cancelación.</td></tr>
+        <tr><td class="code" style="width:auto">RO / BB / HB / FB / AI</td><td>Regímenes de comidas: solo alojamiento / desayuno / media pensión / pensión completa / all inclusive.</td></tr>
+        <tr><td class="code" style="width:auto">SGL / DBL / TWN / TPL</td><td>Tipos de habitación: single / doble matrimonial / twin (dos camas) / triple.</td></tr>
+        <tr><td class="code" style="width:auto">Suplemento single</td><td>Cargo adicional por ocupación individual cuando la tarifa cotiza por persona en base doble.</td></tr>
+        <tr><td class="code" style="width:auto">City tax / Resort fee</td><td>Cargos locales que se pagan en el hotel y no vienen en la tarifa. Informarlos siempre en la cotización.</td></tr>
+        <tr><td class="code" style="width:auto">Day use</td><td>Uso de habitación por horas diurnas, sin pernocte. Útil en conexiones largas.</td></tr>
+        <tr><td class="code" style="width:auto">Early / Late check-in</td><td>Ingreso antes del horario estándar (se cotiza aparte) / llegada tardía que debe avisarse para que el hotel no libere la habitación.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="footer">Be•Travel · Material de formación interna · Verificar requisitos documentarios y regímenes tarifarios vigentes en cada operación</div>
+
+<script>
+function sw(id,btn){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  document.getElementById('panel-'+id).classList.add('on');
+  btn.classList.add('on');
+  window.scrollTo({top:0});
+}
+function acc(h){h.parentElement.classList.toggle('open');}
+function filt(sid,tid){
+  const q=document.getElementById(sid).value.toLowerCase();
+  document.querySelectorAll('#'+tid+' tbody tr').forEach(tr=>{
+    tr.style.display=tr.textContent.toLowerCase().includes(q)?'':'none';
+  });
+}
+
+/* FLASHCARDS */
+const cards=[
+  ["EZE","Ezeiza, Buenos Aires"],["GRU","San Pablo Guarulhos"],["SCL","Santiago de Chile"],
+  ["MVD","Montevideo"],["LIM","Lima"],["PTY","Panamá (hub Copa)"],
+  ["MIA","Miami"],["MAD","Madrid Barajas"],["CDG","París Ch. de Gaulle"],
+  ["FCO","Roma Fiumicino"],["LHR","Londres Heathrow"],["IST","Estambul"],
+  ["AR","Aerolíneas Argentinas"],["LA","LATAM"],["CM","Copa Airlines"],
+  ["IB","Iberia"],["AF","Air France"],["EK","Emirates"],
+  ["TK","Turkish Airlines"],["AA","American Airlines"]
+];
+const grid=document.getElementById('fc-grid');
+cards.forEach(([q,a])=>{
+  const d=document.createElement('div');d.className='fc';
+  d.innerHTML='<div class="q">'+q+'</div><div class="a hidden">'+a+'</div><div class="hint">tocar</div>';
+  d.onclick=()=>{const el=d.querySelector('.a');el.classList.toggle('hidden');d.querySelector('.hint').textContent=el.classList.contains('hidden')?'tocar':'ocultar';};
+  grid.appendChild(d);
+});
+
+</script>
+</body>
+</html>
