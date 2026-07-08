@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /admin/
+Disallow: /guia_interna/
 
 Sitemap: https://betravel.com.ar/sitemap.xml
