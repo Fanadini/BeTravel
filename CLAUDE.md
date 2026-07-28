@@ -36,8 +36,8 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 ```
 public_html/
 ├── index.html               ← Home principal (betravel_home_v2.html)
-├── beoffsite.html           ← Página Be•Offsite (MICE / corporativo)
-├── beselect.html            ← Página Be•Select (premium)
+├── becorporate.html         ← Página Be•Corporate (MICE / corporativo)
+├── vacacional.html          ← Página Be•Travel · Vacacional (premium)
 ├── becommunity.html         ← Página Be•Community (grupos de afinidad)
 ├── mail.php                 ← Handler formulario de contacto
 └── admin/
@@ -52,7 +52,7 @@ public_html/
 - Marca visual: `Be•Travel` — el punto `•` es parte esencial del logo
 - Legal/operativo: `BeTravel` (sin punto)
 - Nunca mezclar ambas formas en una misma pieza
-- Unidades de negocio: `Be•Offsite`, `Be•Select`, `Be•Community`
+- Unidades de negocio: `Be•Corporate`, `Be•Travel` (unidad vacacional, lleva calificador `· Vacacional` en títulos, nav y menciones estructurales para no confundirse con la marca madre), `Be•Community`
 
 ### Paleta
 ```
