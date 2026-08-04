@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Be•Travel — Finanzas</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --teal:#0F3D3E;--teal-h:#0c3233;--teal-l:rgba(15,61,62,.07);--teal-m:rgba(15,61,62,.14);
+  --beige:#E6E1D8;--beige-d:#D5CEC3;--bronze:#B08A5A;--dark:#2B2B2B;--white:#fff;
+  --board:#e8e3da;--red:#b83232;--amber:#c97a1a;--green:#2f8f4e;
+  --shadow-s:0 1px 3px rgba(0,0,0,.10),0 1px 2px rgba(0,0,0,.06);
+  --shadow-m:0 4px 12px rgba(0,0,0,.12),0 2px 4px rgba(0,0,0,.08);
+  --shadow-l:0 10px 30px rgba(0,0,0,.16),0 4px 8px rgba(0,0,0,.08);
+}
+body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;overflow:hidden}
+
+/* ── NAV ── */
+.nav{background:var(--teal);height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:300;box-shadow:0 2px 8px rgba(0,0,0,.2);gap:10px;flex-shrink:0}
+.nav-left{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.nav-brand{font-size:15px;font-weight:600;color:var(--beige);letter-spacing:-.3px;white-space:nowrap}
+.nav-brand span{color:var(--bronze)}
+.nav-right{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.sync-pill{display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:99px;background:rgba(0,0,0,.2);font-size:10px;color:rgba(230,225,216,.55)}
+.sync-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;transition:background .4s}
+.sync-dot.ok{background:#4ade80;box-shadow:0 0 6px #4ade8088}
+.sync-dot.err{background:#f87171}
+.sync-dot.loading{background:var(--bronze);animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.nav-btn{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:6px 12px;border-radius:6px;border:1px solid rgba(230,225,216,.2);background:rgba(255,255,255,.08);color:rgba(230,225,216,.75);cursor:pointer;transition:all .18s;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center}
+.nav-btn:hover{background:rgba(255,255,255,.16);color:var(--beige);border-color:rgba(230,225,216,.4)}
+.nav-user{font-size:11px;color:rgba(230,225,216,.6);white-space:nowrap}
+
+/* ── TABS ── */
+.tabs{background:rgba(15,61,62,.95);height:42px;display:flex;align-items:center;padding:0 16px;gap:4px;flex-shrink:0;overflow-x:auto}
+.tab-btn{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:8px 14px;border-radius:7px 7px 0 0;border:none;background:transparent;color:rgba(230,225,216,.55);cursor:pointer;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:var(--beige);background:rgba(255,255,255,.06)}
+.tab-btn.on{background:var(--board);color:var(--teal);font-weight:600}
+
+/* ── LOADING / LOGIN (idéntico a kanban.html) ── */
+.loading-overlay{position:fixed;inset:0;background:rgba(15,61,62,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:14px}
+.loading-overlay.hidden{display:none}
+.spinner{width:32px;height:32px;border-radius:50%;border:3px solid rgba(230,225,216,.15);border-top-color:var(--bronze);animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:12px;color:rgba(230,225,216,.5)}
+.login-screen{position:fixed;inset:0;background:var(--teal);display:flex;align-items:center;justify-content:center;z-index:1100;padding:20px}
+.login-screen.hidden{display:none}
+.login-box{background:var(--white);border-radius:16px;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center}
+.login-logo{font-size:22px;font-weight:600;color:var(--teal);letter-spacing:-.5px;margin-bottom:6px}
+.login-logo span{color:var(--bronze)}
+.login-subtitle{font-size:12px;color:rgba(43,43,43,.45);margin-bottom:32px}
+.google-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 16px;border-radius:9px;border:1.5px solid var(--beige-d);background:var(--white);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--dark);cursor:pointer;transition:all .18s;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.google-btn:hover{border-color:rgba(15,61,62,.3);background:var(--beige);box-shadow:0 3px 8px rgba(0,0,0,.1)}
+.login-error{font-size:11px;color:var(--red);margin-top:14px;min-height:16px}
+
+/* ── MAIN ── */
+.main{flex:1;overflow-y:auto;padding:18px}
+
+/* Resumen */
+.cards-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:18px}
+.stat-card{background:var(--white);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow-s)}
+.stat-card h4{font-size:11px;font-weight:600;color:rgba(43,43,43,.5);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px}
+.stat-amounts{display:flex;flex-direction:column;gap:2px}
+.stat-amount{font-size:20px;font-weight:600;color:var(--teal);line-height:1.3}
+.stat-amount.empty{font-size:13px;font-weight:500;color:rgba(43,43,43,.3)}
+.stat-card.alert h4{color:var(--red)}
+.stat-card.alert .stat-amount{color:var(--red)}
+
+.alerts-wrap{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:820px){.alerts-wrap{grid-template-columns:1fr}}
+.alert-col{background:var(--white);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow-s)}
+.alert-col h3{font-size:12px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.alert-col.vencidos h3{color:var(--red)}
+.alert-col.proximos h3{color:var(--amber)}
+.alert-dot{width:8px;height:8px;border-radius:50%}
+.alert-col.vencidos .alert-dot{background:var(--red)}
+.alert-col.proximos .alert-dot{background:var(--amber)}
+.alert-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 6px;border-radius:6px;cursor:pointer;transition:background .12s;font-size:12px}
+.alert-row:hover{background:var(--beige)}
+.alert-row+.alert-row{border-top:1px solid rgba(0,0,0,.05)}
+.alert-title{font-weight:500;color:var(--dark)}
+.alert-sub{font-size:10.5px;color:rgba(43,43,43,.45);margin-top:1px}
+.alert-meta{text-align:right;flex-shrink:0}
+.alert-days{font-size:10px;font-weight:600}
+.alert-col.vencidos .alert-days{color:var(--red)}
+.alert-col.proximos .alert-days{color:var(--amber)}
+.alert-amount{font-size:11.5px;font-weight:600;color:var(--dark)}
+.empty-msg{font-size:11.5px;color:rgba(43,43,43,.35);padding:10px 6px}
+
+/* Tabla genérica */
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.section-head h2{font-size:15px;font-weight:600;color:var(--teal)}
+.new-btn{font-family:'Inter',sans-serif;font-size:12px;font-weight:600;padding:8px 14px;border-radius:7px;border:none;background:var(--bronze);color:#fff;cursor:pointer;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
+.new-btn:hover{background:#9a7648}
+.data-table{width:100%;border-collapse:collapse;background:var(--white);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-s)}
+.data-table th{padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:rgba(43,43,43,.45);letter-spacing:1px;text-transform:uppercase;background:var(--beige);border-bottom:1px solid var(--beige-d)}
+.data-table td{padding:11px 14px;font-size:12.5px;border-bottom:1px solid rgba(0,0,0,.05);vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tbody tr:hover td{background:rgba(15,61,62,.03);cursor:pointer}
+.badge{font-size:10px;font-weight:600;padding:3px 9px;border-radius:99px;white-space:nowrap;display:inline-block}
+.badge.vencido{background:rgba(184,50,50,.12);color:var(--red)}
+.badge.proximo{background:rgba(201,122,26,.14);color:var(--amber)}
+.badge.ok{background:rgba(15,61,62,.08);color:var(--teal)}
+.badge.done{background:rgba(47,143,78,.13);color:var(--green)}
+.money{font-weight:600;white-space:nowrap}
+.money.usd{color:var(--bronze)}
+.table-empty{padding:40px 20px;text-align:center;color:rgba(43,43,43,.35);font-size:12.5px}
+
+/* ── FORM (modal) ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--white);border-radius:14px;padding:28px;width:100%;max-width:460px;box-shadow:var(--shadow-l);transform:translateY(10px);transition:transform .2s;max-height:90vh;overflow-y:auto}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal h3{font-size:16px;font-weight:600;color:var(--teal);margin-bottom:18px}
+.fl{display:block;font-size:11px;font-weight:500;color:rgba(43,43,43,.5);margin-bottom:5px}
+.fi,.fsel{width:100%;font-family:'Inter',sans-serif;font-size:13px;color:var(--dark);background:var(--beige);border:1.5px solid var(--beige-d);border-radius:8px;padding:9px 12px;outline:none;transition:border-color .15s,background .15s}
+.fi:focus,.fsel:focus,.fta:focus{border-color:var(--teal);background:var(--white)}
+.fta{width:100%;font-family:'Inter',sans-serif;font-size:13px;color:var(--dark);background:var(--beige);border:1.5px solid var(--beige-d);border-radius:8px;padding:9px 12px;outline:none;resize:none;min-height:70px;line-height:1.6}
+.frow{margin-bottom:14px}
+.frow2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.frow3{display:grid;grid-template-columns:1.4fr 1fr;gap:10px;margin-bottom:14px}
+.save-btn{width:100%;padding:11px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;letter-spacing:.4px;background:var(--teal);color:var(--beige);border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(15,61,62,.2);margin-top:4px}
+.save-btn:hover{background:var(--teal-h)}
+.delete-btn{width:100%;padding:9px;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;background:transparent;color:rgba(184,50,50,.7);border:1.5px solid rgba(184,50,50,.25);border-radius:8px;cursor:pointer;margin-top:8px}
+.delete-btn:hover{background:rgba(184,50,50,.06)}
+.modal-close-x{position:absolute;top:18px;right:18px;width:26px;height:26px;border-radius:6px;border:none;background:transparent;cursor:pointer;font-size:15px;color:rgba(43,43,43,.4)}
+.modal-close-x:hover{background:var(--beige)}
+.modal{position:relative}
+.check-row{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.check-row input{width:16px;height:16px;accent-color:var(--teal)}
+.check-row label{font-size:12.5px;color:var(--dark)}
+
+@media (max-width:640px){
+  .nav-user{display:none}
+  .data-table{font-size:11px}
+  .data-table th,.data-table td{padding:8px 8px}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">Be<span>•</span>Travel</div>
+    <div class="login-subtitle">Finanzas</div>
+    <button class="google-btn" id="btn-google-login" onclick="loginWithGoogle()">
+      <svg width="18" height="18" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Continuar con Google
+    </button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<div class="loading-overlay" id="lo">
+  <div class="spinner"></div>
+  <div class="loading-text">Conectando con Firebase…</div>
+</div>
+
+<!-- NAV -->
+<div class="nav">
+  <div class="nav-left">
+    <div class="nav-brand">Be<span>•</span>Travel — Finanzas</div>
+  </div>
+  <div class="nav-right">
+    <span class="nav-user" id="nav-user-name"></span>
+    <div class="sync-pill"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Conectando…</span></div>
+    <a class="nav-btn" href="kanban.html">Prospectos</a>
+    <button class="nav-btn" onclick="logout()">Salir</button>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab-btn on" data-tab="resumen" onclick="switchTab('resumen')">Resumen</button>
+  <button class="tab-btn" data-tab="cobros" onclick="switchTab('cobros')">Cobros de clientes</button>
+  <button class="tab-btn" data-tab="facturas" onclick="switchTab('facturas')">Facturas de proveedores</button>
+  <button class="tab-btn" data-tab="comisiones" onclick="switchTab('comisiones')">Comisiones a agentes</button>
+  <button class="tab-btn" data-tab="recordatorios" onclick="switchTab('recordatorios')">Recordatorios</button>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- RESUMEN -->
+  <div id="view-resumen">
+    <div class="cards-row" id="stat-cards"></div>
+    <div class="alerts-wrap">
+      <div class="alert-col vencidos">
+        <h3><span class="alert-dot"></span>Vencidos</h3>
+        <div id="list-vencidos"></div>
+      </div>
+      <div class="alert-col proximos">
+        <h3><span class="alert-dot"></span>Próximos 15 días</h3>
+        <div id="list-proximos"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COBROS -->
+  <div id="view-cobros" style="display:none">
+    <div class="section-head">
+      <h2>Cobros de clientes</h2>
+      <button class="new-btn" onclick="openForm('cobros')">+ Nuevo cobro</button>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Cliente</th><th>Concepto</th><th>Monto</th><th>Vencimiento</th><th>Estado</th></tr></thead>
+      <tbody id="tbody-cobros"></tbody>
+    </table>
+  </div>
+
+  <!-- FACTURAS -->
+  <div id="view-facturas" style="display:none">
+    <div class="section-head">
+      <h2>Facturas de proveedores</h2>
+      <button class="new-btn" onclick="openForm('facturas')">+ Nueva factura</button>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Proveedor</th><th>Concepto</th><th>Monto</th><th>Vencimiento</th><th>Estado</th></tr></thead>
+      <tbody id="tbody-facturas"></tbody>
+    </table>
+  </div>
+
+  <!-- COMISIONES -->
+  <div id="view-comisiones" style="display:none">
+    <div class="section-head">
+      <h2>Comisiones a agentes</h2>
+      <button class="new-btn" onclick="openForm('comisiones')">+ Nueva comisión</button>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Agente</th><th>Cliente / Reserva</th><th>Monto</th><th>Vencimiento</th><th>Estado</th></tr></thead>
+      <tbody id="tbody-comisiones"></tbody>
+    </table>
+  </div>
+
+  <!-- RECORDATORIOS -->
+  <div id="view-recordatorios" style="display:none">
+    <div class="section-head">
+      <h2>Recordatorios</h2>
+      <button class="new-btn" onclick="openForm('recordatorios')">+ Nuevo recordatorio</button>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Tipo</th><th>Título</th><th>Fecha</th><th>Recurrencia</th><th>Estado</th></tr></thead>
+      <tbody id="tbody-recordatorios"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- MODAL (formulario) -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeForm()">
+  <div class="modal" id="modal-box"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script>
+// ── FIREBASE ────────────────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey:"AIzaSyARJ-zVCszUxJ_Fs1UBBtMiQvjuDF98IYI",
+  authDomain:"betravel-kanban.firebaseapp.com",
+  databaseURL:"https://betravel-kanban-default-rtdb.firebaseio.com",
+  projectId:"betravel-kanban",
+  storageBucket:"betravel-kanban.firebasestorage.app",
+  messagingSenderId:"644328296494",
+  appId:"1:644328296494:web:aec3842de80021159f8fbf",
+});
+const db = firebase.database();
+const auth = firebase.auth();
+const REFS = {
+  cobros:        db.ref('finanzas/cobros'),
+  facturas:      db.ref('finanzas/facturas'),
+  comisiones:    db.ref('finanzas/comisiones'),
+  recordatorios: db.ref('finanzas/recordatorios'),
+};
+const META_PROV_REF   = db.ref('finanzas/meta/proveedores');
+const META_AGENTE_REF = db.ref('finanzas/meta/agentes');
+
+const DEFAULT_PROVEEDORES = ['Tucano Tours','Carnival Tours','RateHawk','MyBeds','Hotelbeds','Bedsonline','Freeway','Top Dest','Grupo Ocho'];
+
+// ── AUTH ───────────────────────────────────────────────────────────────────
+function loginWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  document.getElementById('login-error').textContent = '';
+  auth.signInWithPopup(provider).catch(err => {
+    document.getElementById('login-error').textContent = 'Error al iniciar sesión. Intentá de nuevo.';
+    console.error(err);
+  });
+}
+function logout() { auth.signOut(); }
+
+let listenersAttached = false;
+auth.onAuthStateChanged(user => {
+  const loginScreen = document.getElementById('login-screen');
+  if (user) {
+    loginScreen.classList.add('hidden');
+    document.getElementById('nav-user-name').textContent = user.displayName ? user.displayName.split(' ')[0] : user.email;
+    if (!listenersAttached) { attachListeners(); listenersAttached = true; }
+  } else {
+    loginScreen.classList.remove('hidden');
+    document.getElementById('lo').classList.add('hidden');
+  }
+});
+
+function setSyncStatus(status, label) {
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'sync-dot ' + status;
+  document.getElementById('sync-label').textContent = label;
+}
+
+// ── ESTADO LOCAL ───────────────────────────────────────────────────────────
+const STATE = { cobros:[], facturas:[], comisiones:[], recordatorios:[] };
+let META = { proveedores: [...DEFAULT_PROVEEDORES], agentes: [] };
+const loadedFlags = { cobros:false, facturas:false, comisiones:false, recordatorios:false };
+
+function attachListeners() {
+  setSyncStatus('loading','Cargando…');
+  Object.keys(REFS).forEach(key => {
+    REFS[key].on('value', snap => {
+      const val = snap.val() || {};
+      STATE[key] = Object.keys(val).map(id => ({ id, ...val[id] }));
+      loadedFlags[key] = true;
+      renderAll();
+      setSyncStatus('ok','Sincronizado');
+    }, err => { setSyncStatus('err','Error de sync'); console.error(err); });
+  });
+  META_PROV_REF.on('value', snap => {
+    const v = snap.val();
+    META.proveedores = v ? Object.values(v) : [...DEFAULT_PROVEEDORES];
+    if (!v) META_PROV_REF.set(DEFAULT_PROVEEDORES);
+  });
+  META_AGENTE_REF.on('value', snap => {
+    const v = snap.val();
+    META.agentes = v ? Object.values(v) : [];
+  });
+  document.getElementById('lo').classList.add('hidden');
+}
+
+// ── HELPERS ──────────────────────────────────────────────────────────────
+function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function diffDays(dateStr){
+  if (!dateStr) return null;
+  const d1 = new Date(dateStr+'T00:00:00');
+  const d2 = new Date(todayISO()+'T00:00:00');
+  return Math.round((d1-d2)/86400000);
+}
+function fmtMoney(monto, moneda){
+  const n = Number(monto)||0;
+  const s = n.toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0});
+  return (moneda==='USD' ? 'US$ ' : '$ ') + s;
+}
+function fmtDate(d){
+  if (!d) return '—';
+  const [y,m,day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+const DONE_STATES = { cobros:'cobrado', facturas:'pagada', comisiones:'pagada' };
+function isDone(kind, item){
+  if (kind==='recordatorios') return !!item.resuelto;
+  return item.estado === DONE_STATES[kind];
+}
+function urgency(kind, item){
+  if (isDone(kind, item)) return 'done';
+  const days = diffDays(item.fecha);
+  if (days==null) return 'ok';
+  if (days<0) return 'vencido';
+  if (days<=15) return 'proximo';
+  return 'ok';
+}
+function badgeHtml(kind, item){
+  const u = urgency(kind, item);
+  const labels = {
+    vencido:'Vencido', proximo:'Próximo', ok:'OK',
+    done: kind==='cobros'?'Cobrado': kind==='recordatorios'?'Resuelto':'Pagado'
+  };
+  return `<span class="badge ${u}">${labels[u]}</span>`;
+}
+
+// ── TABS ───────────────────────────────────────────────────────────────────
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('on', b.dataset.tab===tab));
+  ['resumen','cobros','facturas','comisiones','recordatorios'].forEach(t => {
+    document.getElementById('view-'+t).style.display = (t===tab ? '' : 'none');
+  });
+}
+
+// ── RENDER ───────────────────────────────────────────────────────────────
+function renderAll(){
+  renderTable('cobros');
+  renderTable('facturas');
+  renderTable('comisiones');
+  renderTable('recordatorios');
+  renderResumen();
+}
+
+const TABLE_CONFIG = {
+  cobros: {
+    cols: item => [escHtml(item.cliente||'—'), escHtml(item.concepto||''), `<span class="money ${item.moneda==='USD'?'usd':''}">${fmtMoney(item.monto,item.moneda)}</span>`, fmtDate(item.fecha), badgeHtml('cobros',item)]
+  },
+  facturas: {
+    cols: item => [escHtml(item.proveedor||'—'), escHtml(item.concepto||''), `<span class="money ${item.moneda==='USD'?'usd':''}">${fmtMoney(item.monto,item.moneda)}</span>`, fmtDate(item.fecha), badgeHtml('facturas',item)]
+  },
+  comisiones: {
+    cols: item => [escHtml(item.agente||'—'), escHtml(item.referencia||''), `<span class="money ${item.moneda==='USD'?'usd':''}">${fmtMoney(item.monto,item.moneda)}</span>`, fmtDate(item.fecha), badgeHtml('comisiones',item)]
+  },
+  recordatorios: {
+    cols: item => [escHtml(item.tipo||'Otro'), escHtml(item.titulo||'—'), fmtDate(item.fecha), escHtml(RECUR_LABELS[item.recurrencia]||'Ninguna'), badgeHtml('recordatorios',item)]
+  }
+};
+const RECUR_LABELS = { ninguna:'Ninguna', semanal:'Semanal', quincenal:'Quincenal', mensual:'Mensual' };
+
+function renderTable(kind){
+  const tbody = document.getElementById('tbody-'+kind);
+  const items = [...STATE[kind]].sort((a,b) => (a.fecha||'9999').localeCompare(b.fecha||'9999'));
+  if (!items.length){
+    tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Todavía no cargaste nada acá.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = items.map(item => {
+    const cols = TABLE_CONFIG[kind].cols(item).map(c => `<td>${c}</td>`).join('');
+    return `<tr onclick="openForm('${kind}','${item.id}')">${cols}</tr>`;
+  }).join('');
+}
+
+function renderResumen(){
+  // Cards de totales
+  const sumPend = (kind, doneVal, field) => {
+    const totals = { ARS:0, USD:0 };
+    STATE[kind].forEach(item => {
+      if (item.estado === doneVal) return;
+      totals[item.moneda==='USD'?'USD':'ARS'] += Number(item.monto)||0;
+    });
+    return totals;
+  };
+  const cobrosT = sumPend('cobros','cobrado');
+  const facturasT = sumPend('facturas','pagada');
+  const comisionesT = sumPend('comisiones','pagada');
+
+  const allItems = [];
+  ['cobros','facturas','comisiones','recordatorios'].forEach(kind => {
+    STATE[kind].forEach(item => {
+      if (isDone(kind, item)) return;
+      const days = diffDays(item.fecha);
+      if (days==null) return;
+      allItems.push({ kind, item, days });
+    });
+  });
+  const vencidos = allItems.filter(x => x.days<0).sort((a,b)=>a.days-b.days);
+  const proximos = allItems.filter(x => x.days>=0 && x.days<=15).sort((a,b)=>a.days-b.days);
+
+  const cardAmounts = (t) => {
+    const parts = [];
+    if (t.ARS) parts.push(`<div class="stat-amount">${fmtMoney(t.ARS,'ARS')}</div>`);
+    if (t.USD) parts.push(`<div class="stat-amount" style="color:var(--bronze)">${fmtMoney(t.USD,'USD')}</div>`);
+    if (!parts.length) parts.push(`<div class="stat-amount empty">Sin pendientes</div>`);
+    return parts.join('');
+  };
+
+  document.getElementById('stat-cards').innerHTML = `
+    <div class="stat-card"><h4>Por cobrar de clientes</h4><div class="stat-amounts">${cardAmounts(cobrosT)}</div></div>
+    <div class="stat-card"><h4>Por pagar a proveedores</h4><div class="stat-amounts">${cardAmounts(facturasT)}</div></div>
+    <div class="stat-card"><h4>Comisiones pendientes</h4><div class="stat-amounts">${cardAmounts(comisionesT)}</div></div>
+    <div class="stat-card alert"><h4>Alertas activas</h4><div class="stat-amounts"><div class="stat-amount">${vencidos.length + proximos.length}</div></div></div>
+  `;
+
+  const rowHtml = (x, isOverdue) => {
+    const title = TITLE_FIELD[x.kind](x.item);
+    const money = x.item.monto ? `<div class="alert-amount">${fmtMoney(x.item.monto, x.item.moneda)}</div>` : '';
+    const daysLabel = isOverdue ? `Hace ${Math.abs(x.days)}d` : (x.days===0?'Hoy':`En ${x.days}d`);
+    return `<div class="alert-row" onclick="jumpTo('${x.kind}','${x.item.id}')">
+      <div><div class="alert-title">${escHtml(title)}</div><div class="alert-sub">${KIND_LABEL[x.kind]}</div></div>
+      <div class="alert-meta"><div class="alert-days">${daysLabel}</div>${money}</div>
+    </div>`;
+  };
+  document.getElementById('list-vencidos').innerHTML = vencidos.length
+    ? vencidos.map(x => rowHtml(x,true)).join('')
+    : `<div class="empty-msg">Sin vencidos. 👍</div>`;
+  document.getElementById('list-proximos').innerHTML = proximos.length
+    ? proximos.map(x => rowHtml(x,false)).join('')
+    : `<div class="empty-msg">Nada en los próximos 15 días.</div>`;
+}
+const TITLE_FIELD = {
+  cobros: i => i.cliente || 'Cobro sin nombre',
+  facturas: i => i.proveedor || 'Factura sin proveedor',
+  comisiones: i => i.agente || 'Comisión sin agente',
+  recordatorios: i => i.titulo || 'Recordatorio',
+};
+const KIND_LABEL = { cobros:'Cobro de cliente', facturas:'Factura de proveedor', comisiones:'Comisión a agente', recordatorios:'Recordatorio' };
+
+function jumpTo(kind, id){
+  switchTab(kind);
+  openForm(kind, id);
+}
+
+// ── FORMULARIO (modal) ─────────────────────────────────────────────────────
+let formCtx = { kind:null, id:null };
+
+const FORM_BUILDERS = {
+  cobros: (item) => `
+    <h3>${item ? 'Editar cobro' : 'Nuevo cobro'}</h3>
+    <div class="frow"><label class="fl">Cliente</label><input class="fi" id="f-cliente" value="${escHtml(item?.cliente)}" placeholder="Nombre del cliente / empresa"></div>
+    <div class="frow"><label class="fl">Concepto</label><input class="fi" id="f-concepto" value="${escHtml(item?.concepto)}" placeholder="Ej: Saldo paquete Bariloche"></div>
+    <div class="frow3">
+      <div><label class="fl">Monto</label><input class="fi" id="f-monto" type="number" step="0.01" value="${item?.monto??''}"></div>
+      <div><label class="fl">Moneda</label>${monedaSelect(item?.moneda)}</div>
+    </div>
+    <div class="frow2">
+      <div><label class="fl">Vencimiento</label><input class="fi" id="f-fecha" type="date" value="${item?.fecha||''}"></div>
+      <div><label class="fl">Estado</label><select class="fsel" id="f-estado">
+        ${selOpts(['pendiente','parcial','cobrado'],['Pendiente','Parcial','Cobrado'],item?.estado||'pendiente')}
+      </select></div>
+    </div>
+    <div class="frow"><label class="fl">Medio de pago</label><select class="fsel" id="f-medio">
+      ${selOpts(['','transferencia','efectivo','tarjeta','cheque','otro'],['—','Transferencia','Efectivo','Tarjeta','Cheque','Otro'],item?.medio||'')}
+    </select></div>
+    <div class="frow"><label class="fl">Notas</label><textarea class="fta" id="f-notas" placeholder="Contexto, acuerdos…">${escHtml(item?.notas)}</textarea></div>
+  `,
+  facturas: (item) => `
+    <h3>${item ? 'Editar factura' : 'Nueva factura de proveedor'}</h3>
+    <div class="frow"><label class="fl">Proveedor</label><input class="fi" id="f-proveedor" list="dl-proveedores" value="${escHtml(item?.proveedor)}" placeholder="Nombre del proveedor">
+      <datalist id="dl-proveedores">${META.proveedores.map(p=>`<option value="${escHtml(p)}">`).join('')}</datalist>
+    </div>
+    <div class="frow"><label class="fl">Concepto</label><input class="fi" id="f-concepto" value="${escHtml(item?.concepto)}" placeholder="Ej: Aéreo grupo X"></div>
+    <div class="frow3">
+      <div><label class="fl">Monto</label><input class="fi" id="f-monto" type="number" step="0.01" value="${item?.monto??''}"></div>
+      <div><label class="fl">Moneda</label>${monedaSelect(item?.moneda)}</div>
+    </div>
+    <div class="frow2">
+      <div><label class="fl">Emisión</label><input class="fi" id="f-emision" type="date" value="${item?.emision||''}"></div>
+      <div><label class="fl">Vencimiento</label><input class="fi" id="f-fecha" type="date" value="${item?.fecha||''}"></div>
+    </div>
+    <div class="frow"><label class="fl">Estado</label><select class="fsel" id="f-estado">
+      ${selOpts(['pendiente','pagada'],['Pendiente','Pagada'],item?.estado||'pendiente')}
+    </select></div>
+    <div class="frow"><label class="fl">Notas</label><textarea class="fta" id="f-notas" placeholder="Nº de factura, referencia…">${escHtml(item?.notas)}</textarea></div>
+  `,
+  comisiones: (item) => `
+    <h3>${item ? 'Editar comisión' : 'Nueva comisión a agente'}</h3>
+    <div class="frow"><label class="fl">Agente</label><input class="fi" id="f-agente" list="dl-agentes" value="${escHtml(item?.agente)}" placeholder="Nombre del agente">
+      <datalist id="dl-agentes">${META.agentes.map(a=>`<option value="${escHtml(a)}">`).join('')}</datalist>
+    </div>
+    <div class="frow"><label class="fl">Cliente / Reserva</label><input class="fi" id="f-referencia" value="${escHtml(item?.referencia)}" placeholder="A qué venta corresponde"></div>
+    <div class="frow3">
+      <div><label class="fl">Monto</label><input class="fi" id="f-monto" type="number" step="0.01" value="${item?.monto??''}"></div>
+      <div><label class="fl">Moneda</label>${monedaSelect(item?.moneda)}</div>
+    </div>
+    <div class="frow2">
+      <div><label class="fl">Vencimiento</label><input class="fi" id="f-fecha" type="date" value="${item?.fecha||''}"></div>
+      <div><label class="fl">Estado</label><select class="fsel" id="f-estado">
+        ${selOpts(['pendiente','pagada'],['Pendiente','Pagada'],item?.estado||'pendiente')}
+      </select></div>
+    </div>
+    <div class="frow"><label class="fl">Notas</label><textarea class="fta" id="f-notas" placeholder="Condiciones, % de comisión…">${escHtml(item?.notas)}</textarea></div>
+  `,
+  recordatorios: (item) => `
+    <h3>${item ? 'Editar recordatorio' : 'Nuevo recordatorio'}</h3>
+    <div class="frow2">
+      <div><label class="fl">Tipo</label><select class="fsel" id="f-tipo">
+        ${selOpts(['BSP','Reserva','Pago','Otro'],['BSP','Reserva','Pago','Otro'],item?.tipo||'BSP')}
+      </select></div>
+      <div><label class="fl">Recurrencia</label><select class="fsel" id="f-recurrencia">
+        ${selOpts(['ninguna','semanal','quincenal','mensual'],['Ninguna','Semanal','Quincenal','Mensual'],item?.recurrencia||'ninguna')}
+      </select></div>
+    </div>
+    <div class="frow"><label class="fl">Título</label><input class="fi" id="f-titulo" value="${escHtml(item?.titulo)}" placeholder="Ej: Cierre de período BSP"></div>
+    <div class="frow2">
+      <div><label class="fl">Fecha</label><input class="fi" id="f-fecha" type="date" value="${item?.fecha||''}"></div>
+      <div><label class="fl">Monto (opcional)</label><input class="fi" id="f-monto" type="number" step="0.01" value="${item?.monto??''}"></div>
+    </div>
+    <div class="frow"><label class="fl">Moneda</label>${monedaSelect(item?.moneda)}</div>
+    <div class="frow"><label class="fl">Notas</label><textarea class="fta" id="f-notas" placeholder="Detalle…">${escHtml(item?.notas)}</textarea></div>
+    <div class="check-row"><input type="checkbox" id="f-resuelto" ${item?.resuelto?'checked':''}><label for="f-resuelto">Resuelto</label></div>
+  `
+};
+
+function monedaSelect(val){
+  return `<select class="fsel" id="f-moneda">${selOpts(['ARS','USD'],['ARS','USD'],val||'ARS')}</select>`;
+}
+function selOpts(values, labels, current){
+  return values.map((v,i) => `<option value="${v}" ${v===current?'selected':''}>${labels[i]}</option>`).join('');
+}
+
+function openForm(kind, id){
+  formCtx = { kind, id: id||null };
+  const item = id ? STATE[kind].find(x => x.id===id) : null;
+  document.getElementById('modal-box').innerHTML = `
+    <button class="modal-close-x" onclick="closeForm()">✕</button>
+    ${FORM_BUILDERS[kind](item)}
+    <button class="save-btn" onclick="saveForm()">Guardar</button>
+    ${item ? `<button class="delete-btn" onclick="deleteForm()">Eliminar</button>` : ''}
+  `;
+  document.getElementById('modal').classList.add('open');
+}
+function closeForm(){
+  document.getElementById('modal').classList.remove('open');
+}
+
+const FIELD_MAP = {
+  cobros: ['cliente','concepto','monto','moneda','fecha','estado','medio','notas'],
+  facturas: ['proveedor','concepto','monto','moneda','emision','fecha','estado','notas'],
+  comisiones: ['agente','referencia','monto','moneda','fecha','estado','notas'],
+  recordatorios: ['tipo','titulo','fecha','recurrencia','monto','moneda','notas'],
+};
+
+function saveForm(){
+  const { kind, id } = formCtx;
+  const val = {};
+  FIELD_MAP[kind].forEach(f => {
+    const el = document.getElementById('f-'+f);
+    if (!el) return;
+    val[f] = f==='monto' ? (parseFloat(el.value)||0) : el.value.trim();
+  });
+  if (kind==='recordatorios'){
+    val.resuelto = document.getElementById('f-resuelto').checked;
+  }
+  const ref = id ? REFS[kind].child(id) : REFS[kind].push();
+  ref.set(val).then(() => {
+    // Guardar proveedor/agente nuevo en la lista de sugerencias
+    if (kind==='facturas' && val.proveedor && !META.proveedores.includes(val.proveedor)){
+      META_PROV_REF.set([...META.proveedores, val.proveedor]);
+    }
+    if (kind==='comisiones' && val.agente && !META.agentes.includes(val.agente)){
+      META_AGENTE_REF.set([...META.agentes, val.agente]);
+    }
+  }).catch(err => console.error(err));
+  closeForm();
+}
+
+function deleteForm(){
+  const { kind, id } = formCtx;
+  if (!id) return;
+  if (!confirm('¿Eliminar este registro? No se puede deshacer.')) return;
+  REFS[kind].child(id).remove();
+  closeForm();
+}
+</script>
+</body>
+</html>
