@@ -354,6 +354,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
     </button>
     <button class="nav-btn hide-mobile" onclick="openManageTags('seg')">Segmentos</button>
     <button class="nav-btn hide-mobile" onclick="openManageTags('pri')">Prioridades</button>
+    <a class="nav-btn hide-mobile" href="finanzas.html">Finanzas</a>
     <!-- Menú mobile para acciones extra -->
     <button class="nav-btn show-mobile" onclick="openMobileMenu()" title="Más opciones">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="5" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="19" r="1.5" fill="currentColor"/></svg>
@@ -472,6 +473,10 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 <div class="mobile-menu-overlay" id="mob-overlay" onclick="closeMobileMenu()"></div>
 <div class="mobile-menu-sheet" id="mob-sheet">
   <div class="mobile-menu-handle"></div>
+  <div class="mobile-menu-item" onclick="window.location.href='finanzas.html'">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    Finanzas
+  </div>
   <div class="mobile-menu-item" onclick="closeMobileMenu();openManageTags('seg')">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4"/><path d="M16 11h6M19 8v6"/></svg>
     Gestionar segmentos
