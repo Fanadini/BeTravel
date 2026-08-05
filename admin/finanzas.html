@@ -307,6 +307,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
       <thead><tr><th>Tipo</th><th>Título</th><th>Fecha</th><th>Recurrencia</th><th>Estado</th></tr></thead>
       <tbody id="tbody-recordatorios"></tbody>
     </table>
+    <div class="upload-hint" id="recordatorios-hidden-hint" style="margin-top:8px"></div>
   </div>
 
 </div>
@@ -510,9 +511,17 @@ const RECUR_LABELS = { ninguna:'Ninguna', semanal:'Semanal', quincenal:'Quincena
 
 function renderTable(kind){
   const tbody = document.getElementById('tbody-'+kind);
-  const items = [...STATE[kind]].sort((a,b) => (a.fecha||'9999').localeCompare(b.fecha||'9999'));
+  let items = [...STATE[kind]].sort((a,b) => (a.fecha||'9999').localeCompare(b.fecha||'9999'));
+  let hiddenCount = 0;
+  if (kind==='recordatorios'){
+    const total = items.length;
+    items = items.filter(item => !item.fecha || diffDays(item.fecha) >= 0);
+    hiddenCount = total - items.length;
+    const hint = document.getElementById('recordatorios-hidden-hint');
+    if (hint) hint.textContent = hiddenCount ? `${hiddenCount} recordatorio(s) pasado(s) oculto(s).` : '';
+  }
   if (!items.length){
-    tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Todavía no cargaste nada acá.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="table-empty">${hiddenCount ? 'Todos los recordatorios cargados ya pasaron.' : 'Todavía no cargaste nada acá.'}</td></tr>`;
     return;
   }
   tbody.innerHTML = items.map(item => {
