@@ -71,7 +71,11 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .alerts-wrap{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media (max-width:820px){.alerts-wrap{grid-template-columns:1fr}}
 .alert-col{background:var(--white);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow-s)}
-.alert-col h3{font-size:12px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.alert-col h3{font-size:12px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none}
+.alert-col h3 .chevron{margin-left:auto;font-size:10px;opacity:.5;transition:transform .15s}
+.alert-col.collapsed h3 .chevron{transform:rotate(-90deg)}
+.alert-col.collapsed #list-vencidos,.alert-col.collapsed #list-proximos{display:none}
+.alert-count{font-size:10.5px;font-weight:600;opacity:.6}
 .alert-col.vencidos h3{color:var(--red)}
 .alert-col.proximos h3{color:var(--amber)}
 .alert-dot{width:8px;height:8px;border-radius:50%}
@@ -247,8 +251,8 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   <div id="view-resumen">
     <div class="cards-row" id="stat-cards"></div>
     <div class="alerts-wrap">
-      <div class="alert-col vencidos">
-        <h3><span class="alert-dot"></span>Vencidos</h3>
+      <div class="alert-col vencidos collapsed" id="col-vencidos">
+        <h3 onclick="toggleAlertCol('col-vencidos')"><span class="alert-dot"></span>Vencidos <span id="count-vencidos"></span><span class="chevron">▾</span></h3>
         <div id="list-vencidos"></div>
       </div>
       <div class="alert-col proximos">
@@ -298,7 +302,8 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   <div id="view-recordatorios" style="display:none">
     <div class="section-head">
       <h2>Recordatorios</h2>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="new-btn outline" onclick="resolverPasados()">Marcar pasados como resueltos</button>
         <button class="new-btn outline" onclick="importBspCalendar()">Importar calendario BSP 2026</button>
         <button class="new-btn" onclick="openForm('recordatorios')">+ Nuevo recordatorio</button>
       </div>
@@ -394,6 +399,7 @@ function setSyncStatus(status, label) {
 // ── ESTADO LOCAL ───────────────────────────────────────────────────────────
 const STATE = { reservas:[], facturas:[], comisiones:[], recordatorios:[] };
 let META = { proveedores: [...DEFAULT_PROVEEDORES], agentes: [], ejecutivos: [] };
+const loadedOnce = { reservas:false, recordatorios:false };
 
 function attachListeners() {
   setSyncStatus('loading','Cargando…');
@@ -401,8 +407,10 @@ function attachListeners() {
     REFS[key].on('value', snap => {
       const val = snap.val() || {};
       STATE[key] = Object.keys(val).map(id => ({ id, ...val[id] }));
+      if (key==='reservas' || key==='recordatorios') loadedOnce[key] = true;
       renderAll();
       setSyncStatus('ok','Sincronizado');
+      if (loadedOnce.reservas && loadedOnce.recordatorios) syncBspRecordatorios();
     }, err => { setSyncStatus('err','Error de sync'); console.error(err); });
   });
   META_PROV_REF.on('value', snap => {
@@ -477,6 +485,10 @@ const ESTADO_RESERVA_LABELS = { cotizada:'Cotizada', confirmada:'Confirmada', pa
 function estadoReservaBadgeHtml(estado){
   const e = estado || 'cotizada';
   return `<span class="badge estado-${e}">${ESTADO_RESERVA_LABELS[e] || e}</span>`;
+}
+
+function toggleAlertCol(id){
+  document.getElementById(id).classList.toggle('collapsed');
 }
 
 // ── TABS ───────────────────────────────────────────────────────────────────
@@ -626,6 +638,7 @@ function renderResumen(){
       <div class="alert-meta"><div class="alert-days">${daysLabel}</div>${money}</div>
     </div>`;
   };
+  document.getElementById('count-vencidos').textContent = vencidos.length ? `(${vencidos.length})` : '';
   document.getElementById('list-vencidos').innerHTML = vencidos.length
     ? vencidos.map(x => rowHtml(x,true)).join('')
     : `<div class="empty-msg">Sin vencidos. 👍</div>`;
@@ -768,29 +781,41 @@ function deleteForm(){
 }
 
 // ── CALENDARIO BSP (pago semanal a la agencia mayorista, aéreo) ─────────────
-// Fuente: calendario BSP 2026 de agencias (IATA). [período, fecha de pago]
+// Fuente: calendario BSP 2026 de agencias (IATA). [período, desde, hasta, fecha de pago]
 const BSP_CALENDAR_2026 = [
-  ['20260101W','2026-01-12'], ['20260102W','2026-01-20'], ['20260103W','2026-01-27'], ['20260104W','2026-02-04'],
-  ['20260201W','2026-02-11'], ['20260202W','2026-02-20'], ['20260203W','2026-02-26'], ['20260204W','2026-03-04'],
-  ['20260301W','2026-03-11'], ['20260302W','2026-03-17'], ['20260303W','2026-03-26'], ['20260304W','2026-04-07'],
-  ['20260401W','2026-04-10'], ['20260402W','2026-04-20'], ['20260403W','2026-04-27'], ['20260404W','2026-05-06'],
-  ['20260501W','2026-05-12'], ['20260502W','2026-05-20'], ['20260503W','2026-05-28'], ['20260504W','2026-06-04'],
-  ['20260601W','2026-06-10'], ['20260602W','2026-06-19'], ['20260603W','2026-06-26'], ['20260604W','2026-07-06'],
-  ['20260701W','2026-07-13'], ['20260702W','2026-07-20'], ['20260703W','2026-07-27'], ['20260704W','2026-08-05'],
-  ['20260801W','2026-08-12'], ['20260802W','2026-08-20'], ['20260803W','2026-08-26'], ['20260804W','2026-09-04'],
-  ['20260901W','2026-09-11'], ['20260902W','2026-09-21'], ['20260903W','2026-09-28'], ['20260904W','2026-10-05'],
-  ['20261001W','2026-10-13'], ['20261002W','2026-10-20'], ['20261003W','2026-10-27'], ['20261004W','2026-11-05'],
-  ['20261101W','2026-11-11'], ['20261102W','2026-11-18'], ['20261103W','2026-11-26'], ['20261104W','2026-12-04'],
-  ['20261201W','2026-12-11'], ['20261202W','2026-12-18'], ['20261203W','2026-12-28'], ['20261204W','2027-01-06'],
+  ['20260101W','2026-01-01','2026-01-07','2026-01-12'], ['20260102W','2026-01-08','2026-01-15','2026-01-20'],
+  ['20260103W','2026-01-16','2026-01-22','2026-01-27'], ['20260104W','2026-01-23','2026-01-31','2026-02-04'],
+  ['20260201W','2026-02-01','2026-02-07','2026-02-11'], ['20260202W','2026-02-08','2026-02-15','2026-02-20'],
+  ['20260203W','2026-02-16','2026-02-22','2026-02-26'], ['20260204W','2026-02-23','2026-02-28','2026-03-04'],
+  ['20260301W','2026-03-01','2026-03-07','2026-03-11'], ['20260302W','2026-03-08','2026-03-15','2026-03-17'],
+  ['20260303W','2026-03-16','2026-03-22','2026-03-26'], ['20260304W','2026-03-23','2026-03-31','2026-04-07'],
+  ['20260401W','2026-04-01','2026-04-07','2026-04-10'], ['20260402W','2026-04-08','2026-04-15','2026-04-20'],
+  ['20260403W','2026-04-16','2026-04-22','2026-04-27'], ['20260404W','2026-04-23','2026-04-30','2026-05-06'],
+  ['20260501W','2026-05-01','2026-05-07','2026-05-12'], ['20260502W','2026-05-08','2026-05-15','2026-05-20'],
+  ['20260503W','2026-05-16','2026-05-22','2026-05-28'], ['20260504W','2026-05-23','2026-05-31','2026-06-04'],
+  ['20260601W','2026-06-01','2026-06-07','2026-06-10'], ['20260602W','2026-06-08','2026-06-15','2026-06-19'],
+  ['20260603W','2026-06-16','2026-06-22','2026-06-26'], ['20260604W','2026-06-23','2026-06-30','2026-07-06'],
+  ['20260701W','2026-07-01','2026-07-07','2026-07-13'], ['20260702W','2026-07-08','2026-07-15','2026-07-20'],
+  ['20260703W','2026-07-16','2026-07-22','2026-07-27'], ['20260704W','2026-07-23','2026-07-31','2026-08-05'],
+  ['20260801W','2026-08-01','2026-08-07','2026-08-12'], ['20260802W','2026-08-08','2026-08-15','2026-08-20'],
+  ['20260803W','2026-08-16','2026-08-22','2026-08-26'], ['20260804W','2026-08-23','2026-08-31','2026-09-04'],
+  ['20260901W','2026-09-01','2026-09-07','2026-09-11'], ['20260902W','2026-09-08','2026-09-15','2026-09-21'],
+  ['20260903W','2026-09-16','2026-09-22','2026-09-28'], ['20260904W','2026-09-23','2026-09-30','2026-10-05'],
+  ['20261001W','2026-10-01','2026-10-07','2026-10-13'], ['20261002W','2026-10-08','2026-10-15','2026-10-20'],
+  ['20261003W','2026-10-16','2026-10-22','2026-10-27'], ['20261004W','2026-10-23','2026-10-31','2026-11-05'],
+  ['20261101W','2026-11-01','2026-11-07','2026-11-11'], ['20261102W','2026-11-08','2026-11-15','2026-11-18'],
+  ['20261103W','2026-11-16','2026-11-22','2026-11-26'], ['20261104W','2026-11-23','2026-11-30','2026-12-04'],
+  ['20261201W','2026-12-01','2026-12-07','2026-12-11'], ['20261202W','2026-12-08','2026-12-15','2026-12-18'],
+  ['20261203W','2026-12-16','2026-12-22','2026-12-28'], ['20261204W','2026-12-23','2026-12-31','2027-01-06'],
 ];
 
 function importBspCalendar(){
   const existentes = new Set(STATE.recordatorios.filter(r => r.tipo==='BSP').map(r => r.fecha));
-  const nuevos = BSP_CALENDAR_2026.filter(([, fecha]) => !existentes.has(fecha));
+  const nuevos = BSP_CALENDAR_2026.filter(([, , , fecha]) => !existentes.has(fecha));
   if (!nuevos.length){ alert('Ya están cargadas todas las fechas de pago BSP 2026.'); return; }
   if (!confirm(`Se van a cargar ${nuevos.length} recordatorio(s) de pago BSP (calendario semanal 2026 de agencias, aéreo). ¿Continuar?`)) return;
   const updates = {};
-  nuevos.forEach(([periodo, fecha]) => {
+  nuevos.forEach(([periodo, , , fecha]) => {
     const key = REFS.recordatorios.push().key;
     updates[key] = {
       tipo:'BSP',
@@ -808,11 +833,79 @@ function importBspCalendar(){
     .catch(err => { console.error(err); alert('Error al importar. Revisá tu conexión o los permisos de la base.'); });
 }
 
+function resolverPasados(){
+  const pasados = STATE.recordatorios.filter(r => r.fecha && diffDays(r.fecha) < 0 && !r.resuelto);
+  if (!pasados.length){ alert('No hay recordatorios pasados sin resolver.'); return; }
+  if (!confirm(`Se van a marcar como resueltos ${pasados.length} recordatorio(s) pasado(s). ¿Continuar?`)) return;
+  const updates = {};
+  pasados.forEach(r => { updates[r.id + '/resuelto'] = true; });
+  REFS.recordatorios.update(updates)
+    .then(() => alert(`Se marcaron ${pasados.length} recordatorio(s) como resueltos.`))
+    .catch(err => { console.error(err); alert('Error al actualizar. Revisá tu conexión o los permisos de la base.'); });
+}
+
+// Encuentra a qué período BSP corresponde una fecha de emisión de billete aéreo.
+function findBspPeriod(fechaEmision){
+  return BSP_CALENDAR_2026.find(([, desde, hasta]) => fechaEmision >= desde && fechaEmision <= hasta) || null;
+}
+
+function buildAutoNote(arsSum, usdSum){
+  const parts = [];
+  if (arsSum>0) parts.push(fmtMoney(arsSum,'ARS'));
+  if (usdSum>0) parts.push(fmtMoney(usdSum,'USD'));
+  return parts.length ? `[Auto] Costo aéreo emitido en este período: ${parts.join(' + ')}.` : '';
+}
+function mergeAutoNote(existingNotas, autoLine){
+  const lines = (existingNotas||'').split('\n').filter(l => !l.startsWith('[Auto]'));
+  if (autoLine) lines.unshift(autoLine);
+  return lines.join('\n').trim();
+}
+
+// Suma el costo de los aéreos (según fecha de emisión) al recordatorio BSP del período
+// que corresponda, creándolo si todavía no existe. Se dispara solo cuando ya cargaron
+// tanto las reservas como los recordatorios, y solo escribe si algo realmente cambió.
+function syncBspRecordatorios(){
+  const sums = {};
+  STATE.reservas.forEach(r => {
+    if (!(r.servicios||[]).includes('Aéreo')) return;
+    const costo = Number(r.aereoCosto)||0;
+    if (!costo || !r.aereoFechaEmision) return;
+    const period = findBspPeriod(r.aereoFechaEmision);
+    if (!period) return;
+    const moneda = r.aereoMoneda==='USD' ? 'USD' : 'ARS';
+    if (!sums[period[0]]) sums[period[0]] = { ARS:0, USD:0, fecha: period[3] };
+    sums[period[0]][moneda] += costo;
+  });
+
+  const updates = {};
+  Object.keys(sums).forEach(periodo => {
+    const { ARS: arsSum, USD: usdSum, fecha } = sums[periodo];
+    const autoLine = buildAutoNote(arsSum, usdSum);
+    if (!autoLine) return;
+    const monto = arsSum>0 ? arsSum : usdSum;
+    const moneda = arsSum>0 ? 'ARS' : 'USD';
+    const rec = STATE.recordatorios.find(x => x.tipo==='BSP' && x.fecha===fecha);
+    if (rec){
+      const newNotas = mergeAutoNote(rec.notas, autoLine);
+      if (Number(rec.monto)!==monto || rec.moneda!==moneda || rec.notas!==newNotas){
+        REFS.recordatorios.child(rec.id).update({ monto, moneda, notas:newNotas });
+      }
+    } else {
+      const key = REFS.recordatorios.push().key;
+      updates[key] = {
+        tipo:'BSP', titulo:`Pago BSP aéreo — período ${periodo}`, fecha,
+        recurrencia:'semanal', monto, moneda, notas:autoLine, resuelto:false,
+      };
+    }
+  });
+  if (Object.keys(updates).length) REFS.recordatorios.update(updates);
+}
+
 // ── RESERVA (panel / carpeta) ───────────────────────────────────────────────
 let reservaCtx = { id:null, data:null };
 
 function blankReserva(){
-  return { cliente:'', concepto:'', servicios:[], moneda:'ARS', valorCotizado:0, costoTotal:0, tipoCambioCotizacion:'', estado:'cotizada', fechaCotizacion:'', fecha:'', pasajeros:'', notas:'', pagos:[], reparto:[], comprobantes:[] };
+  return { cliente:'', concepto:'', servicios:[], moneda:'ARS', valorCotizado:0, costoTotal:0, tipoCambioCotizacion:'', estado:'cotizada', fechaCotizacion:'', fecha:'', pasajeros:'', aereoCosto:'', aereoMoneda:'', aereoFechaEmision:'', notas:'', pagos:[], reparto:[], comprobantes:[] };
 }
 function toEditable(r){
   return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes) };
@@ -934,8 +1027,17 @@ function renderReservaPanel(){
       <div class="frow">
         <label class="fl">Servicios incluidos</label>
         <div class="servicio-chips" id="servicio-chips">
-          ${SERVICIO_TIPOS.map(s => `<button type="button" class="servicio-chip ${(d.servicios||[]).includes(s)?'on':''}" data-servicio="${s}" onclick="this.classList.toggle('on')">${s}</button>`).join('')}
+          ${SERVICIO_TIPOS.map(s => `<button type="button" class="servicio-chip ${(d.servicios||[]).includes(s)?'on':''}" data-servicio="${s}" onclick="toggleServicioChip(this)">${s}</button>`).join('')}
         </div>
+      </div>
+      <div class="psec" id="aereo-fields" style="${(d.servicios||[]).includes('Aéreo') ? '' : 'display:none'};background:var(--teal-l);border-radius:8px;padding:12px;margin:0 0 14px">
+        <div class="psec-title" style="margin-bottom:8px">Aéreo — para BSP</div>
+        <div class="frow3">
+          <div><label class="fl">Costo del aéreo</label><input class="fi" id="r-aereo-costo" type="number" step="0.01" value="${d.aereoCosto??''}"></div>
+          <div><label class="fl">Moneda</label><select class="fsel" id="r-aereo-moneda">${selOpts(['ARS','USD'],['ARS','USD'],d.aereoMoneda||d.moneda||'ARS')}</select></div>
+        </div>
+        <div class="frow" style="margin-bottom:0"><label class="fl">Fecha de emisión del billete</label><input class="fi" id="r-aereo-fecha-emision" type="date" value="${d.aereoFechaEmision||''}"></div>
+        <div class="upload-hint">Con esto el costo se suma solo al recordatorio de pago BSP del período que corresponda.</div>
       </div>
       <div class="frow2">
         <div><label class="fl">Moneda</label><select class="fsel" id="r-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],d.moneda||'ARS')}</select></div>
@@ -997,15 +1099,28 @@ function addComprobante(){
   document.getElementById('comprobantes-list').insertAdjacentHTML('beforeend', comprobanteRowHtml({ id:'new_'+uid(), nombre:'', url:'' }));
 }
 
+function toggleServicioChip(btn){
+  btn.classList.toggle('on');
+  if (btn.dataset.servicio === 'Aéreo'){
+    const box = document.getElementById('aereo-fields');
+    if (box) box.style.display = btn.classList.contains('on') ? '' : 'none';
+  }
+}
+
 function saveReserva(){
+  const servicios = [...document.querySelectorAll('.servicio-chip.on')].map(el => el.dataset.servicio);
+  const esAereo = servicios.includes('Aéreo');
   const val = {
     cliente: gv('r-cliente'), concepto: gv('r-concepto'),
-    servicios: [...document.querySelectorAll('.servicio-chip.on')].map(el => el.dataset.servicio),
+    servicios,
     moneda: gv('r-moneda'),
     valorCotizado: getNum('r-valorCotizado'), costoTotal: getNum('r-costoTotal'),
     tipoCambioCotizacion: parseFloat(gv('r-tc-cotizacion'))||'',
     estado: gv('r-estado'), fechaCotizacion: gv('r-fecha-cotizacion'), fecha: gv('r-fecha'),
     pasajeros: parseInt(gv('r-pasajeros'),10)||'', notas: gv('r-notas'),
+    aereoCosto: esAereo ? (getNum('r-aereo-costo')||'') : '',
+    aereoMoneda: esAereo ? gv('r-aereo-moneda') : '',
+    aereoFechaEmision: esAereo ? gv('r-aereo-fecha-emision') : '',
     pagos: {}, reparto: {}, comprobantes: {}
   };
   document.querySelectorAll('.pago-row').forEach(row => {
