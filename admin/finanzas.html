@@ -94,6 +94,8 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .section-head h2{font-size:15px;font-weight:600;color:var(--teal)}
 .new-btn{font-family:'Inter',sans-serif;font-size:12px;font-weight:600;padding:8px 14px;border-radius:7px;border:none;background:var(--bronze);color:#fff;cursor:pointer;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
 .new-btn:hover{background:#9a7648}
+.new-btn.outline{background:transparent;color:var(--teal);border:1.5px solid var(--teal);box-shadow:none}
+.new-btn.outline:hover{background:var(--teal-l)}
 .data-table{width:100%;border-collapse:collapse;background:var(--white);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-s)}
 .data-table th{padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:rgba(43,43,43,.45);letter-spacing:1px;text-transform:uppercase;background:var(--beige);border-bottom:1px solid var(--beige-d)}
 .data-table td{padding:11px 14px;font-size:12.5px;border-bottom:1px solid rgba(0,0,0,.05);vertical-align:middle}
@@ -285,7 +287,10 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   <div id="view-recordatorios" style="display:none">
     <div class="section-head">
       <h2>Recordatorios</h2>
-      <button class="new-btn" onclick="openForm('recordatorios')">+ Nuevo recordatorio</button>
+      <div style="display:flex;gap:8px">
+        <button class="new-btn outline" onclick="importBspCalendar()">Importar calendario BSP 2026</button>
+        <button class="new-btn" onclick="openForm('recordatorios')">+ Nuevo recordatorio</button>
+      </div>
     </div>
     <table class="data-table">
       <thead><tr><th>Tipo</th><th>Título</th><th>Fecha</th><th>Recurrencia</th><th>Estado</th></tr></thead>
@@ -717,6 +722,47 @@ function deleteForm(){
   if (!confirm('¿Eliminar este registro? No se puede deshacer.')) return;
   REFS[kind].child(id).remove();
   closeForm();
+}
+
+// ── CALENDARIO BSP (pago semanal a la agencia mayorista, aéreo) ─────────────
+// Fuente: calendario BSP 2026 de agencias (IATA). [período, fecha de pago]
+const BSP_CALENDAR_2026 = [
+  ['20260101W','2026-01-12'], ['20260102W','2026-01-20'], ['20260103W','2026-01-27'], ['20260104W','2026-02-04'],
+  ['20260201W','2026-02-11'], ['20260202W','2026-02-20'], ['20260203W','2026-02-26'], ['20260204W','2026-03-04'],
+  ['20260301W','2026-03-11'], ['20260302W','2026-03-17'], ['20260303W','2026-03-26'], ['20260304W','2026-04-07'],
+  ['20260401W','2026-04-10'], ['20260402W','2026-04-20'], ['20260403W','2026-04-27'], ['20260404W','2026-05-06'],
+  ['20260501W','2026-05-12'], ['20260502W','2026-05-20'], ['20260503W','2026-05-28'], ['20260504W','2026-06-04'],
+  ['20260601W','2026-06-10'], ['20260602W','2026-06-19'], ['20260603W','2026-06-26'], ['20260604W','2026-07-06'],
+  ['20260701W','2026-07-13'], ['20260702W','2026-07-20'], ['20260703W','2026-07-27'], ['20260704W','2026-08-05'],
+  ['20260801W','2026-08-12'], ['20260802W','2026-08-20'], ['20260803W','2026-08-26'], ['20260804W','2026-09-04'],
+  ['20260901W','2026-09-11'], ['20260902W','2026-09-21'], ['20260903W','2026-09-28'], ['20260904W','2026-10-05'],
+  ['20261001W','2026-10-13'], ['20261002W','2026-10-20'], ['20261003W','2026-10-27'], ['20261004W','2026-11-05'],
+  ['20261101W','2026-11-11'], ['20261102W','2026-11-18'], ['20261103W','2026-11-26'], ['20261104W','2026-12-04'],
+  ['20261201W','2026-12-11'], ['20261202W','2026-12-18'], ['20261203W','2026-12-28'], ['20261204W','2027-01-06'],
+];
+
+function importBspCalendar(){
+  const existentes = new Set(STATE.recordatorios.filter(r => r.tipo==='BSP').map(r => r.fecha));
+  const nuevos = BSP_CALENDAR_2026.filter(([, fecha]) => !existentes.has(fecha));
+  if (!nuevos.length){ alert('Ya están cargadas todas las fechas de pago BSP 2026.'); return; }
+  if (!confirm(`Se van a cargar ${nuevos.length} recordatorio(s) de pago BSP (calendario semanal 2026 de agencias, aéreo). ¿Continuar?`)) return;
+  const updates = {};
+  nuevos.forEach(([periodo, fecha]) => {
+    const key = REFS.recordatorios.push().key;
+    updates[key] = {
+      tipo:'BSP',
+      titulo:`Pago BSP aéreo — período ${periodo}`,
+      fecha,
+      recurrencia:'semanal',
+      monto:0,
+      moneda:'ARS',
+      notas:'Pago del servicio aéreo a la agencia mayorista (ciclo BSP semanal de agencias).',
+      resuelto:false,
+    };
+  });
+  REFS.recordatorios.update(updates)
+    .then(() => alert(`Se cargaron ${nuevos.length} fecha(s) de pago BSP 2026.`))
+    .catch(err => { console.error(err); alert('Error al importar. Revisá tu conexión o los permisos de la base.'); });
 }
 
 // ── RESERVA (panel / carpeta) ───────────────────────────────────────────────
