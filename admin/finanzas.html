@@ -423,8 +423,21 @@ function fmtDate(d){
   return `${day}/${m}/${y}`;
 }
 function objToArr(o){ return o ? Object.keys(o).map(id => ({ id, ...o[id] })) : []; }
+// Convierte un pago a la moneda de referencia de la reserva usando el tipo de cambio cargado en el pago
+// (solo hace falta cuando el cliente pagó en una moneda distinta a la que está cotizada la reserva).
+function convertPago(monto, monedaPago, monedaReserva, tc){
+  if (!monedaPago || monedaPago===monedaReserva) return { value: monto, note: null };
+  const t = Number(tc)||0;
+  if (t<=0) return { value: 0, note: 'falta-tc' };
+  if (monedaReserva==='USD' && monedaPago==='ARS') return { value: monto / t, note: 'ok' };
+  if (monedaReserva==='ARS' && monedaPago==='USD') return { value: monto * t, note: 'ok' };
+  return { value: monto, note: null };
+}
 function pagosSum(pagosArr){ return (pagosArr||[]).reduce((s,p) => s + (Number(p.monto)||0), 0); }
-function reservaSaldo(r){ return (Number(r.valorCotizado)||0) - pagosSum(objToArr(r.pagos)); }
+function pagosEquivSum(pagosArr, monedaReserva){
+  return (pagosArr||[]).reduce((s,p) => s + convertPago(Number(p.monto)||0, p.moneda||monedaReserva, monedaReserva, p.tipoCambio).value, 0);
+}
+function reservaSaldo(r){ return (Number(r.valorCotizado)||0) - pagosEquivSum(objToArr(r.pagos), r.moneda); }
 function reservaMargen(r){ return (Number(r.valorCotizado)||0) - (Number(r.costoTotal)||0); }
 
 const DONE_STATES = { facturas:'pagada', comisiones:'pagada' };
@@ -769,7 +782,7 @@ function importBspCalendar(){
 let reservaCtx = { id:null, data:null };
 
 function blankReserva(){
-  return { cliente:'', concepto:'', moneda:'ARS', valorCotizado:0, costoTotal:0, estado:'cotizada', fecha:'', notas:'', pagos:[], reparto:[], comprobantes:[] };
+  return { cliente:'', concepto:'', moneda:'ARS', valorCotizado:0, costoTotal:0, tipoCambioCotizacion:'', estado:'cotizada', fecha:'', notas:'', pagos:[], reparto:[], comprobantes:[] };
 }
 function toEditable(r){
   return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes) };
@@ -790,14 +803,20 @@ function closeReserva(){
   document.getElementById('reserva-panel').classList.remove('open');
 }
 
-function pagoRowHtml(p){
+function pagoRowHtml(p, monedaReserva){
+  const pMoneda = p.moneda || monedaReserva || 'ARS';
   return `<div class="item-card pago-row" data-row-id="${p.id}">
     <div class="item-card-header"><span class="item-card-label">Pago</span><button type="button" class="item-delete-btn" onclick="this.closest('.pago-row').remove();recalcDerived()">✕</button></div>
     <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Fecha</span><input type="date" class="pago-fecha" value="${p.fecha||''}"></div>
       <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="pago-monto" value="${p.monto??''}" oninput="recalcDerived()"></div>
-      <div class="item-field"><span class="item-field-label">Medio</span><select class="pago-medio">${selOpts(['','transferencia','efectivo','tarjeta','cheque','otro'],['—','Transferencia','Efectivo','Tarjeta','Cheque','Otro'],p.medio||'')}</select></div>
+      <div class="item-field"><span class="item-field-label">Moneda</span><select class="pago-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],pMoneda)}</select></div>
     </div>
+    <div class="item-fields" style="margin-top:6px">
+      <div class="item-field"><span class="item-field-label">Medio</span><select class="pago-medio">${selOpts(['','transferencia','efectivo','tarjeta','cheque','otro'],['—','Transferencia','Efectivo','Tarjeta','Cheque','Otro'],p.medio||'')}</select></div>
+      <div class="item-field"><span class="item-field-label">T.C. (si pagó en otra moneda)</span><input type="number" step="0.01" class="pago-tc" value="${p.tipoCambio??''}" oninput="recalcDerived()" placeholder="Ej: 1050"></div>
+    </div>
+    <div class="pago-equiv" style="font-size:11px;margin-top:6px"></div>
   </div>`;
 }
 function repartoRowHtml(r){
@@ -815,7 +834,8 @@ function repartoRowHtml(r){
 }
 
 function addPago(){
-  document.getElementById('pagos-list').insertAdjacentHTML('beforeend', pagoRowHtml({ id:'new_'+uid(), fecha:todayISO(), monto:0, medio:'' }));
+  const monedaReserva = document.getElementById('r-moneda')?.value || 'ARS';
+  document.getElementById('pagos-list').insertAdjacentHTML('beforeend', pagoRowHtml({ id:'new_'+uid(), fecha:todayISO(), monto:0, moneda:monedaReserva, medio:'' }, monedaReserva));
   recalcDerived();
 }
 function addReparto(){
@@ -830,8 +850,28 @@ function recalcDerived(){
   const valorCotizado = getNum('r-valorCotizado');
   const costoTotal = getNum('r-costoTotal');
   const margen = valorCotizado - costoTotal;
-  const pagosTotal = [...document.querySelectorAll('.pago-monto')].reduce((s,el)=>s+(parseFloat(el.value)||0),0);
+
+  let pagosTotal = 0;
+  document.querySelectorAll('.pago-row').forEach(row => {
+    const monto = parseFloat(row.querySelector('.pago-monto').value)||0;
+    const pMoneda = row.querySelector('.pago-moneda').value;
+    const tc = row.querySelector('.pago-tc').value;
+    const conv = convertPago(monto, pMoneda, moneda, tc);
+    pagosTotal += conv.value;
+    const equivEl = row.querySelector('.pago-equiv');
+    if (!equivEl) return;
+    if (pMoneda === moneda){
+      equivEl.textContent = '';
+    } else if (conv.note === 'falta-tc'){
+      equivEl.textContent = '⚠ Ingresá el tipo de cambio para convertir este pago — no se está sumando al saldo.';
+      equivEl.style.color = 'var(--amber)';
+    } else {
+      equivEl.textContent = `≈ ${fmtMoney(conv.value, moneda)}`;
+      equivEl.style.color = 'rgba(43,43,43,.5)';
+    }
+  });
   const saldo = valorCotizado - pagosTotal;
+
   const mEl = document.getElementById('derived-margen'); if (mEl) mEl.textContent = fmtMoney(margen, moneda);
   const sEl = document.getElementById('derived-saldo'); if (sEl) sEl.textContent = fmtMoney(saldo, moneda);
   recalcReparto(margen, moneda);
@@ -869,9 +909,10 @@ function renderReservaPanel(){
         <div><label class="fl">Valor cotizado</label><input class="fi" id="r-valorCotizado" type="number" step="0.01" value="${d.valorCotizado??0}" oninput="recalcDerived()"></div>
         <div><label class="fl">Costo total</label><input class="fi" id="r-costoTotal" type="number" step="0.01" value="${d.costoTotal??0}" oninput="recalcDerived()"></div>
       </div>
+      <div class="frow"><label class="fl">Tipo de cambio de cotización (referencia)</label><input class="fi" id="r-tc-cotizacion" type="number" step="0.01" value="${d.tipoCambioCotizacion??''}" placeholder="TC que usaste para armar el precio, ej: 1050"></div>
       <div class="derived-box">
         <div class="derived-item">Margen<b id="derived-margen">${fmtMoney(reservaMargenLocal(d), d.moneda)}</b></div>
-        <div class="derived-item">Saldo pendiente<b id="derived-saldo">${fmtMoney((Number(d.valorCotizado)||0)-pagosSum(d.pagos), d.moneda)}</b></div>
+        <div class="derived-item">Saldo pendiente<b id="derived-saldo">${fmtMoney((Number(d.valorCotizado)||0)-pagosEquivSum(d.pagos, d.moneda), d.moneda)}</b></div>
       </div>
       <div class="frow"><label class="fl">Fecha (vencimiento de saldo / viaje)</label><input class="fi" id="r-fecha" type="date" value="${d.fecha||''}"></div>
       <div class="frow"><label class="fl">Notas</label><textarea class="fta" id="r-notas" placeholder="Detalle, itinerario, condiciones…">${escHtml(d.notas)}</textarea></div>
@@ -879,7 +920,8 @@ function renderReservaPanel(){
 
     <div class="psec">
       <div class="psec-title">Pagos recibidos</div>
-      <div id="pagos-list">${(d.pagos||[]).map(pagoRowHtml).join('')}</div>
+      <div class="upload-hint" style="margin-bottom:8px">Si un pago llega en otra moneda que la de la reserva, cargale el tipo de cambio para saber cuánto convertís realmente para pagarle a los proveedores.</div>
+      <div id="pagos-list">${(d.pagos||[]).map(p => pagoRowHtml(p, d.moneda)).join('')}</div>
       <button type="button" class="add-item-btn" onclick="addPago()">+ Agregar pago</button>
     </div>
 
@@ -919,6 +961,7 @@ function saveReserva(){
   const val = {
     cliente: gv('r-cliente'), concepto: gv('r-concepto'), moneda: gv('r-moneda'),
     valorCotizado: getNum('r-valorCotizado'), costoTotal: getNum('r-costoTotal'),
+    tipoCambioCotizacion: parseFloat(gv('r-tc-cotizacion'))||'',
     estado: gv('r-estado'), fecha: gv('r-fecha'), notas: gv('r-notas'),
     pagos: {}, reparto: {}, comprobantes: {}
   };
@@ -928,6 +971,8 @@ function saveReserva(){
     val.pagos[rid] = {
       fecha: row.querySelector('.pago-fecha').value,
       monto: parseFloat(row.querySelector('.pago-monto').value)||0,
+      moneda: row.querySelector('.pago-moneda').value,
+      tipoCambio: parseFloat(row.querySelector('.pago-tc').value)||'',
       medio: row.querySelector('.pago-medio').value,
     };
   });
