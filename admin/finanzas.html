@@ -258,7 +258,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
       <button class="new-btn" onclick="openReserva()">+ Nueva reserva</button>
     </div>
     <table class="data-table">
-      <thead><tr><th>Cliente</th><th>Concepto</th><th>Valor cotizado</th><th>Saldo pendiente</th><th>Margen</th><th>Estado</th></tr></thead>
+      <thead><tr><th>Cliente</th><th>Concepto</th><th>Pax</th><th>Fecha de viaje</th><th>Valor cotizado</th><th>Saldo pendiente</th><th>Margen</th><th>Estado</th></tr></thead>
       <tbody id="tbody-reservas"></tbody>
     </table>
   </div>
@@ -517,7 +517,7 @@ function renderReservasTable(){
   const tbody = document.getElementById('tbody-reservas');
   const items = [...STATE.reservas].sort((a,b) => (a.fecha||'9999').localeCompare(b.fecha||'9999'));
   if (!items.length){
-    tbody.innerHTML = `<tr><td colspan="6" class="table-empty">Todavía no cargaste ninguna reserva.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="table-empty">Todavía no cargaste ninguna reserva.</td></tr>`;
     return;
   }
   tbody.innerHTML = items.map(r => {
@@ -527,6 +527,8 @@ function renderReservasTable(){
     return `<tr onclick="openReserva('${r.id}')">
       <td>${escHtml(r.cliente||'—')}</td>
       <td>${escHtml(r.concepto||'')}</td>
+      <td>${r.pasajeros ? escHtml(String(r.pasajeros)) : '—'}</td>
+      <td>${fmtDate(r.fecha)}</td>
       <td><span class="money ${usd}">${fmtMoney(r.valorCotizado,r.moneda)}</span></td>
       <td><span class="money ${usd}">${fmtMoney(saldo,r.moneda)}</span></td>
       <td><span class="money ${usd}">${fmtMoney(margen,r.moneda)}</span></td>
@@ -791,7 +793,7 @@ function importBspCalendar(){
 let reservaCtx = { id:null, data:null };
 
 function blankReserva(){
-  return { cliente:'', concepto:'', moneda:'ARS', valorCotizado:0, costoTotal:0, tipoCambioCotizacion:'', estado:'cotizada', fecha:'', notas:'', pagos:[], reparto:[], comprobantes:[] };
+  return { cliente:'', concepto:'', moneda:'ARS', valorCotizado:0, costoTotal:0, tipoCambioCotizacion:'', estado:'cotizada', fechaCotizacion:'', fecha:'', pasajeros:'', notas:'', pagos:[], reparto:[], comprobantes:[] };
 }
 function toEditable(r){
   return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes) };
@@ -915,6 +917,10 @@ function renderReservaPanel(){
         <div><label class="fl">Estado</label><select class="fsel" id="r-estado">${selOpts(['cotizada','confirmada','cerrada','cancelada'],['Cotizada','Confirmada','Cerrada','Cancelada'],d.estado||'cotizada')}</select></div>
       </div>
       <div class="frow2">
+        <div><label class="fl">Fecha de cotización</label><input class="fi" id="r-fecha-cotizacion" type="date" value="${d.fechaCotizacion||''}"></div>
+        <div><label class="fl">Cantidad de pasajeros</label><input class="fi" id="r-pasajeros" type="number" step="1" min="0" value="${d.pasajeros??''}" placeholder="Ej: 40"></div>
+      </div>
+      <div class="frow2">
         <div><label class="fl">Valor cotizado</label><input class="fi" id="r-valorCotizado" type="number" step="0.01" value="${d.valorCotizado??0}" oninput="recalcDerived()"></div>
         <div><label class="fl">Costo total</label><input class="fi" id="r-costoTotal" type="number" step="0.01" value="${d.costoTotal??0}" oninput="recalcDerived()"></div>
       </div>
@@ -923,7 +929,7 @@ function renderReservaPanel(){
         <div class="derived-item">Margen<b id="derived-margen">${fmtMoney(reservaMargenLocal(d), d.moneda)}</b></div>
         <div class="derived-item">Saldo pendiente<b id="derived-saldo">${fmtMoney((Number(d.valorCotizado)||0)-pagosEquivSum(d.pagos, d.moneda), d.moneda)}</b></div>
       </div>
-      <div class="frow"><label class="fl">Fecha (vencimiento de saldo / viaje)</label><input class="fi" id="r-fecha" type="date" value="${d.fecha||''}"></div>
+      <div class="frow"><label class="fl">Fecha de viaje</label><input class="fi" id="r-fecha" type="date" value="${d.fecha||''}"></div>
       <div class="frow"><label class="fl">Notas</label><textarea class="fta" id="r-notas" placeholder="Detalle, itinerario, condiciones…">${escHtml(d.notas)}</textarea></div>
     </div>
 
@@ -971,7 +977,8 @@ function saveReserva(){
     cliente: gv('r-cliente'), concepto: gv('r-concepto'), moneda: gv('r-moneda'),
     valorCotizado: getNum('r-valorCotizado'), costoTotal: getNum('r-costoTotal'),
     tipoCambioCotizacion: parseFloat(gv('r-tc-cotizacion'))||'',
-    estado: gv('r-estado'), fecha: gv('r-fecha'), notas: gv('r-notas'),
+    estado: gv('r-estado'), fechaCotizacion: gv('r-fecha-cotizacion'), fecha: gv('r-fecha'),
+    pasajeros: parseInt(gv('r-pasajeros'),10)||'', notas: gv('r-notas'),
     pagos: {}, reparto: {}, comprobantes: {}
   };
   document.querySelectorAll('.pago-row').forEach(row => {
