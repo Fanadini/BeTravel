@@ -552,7 +552,7 @@ function renderReservasTable(){
       <td>${escHtml(r.cliente||'—')}</td>
       <td>${escHtml(r.concepto||'')}</td>
       <td>${servicios}</td>
-      <td>${r.pasajeros ? escHtml(String(r.pasajeros)) : '—'}</td>
+      <td>${r.pasajeros ? escHtml(Number(r.pasajeros).toLocaleString('es-AR')) : '—'}</td>
       <td>${fmtDate(r.fecha)}</td>
       <td><span class="money ${usd}">${fmtMoney(r.valorCotizado,r.moneda)}</span></td>
       <td><span class="money ${usd}">${fmtMoney(saldo,r.moneda)}</span></td>
@@ -1029,7 +1029,7 @@ function recalcReparto(margenOverride, monedaOverride){
   if (!warn) return;
   if (!rows.length){ warn.textContent=''; warn.className='pct-warning'; }
   else if (Math.abs(sumPct-100)<0.05){ warn.textContent='Suma 100% ✓'; warn.className='pct-warning ok'; }
-  else { warn.textContent = `Suma ${sumPct.toFixed(1)}% (no da 100%)`; warn.className='pct-warning bad'; }
+  else { warn.textContent = `Suma ${sumPct.toFixed(1).replace('.',',')}% (no da 100%)`; warn.className='pct-warning bad'; }
 }
 
 function renderReservaPanel(){
