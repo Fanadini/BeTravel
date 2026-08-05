@@ -547,6 +547,10 @@ function renderReservasTable(){
     const saldo = reservaSaldo(r);
     const margen = reservaMargen(r);
     const usd = r.moneda==='USD' ? 'usd' : '';
+    // El valor cotizado puede estar cargado en una moneda distinta a la de referencia
+    // de la reserva: se muestra con SU propia moneda, no la de saldo/margen.
+    const valorMoneda = r.valorCotizadoMoneda || r.moneda;
+    const usdValor = valorMoneda==='USD' ? 'usd' : '';
     const servicios = (r.servicios||[]).map(s => `<span class="servicio-tag ${s==='Aéreo'?'aereo':''}">${escHtml(s)}</span>`).join('') || '—';
     return `<tr onclick="openReserva('${r.id}')">
       <td>${escHtml(r.cliente||'—')}</td>
@@ -554,12 +558,21 @@ function renderReservasTable(){
       <td>${servicios}</td>
       <td>${r.pasajeros ? escHtml(Number(r.pasajeros).toLocaleString('es-AR')) : '—'}</td>
       <td>${fmtDate(r.fecha)}</td>
-      <td><span class="money ${usd}">${fmtMoney(r.valorCotizado,r.moneda)}</span></td>
+      <td><span class="money ${usdValor}">${fmtMoney(r.valorCotizado, valorMoneda)}</span></td>
       <td><span class="money ${usd}">${fmtMoney(saldo,r.moneda)}</span></td>
       <td><span class="money ${usd}">${fmtMoney(margen,r.moneda)}</span></td>
       <td>${estadoReservaBadgeHtml(r.estado)}</td>
     </tr>`;
   }).join('');
+}
+
+// Un reparto puede liquidarse en una moneda distinta a la de referencia de la reserva
+// (ej: margen calculado en ARS, pero le pagás la parte a un ejecutivo en USD).
+function repartoMontoEnSuMoneda(r, rep){
+  const margen = reservaMargen(r);
+  const montoRef = margen * (Number(rep.porcentaje)||0) / 100;
+  const repMoneda = rep.moneda || r.moneda;
+  return convertMonto(montoRef, r.moneda, repMoneda, rep.tipoCambio);
 }
 
 function computeReservaTotals(){
@@ -569,11 +582,13 @@ function computeReservaTotals(){
     if (r.estado==='cancelada') return;
     const moneda = r.moneda==='USD' ? 'USD' : 'ARS';
     const saldo = reservaSaldo(r);
-    const margen = reservaMargen(r);
     if (r.estado!=='cerrada' && r.estado!=='pagada' && saldo>0) cobrar[moneda] += saldo;
     objToArr(r.reparto).forEach(rep => {
       if (rep.pagado) return;
-      repartoT[moneda] += margen * (Number(rep.porcentaje)||0) / 100;
+      const conv = repartoMontoEnSuMoneda(r, rep);
+      if (conv.note==='falta-tc') return;
+      const repMoneda = rep.moneda==='USD' ? 'USD' : 'ARS';
+      repartoT[repMoneda] += conv.value;
     });
   });
   return { cobrar, repartoT };
@@ -657,12 +672,13 @@ function computeRepartoPorEjecutivo(){
   const map = {};
   STATE.reservas.forEach(r => {
     if (r.estado==='cancelada') return;
-    const moneda = r.moneda==='USD' ? 'USD' : 'ARS';
-    const margen = reservaMargen(r);
     objToArr(r.reparto).forEach(rep => {
       if (rep.pagado || !rep.ejecutivo) return;
+      const conv = repartoMontoEnSuMoneda(r, rep);
+      if (conv.note==='falta-tc') return;
+      const repMoneda = rep.moneda==='USD' ? 'USD' : 'ARS';
       if (!map[rep.ejecutivo]) map[rep.ejecutivo] = { ARS:0, USD:0 };
-      map[rep.ejecutivo][moneda] += margen * (Number(rep.porcentaje)||0) / 100;
+      map[rep.ejecutivo][repMoneda] += conv.value;
     });
   });
   return map;
@@ -940,12 +956,17 @@ function pagoRowHtml(p, monedaReserva){
     <div class="pago-equiv" style="font-size:11px;margin-top:6px"></div>
   </div>`;
 }
-function repartoRowHtml(r){
+function repartoRowHtml(r, monedaReserva){
+  const rMoneda = r.moneda || monedaReserva || 'ARS';
   return `<div class="item-card reparto-row" data-row-id="${r.id}">
     <div class="item-card-header"><span class="item-card-label">Ejecutivo</span><button type="button" class="item-delete-btn" onclick="this.closest('.reparto-row').remove();recalcReparto()">✕</button></div>
-    <div class="item-fields">
+    <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Nombre</span><input class="reparto-ejec" list="dl-ejecutivos" value="${escHtml(r.ejecutivo)}" placeholder="Nombre"></div>
       <div class="item-field"><span class="item-field-label">Porcentaje</span><input type="number" step="0.1" class="reparto-pct" value="${r.porcentaje??''}" oninput="recalcReparto()"></div>
+      <div class="item-field"><span class="item-field-label">Moneda</span><select class="reparto-moneda" onchange="recalcReparto()">${selOpts(['ARS','USD'],['ARS','USD'],rMoneda)}</select></div>
+    </div>
+    <div class="item-fields" style="margin-top:6px">
+      <div class="item-field"><span class="item-field-label">T.C. (si liquida en otra moneda)</span><input type="number" step="0.01" class="reparto-tc" value="${r.tipoCambio??''}" oninput="recalcReparto()" placeholder="Ej: 1050"></div>
     </div>
     <div class="reparto-foot">
       <label class="reparto-check"><input type="checkbox" class="reparto-pagado" ${r.pagado?'checked':''}> Liquidado</label>
@@ -960,7 +981,8 @@ function addPago(){
   recalcDerived();
 }
 function addReparto(){
-  document.getElementById('reparto-list').insertAdjacentHTML('beforeend', repartoRowHtml({ id:'new_'+uid(), ejecutivo:'', porcentaje:0, pagado:false }));
+  const monedaReserva = document.getElementById('r-moneda')?.value || 'ARS';
+  document.getElementById('reparto-list').insertAdjacentHTML('beforeend', repartoRowHtml({ id:'new_'+uid(), ejecutivo:'', porcentaje:0, moneda:monedaReserva, pagado:false }, monedaReserva));
   recalcReparto();
 }
 
@@ -1015,15 +1037,25 @@ function recalcDerived(){
 }
 function recalcReparto(margenOverride, monedaOverride){
   const current = getCurrentMargen();
-  const moneda = monedaOverride || current.moneda;
+  const moneda = monedaOverride || current.moneda; // moneda de referencia de la reserva (donde está el margen)
   const margen = margenOverride!=null ? margenOverride : current.margen;
   const rows = document.querySelectorAll('.reparto-row');
   let sumPct = 0;
   rows.forEach(row => {
     const pct = parseFloat(row.querySelector('.reparto-pct').value)||0;
     sumPct += pct;
+    const rowMoneda = row.querySelector('.reparto-moneda')?.value || moneda;
+    const tc = row.querySelector('.reparto-tc')?.value;
+    const conv = convertMonto(margen*pct/100, moneda, rowMoneda, tc);
     const disp = row.querySelector('.reparto-monto-display');
-    if (disp) disp.textContent = fmtMoney(margen*pct/100, moneda);
+    if (!disp) return;
+    if (conv.note==='falta-tc'){
+      disp.textContent = '⚠ Falta TC';
+      disp.style.color = 'var(--amber)';
+    } else {
+      disp.textContent = fmtMoney(conv.value, rowMoneda);
+      disp.style.color = 'var(--teal)';
+    }
   });
   const warn = document.getElementById('pct-warning');
   if (!warn) return;
@@ -1093,7 +1125,7 @@ function renderReservaPanel(){
     <div class="psec">
       <div class="psec-title">Reparto de ganancia</div>
       <datalist id="dl-ejecutivos">${META.ejecutivos.map(e=>`<option value="${escHtml(e)}">`).join('')}</datalist>
-      <div id="reparto-list">${(d.reparto||[]).map(repartoRowHtml).join('')}</div>
+      <div id="reparto-list">${(d.reparto||[]).map(rep => repartoRowHtml(rep, d.moneda)).join('')}</div>
       <button type="button" class="add-item-btn" onclick="addReparto()">+ Agregar ejecutivo</button>
       <div class="pct-warning" id="pct-warning"></div>
     </div>
@@ -1165,6 +1197,8 @@ function saveReserva(){
     val.reparto[rid] = {
       ejecutivo,
       porcentaje: parseFloat(row.querySelector('.reparto-pct').value)||0,
+      moneda: row.querySelector('.reparto-moneda').value,
+      tipoCambio: parseFloat(row.querySelector('.reparto-tc').value)||'',
       pagado: row.querySelector('.reparto-pagado').checked,
     };
     if (ejecutivo && !META.ejecutivos.includes(ejecutivo)) META_EJEC_REF.set([...META.ejecutivos, ejecutivo]);
