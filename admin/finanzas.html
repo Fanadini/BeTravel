@@ -106,6 +106,10 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .badge.proximo{background:rgba(201,122,26,.14);color:var(--amber)}
 .badge.ok{background:rgba(15,61,62,.08);color:var(--teal)}
 .badge.done{background:rgba(47,143,78,.13);color:var(--green)}
+.badge.estado-cotizada{background:rgba(43,43,43,.08);color:rgba(43,43,43,.6)}
+.badge.estado-confirmada{background:rgba(15,61,62,.14);color:var(--teal)}
+.badge.estado-cerrada{background:rgba(47,143,78,.13);color:var(--green)}
+.badge.estado-cancelada{background:rgba(184,50,50,.12);color:var(--red)}
 .money{font-weight:600;white-space:nowrap}
 .money.usd{color:var(--bronze)}
 .table-empty{padding:40px 20px;text-align:center;color:rgba(43,43,43,.35);font-size:12.5px}
@@ -460,6 +464,11 @@ function badgeHtml(kind, item){
   const labels = { vencido:'Vencido', proximo:'Próximo', ok:'OK', done: doneLabel };
   return `<span class="badge ${u}">${labels[u]}</span>`;
 }
+const ESTADO_RESERVA_LABELS = { cotizada:'Cotizada', confirmada:'Confirmada', cerrada:'Cerrada', cancelada:'Cancelada' };
+function estadoReservaBadgeHtml(estado){
+  const e = estado || 'cotizada';
+  return `<span class="badge estado-${e}">${ESTADO_RESERVA_LABELS[e] || e}</span>`;
+}
 
 // ── TABS ───────────────────────────────────────────────────────────────────
 function switchTab(tab){
@@ -521,7 +530,7 @@ function renderReservasTable(){
       <td><span class="money ${usd}">${fmtMoney(r.valorCotizado,r.moneda)}</span></td>
       <td><span class="money ${usd}">${fmtMoney(saldo,r.moneda)}</span></td>
       <td><span class="money ${usd}">${fmtMoney(margen,r.moneda)}</span></td>
-      <td>${badgeHtml('reservas', r)}</td>
+      <td>${estadoReservaBadgeHtml(r.estado)}</td>
     </tr>`;
   }).join('');
 }
