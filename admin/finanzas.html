@@ -170,13 +170,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .reparto-check{display:flex;align-items:center;gap:5px;font-size:11.5px;color:rgba(43,43,43,.6)}
 .reparto-check input{width:14px;height:14px;accent-color:var(--teal)}
 .reparto-monto-display{font-size:12px;font-weight:600;color:var(--teal)}
-.file-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--beige);border-radius:6px;margin-bottom:6px;font-size:12px}
-.file-row a{color:var(--teal);text-decoration:none;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.file-row a:hover{text-decoration:underline}
-.file-row .fsize{font-size:10.5px;color:rgba(43,43,43,.4);flex-shrink:0}
-.file-upload-btn{display:block;text-align:center;padding:10px;border-radius:7px;border:1.5px dashed var(--beige-d);color:rgba(43,43,43,.45);font-size:12px;cursor:pointer;transition:all .15s}
-.file-upload-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-l)}
-.file-upload-btn input{display:none}
+.upload-hint{font-size:11px;color:rgba(43,43,43,.4);margin-top:6px;line-height:1.5}
 .panel-save-msg{font-size:11px;color:var(--green);text-align:center;height:16px}
 
 @media (max-width:640px){
@@ -324,7 +318,6 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script>
 // ── FIREBASE ────────────────────────────────────────────────────────────────
 firebase.initializeApp({
@@ -338,7 +331,6 @@ firebase.initializeApp({
 });
 const db = firebase.database();
 const auth = firebase.auth();
-const storage = firebase.storage();
 const REFS = {
   reservas:      db.ref('finanzas/reservas'),
   facturas:      db.ref('finanzas/facturas'),
@@ -424,11 +416,6 @@ function fmtDate(d){
   if (!d) return '—';
   const [y,m,day] = d.split('-');
   return `${day}/${m}/${y}`;
-}
-function fmtSize(bytes){
-  if (!bytes) return '';
-  if (bytes < 1024*1024) return Math.round(bytes/1024) + ' KB';
-  return (bytes/1024/1024).toFixed(1) + ' MB';
 }
 function objToArr(o){ return o ? Object.keys(o).map(id => ({ id, ...o[id] })) : []; }
 function pagosSum(pagosArr){ return (pagosArr||[]).reduce((s,p) => s + (Number(p.monto)||0), 0); }
@@ -823,7 +810,6 @@ function recalcReparto(margenOverride, monedaOverride){
 
 function renderReservaPanel(){
   const d = reservaCtx.data;
-  const isNew = !reservaCtx.id;
   document.getElementById('reserva-panel-body').innerHTML = `
     <div class="psec">
       <div class="psec-title">Datos generales</div>
@@ -861,59 +847,26 @@ function renderReservaPanel(){
 
     <div class="psec">
       <div class="psec-title">Comprobantes</div>
-      ${isNew ? `<div class="empty-msg">Guardá la reserva primero para poder subir comprobantes.</div>` : `
-        <label class="file-upload-btn">+ Subir comprobante (PDF o foto)<input type="file" multiple accept="image/*,.pdf" onchange="handleComprobantesUpload(this)"></label>
-        <div id="comprobantes-list" style="margin-top:8px"></div>
-      `}
+      <div id="comprobantes-list">${(d.comprobantes||[]).map(comprobanteRowHtml).join('')}</div>
+      <button type="button" class="add-item-btn" onclick="addComprobante()">+ Agregar comprobante (link)</button>
+      <div class="upload-hint">Subí el archivo a Drive u otro servicio y pegá acá el link para compartir.</div>
     </div>
   `;
   recalcDerived();
-  if (!isNew) renderComprobantesSection();
 }
 function reservaMargenLocal(d){ return (Number(d.valorCotizado)||0) - (Number(d.costoTotal)||0); }
 
-function renderComprobantesSection(){
-  const el = document.getElementById('comprobantes-list');
-  if (!el) return;
-  const list = reservaCtx.data.comprobantes || [];
-  el.innerHTML = list.length ? list.map(c => `
-    <div class="file-row">
-      <a href="${escHtml(c.url)}" target="_blank" rel="noopener">${escHtml(c.nombre)}</a>
-      <span class="fsize">${fmtSize(c.size)}</span>
-      <button type="button" class="item-delete-btn" onclick="removeComprobante('${c.id}')">✕</button>
-    </div>`).join('') : `<div class="empty-msg">Sin comprobantes cargados.</div>`;
+function comprobanteRowHtml(c){
+  return `<div class="item-card comprobante-row" data-row-id="${c.id}">
+    <div class="item-card-header"><span class="item-card-label">Comprobante</span><button type="button" class="item-delete-btn" onclick="this.closest('.comprobante-row').remove()">✕</button></div>
+    <div class="item-fields">
+      <div class="item-field"><span class="item-field-label">Nombre</span><input class="comprobante-nombre" value="${escHtml(c.nombre)}" placeholder="Ej: Factura Tucano #123"></div>
+      <div class="item-field"><span class="item-field-label">Link</span><input class="comprobante-url" type="url" value="${escHtml(c.url)}" placeholder="https://drive.google.com/…"></div>
+    </div>
+  </div>`;
 }
-
-function handleComprobantesUpload(input){
-  if (!reservaCtx.id){ alert('Guardá la reserva primero.'); input.value=''; return; }
-  const files = Array.from(input.files||[]);
-  files.forEach(file => {
-    const cid = REFS.reservas.push().key;
-    const path = `finanzas/reservas/${reservaCtx.id}/${cid}_${file.name}`;
-    storage.ref(path).put(file)
-      .then(snap => snap.ref.getDownloadURL())
-      .then(url => {
-        const meta = { nombre:file.name, url, path, size:file.size, fecha: todayISO() };
-        return REFS.reservas.child(reservaCtx.id).child('comprobantes').child(cid).set(meta).then(() => meta);
-      })
-      .then(meta => {
-        reservaCtx.data.comprobantes.push({ id:cid, ...meta });
-        renderComprobantesSection();
-      })
-      .catch(err => {
-        console.error(err);
-        alert('No se pudo subir "' + file.name + '". Puede que falten configurar las reglas de Firebase Storage.');
-      });
-  });
-  input.value = '';
-}
-function removeComprobante(cid){
-  if (!confirm('¿Eliminar este comprobante?')) return;
-  const c = reservaCtx.data.comprobantes.find(x => x.id===cid);
-  if (c && c.path) storage.ref(c.path).delete().catch(()=>{});
-  REFS.reservas.child(reservaCtx.id).child('comprobantes').child(cid).remove();
-  reservaCtx.data.comprobantes = reservaCtx.data.comprobantes.filter(x => x.id!==cid);
-  renderComprobantesSection();
+function addComprobante(){
+  document.getElementById('comprobantes-list').insertAdjacentHTML('beforeend', comprobanteRowHtml({ id:'new_'+uid(), nombre:'', url:'' }));
 }
 
 function saveReserva(){
@@ -943,8 +896,13 @@ function saveReserva(){
     };
     if (ejecutivo && !META.ejecutivos.includes(ejecutivo)) META_EJEC_REF.set([...META.ejecutivos, ejecutivo]);
   });
-  (reservaCtx.data.comprobantes||[]).forEach(c => {
-    val.comprobantes[c.id] = { nombre:c.nombre, url:c.url, path:c.path, size:c.size, fecha:c.fecha };
+  document.querySelectorAll('.comprobante-row').forEach(row => {
+    const rowId = row.dataset.rowId;
+    const rid = rowId.startsWith('new_') ? REFS.reservas.push().key : rowId;
+    const nombre = row.querySelector('.comprobante-nombre').value.trim();
+    const url = row.querySelector('.comprobante-url').value.trim();
+    if (!nombre && !url) return;
+    val.comprobantes[rid] = { nombre, url };
   });
 
   const id = reservaCtx.id;
@@ -964,7 +922,6 @@ function gv(id){ const el = document.getElementById(id); return el ? el.value.tr
 function deleteReserva(){
   if (!reservaCtx.id) return;
   if (!confirm('¿Eliminar esta reserva y todos sus datos? No se puede deshacer.')) return;
-  (reservaCtx.data.comprobantes||[]).forEach(c => { if (c.path) storage.ref(c.path).delete().catch(()=>{}); });
   REFS.reservas.child(reservaCtx.id).remove();
   closeReserva();
 }
