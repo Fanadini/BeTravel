@@ -409,7 +409,7 @@ function diffDays(dateStr){
 }
 function fmtMoney(monto, moneda){
   const n = Number(monto)||0;
-  const s = n.toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0});
+  const s = n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
   return (moneda==='USD' ? 'US$ ' : '$ ') + s;
 }
 function fmtDate(d){
