@@ -240,7 +240,6 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   <button class="tab-btn on" data-tab="resumen" onclick="switchTab('resumen')">Resumen</button>
   <button class="tab-btn" data-tab="reservas" onclick="switchTab('reservas')">Reservas</button>
   <button class="tab-btn" data-tab="facturas" onclick="switchTab('facturas')">Facturas de proveedores</button>
-  <button class="tab-btn" data-tab="comisiones" onclick="switchTab('comisiones')">Comisiones a agentes</button>
   <button class="tab-btn" data-tab="recordatorios" onclick="switchTab('recordatorios')">Recordatorios</button>
 </div>
 
@@ -259,6 +258,10 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
         <h3><span class="alert-dot"></span>Próximos 15 días</h3>
         <div id="list-proximos"></div>
       </div>
+    </div>
+    <div class="alert-col" id="col-reparto-ejecutivos" style="margin-top:14px">
+      <h3><span class="alert-dot" style="background:var(--bronze)"></span>Reparto pendiente por ejecutivo</h3>
+      <div id="list-reparto-ejecutivos"></div>
     </div>
   </div>
 
@@ -286,18 +289,6 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
     </table>
   </div>
 
-  <!-- COMISIONES -->
-  <div id="view-comisiones" style="display:none">
-    <div class="section-head">
-      <h2>Comisiones a agentes</h2>
-      <button class="new-btn" onclick="openForm('comisiones')">+ Nueva comisión</button>
-    </div>
-    <table class="data-table">
-      <thead><tr><th>Agente</th><th>Cliente / Reserva</th><th>Monto</th><th>Vencimiento</th><th>Estado</th></tr></thead>
-      <tbody id="tbody-comisiones"></tbody>
-    </table>
-  </div>
-
   <!-- RECORDATORIOS -->
   <div id="view-recordatorios" style="display:none">
     <div class="section-head">
@@ -317,7 +308,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 
 </div>
 
-<!-- MODAL (formulario simple: facturas / comisiones / recordatorios) -->
+<!-- MODAL (formulario simple: facturas / recordatorios) -->
 <div class="modal-overlay" id="modal" onclick="if(event.target===this)closeForm()">
   <div class="modal" id="modal-box"></div>
 </div>
@@ -356,11 +347,9 @@ const auth = firebase.auth();
 const REFS = {
   reservas:      db.ref('finanzas/reservas'),
   facturas:      db.ref('finanzas/facturas'),
-  comisiones:    db.ref('finanzas/comisiones'),
   recordatorios: db.ref('finanzas/recordatorios'),
 };
 const META_PROV_REF = db.ref('finanzas/meta/proveedores');
-const META_AGENTE_REF = db.ref('finanzas/meta/agentes');
 const META_EJEC_REF = db.ref('finanzas/meta/ejecutivos');
 
 const DEFAULT_PROVEEDORES = ['Tucano Tours','Carnival Tours','RateHawk','MyBeds','Hotelbeds','Bedsonline','Freeway','Top Dest','Grupo Ocho'];
@@ -397,8 +386,8 @@ function setSyncStatus(status, label) {
 }
 
 // ── ESTADO LOCAL ───────────────────────────────────────────────────────────
-const STATE = { reservas:[], facturas:[], comisiones:[], recordatorios:[] };
-let META = { proveedores: [...DEFAULT_PROVEEDORES], agentes: [], ejecutivos: [] };
+const STATE = { reservas:[], facturas:[], recordatorios:[] };
+let META = { proveedores: [...DEFAULT_PROVEEDORES], ejecutivos: [] };
 const loadedOnce = { reservas:false, recordatorios:false };
 
 function attachListeners() {
@@ -418,7 +407,6 @@ function attachListeners() {
     META.proveedores = v ? Object.values(v) : [...DEFAULT_PROVEEDORES];
     if (!v) META_PROV_REF.set(DEFAULT_PROVEEDORES);
   });
-  META_AGENTE_REF.on('value', snap => { META.agentes = snap.val() ? Object.values(snap.val()) : []; });
   META_EJEC_REF.on('value', snap => { META.ejecutivos = snap.val() ? Object.values(snap.val()) : []; });
   document.getElementById('lo').classList.add('hidden');
 }
@@ -444,24 +432,34 @@ function fmtDate(d){
   return `${day}/${m}/${y}`;
 }
 function objToArr(o){ return o ? Object.keys(o).map(id => ({ id, ...o[id] })) : []; }
-// Convierte un pago a la moneda de referencia de la reserva usando el tipo de cambio cargado en el pago
-// (solo hace falta cuando el cliente pagó en una moneda distinta a la que está cotizada la reserva).
-function convertPago(monto, monedaPago, monedaReserva, tc){
-  if (!monedaPago || monedaPago===monedaReserva) return { value: monto, note: null };
+// Convierte un monto de una moneda a otra usando un tipo de cambio (ARS por USD).
+// Se usa para pagos en otra moneda que la reserva, y para valor cotizado / costo total
+// cuando cada uno está cargado en una moneda distinta (ej: cobrás en pesos, el proveedor
+// te cobra en dólares).
+function convertMonto(monto, monedaOrigen, monedaDestino, tc){
+  if (!monedaOrigen || monedaOrigen===monedaDestino) return { value: monto, note: null };
   const t = Number(tc)||0;
   if (t<=0) return { value: 0, note: 'falta-tc' };
-  if (monedaReserva==='USD' && monedaPago==='ARS') return { value: monto / t, note: 'ok' };
-  if (monedaReserva==='ARS' && monedaPago==='USD') return { value: monto * t, note: 'ok' };
+  if (monedaDestino==='USD' && monedaOrigen==='ARS') return { value: monto / t, note: 'ok' };
+  if (monedaDestino==='ARS' && monedaOrigen==='USD') return { value: monto * t, note: 'ok' };
   return { value: monto, note: null };
 }
 function pagosSum(pagosArr){ return (pagosArr||[]).reduce((s,p) => s + (Number(p.monto)||0), 0); }
 function pagosEquivSum(pagosArr, monedaReserva){
-  return (pagosArr||[]).reduce((s,p) => s + convertPago(Number(p.monto)||0, p.moneda||monedaReserva, monedaReserva, p.tipoCambio).value, 0);
+  return (pagosArr||[]).reduce((s,p) => s + convertMonto(Number(p.monto)||0, p.moneda||monedaReserva, monedaReserva, p.tipoCambio).value, 0);
 }
-function reservaSaldo(r){ return (Number(r.valorCotizado)||0) - pagosEquivSum(objToArr(r.pagos), r.moneda); }
-function reservaMargen(r){ return (Number(r.valorCotizado)||0) - (Number(r.costoTotal)||0); }
+// Valor cotizado y costo total pueden estar cargados cada uno en una moneda distinta a la
+// moneda de referencia de la reserva; se convierten con el tipo de cambio de cotización.
+function reservaValorCotizadoEnRef(r){
+  return convertMonto(Number(r.valorCotizado)||0, r.valorCotizadoMoneda||r.moneda, r.moneda, r.tipoCambioCotizacion).value;
+}
+function reservaCostoTotalEnRef(r){
+  return convertMonto(Number(r.costoTotal)||0, r.costoTotalMoneda||r.moneda, r.moneda, r.tipoCambioCotizacion).value;
+}
+function reservaSaldo(r){ return reservaValorCotizadoEnRef(r) - pagosEquivSum(objToArr(r.pagos), r.moneda); }
+function reservaMargen(r){ return reservaValorCotizadoEnRef(r) - reservaCostoTotalEnRef(r); }
 
-const DONE_STATES = { facturas:'pagada', comisiones:'pagada' };
+const DONE_STATES = { facturas:'pagada' };
 function isDone(kind, item){
   if (kind==='recordatorios') return !!item.resuelto;
   if (kind==='reservas') return item.estado==='cerrada' || item.estado==='cancelada' || item.estado==='pagada' || reservaSaldo(item)<=0;
@@ -494,7 +492,7 @@ function toggleAlertCol(id){
 // ── TABS ───────────────────────────────────────────────────────────────────
 function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('on', b.dataset.tab===tab));
-  ['resumen','reservas','facturas','comisiones','recordatorios'].forEach(t => {
+  ['resumen','reservas','facturas','recordatorios'].forEach(t => {
     document.getElementById('view-'+t).style.display = (t===tab ? '' : 'none');
   });
 }
@@ -503,7 +501,6 @@ function switchTab(tab){
 function renderAll(){
   renderReservasTable();
   renderTable('facturas');
-  renderTable('comisiones');
   renderTable('recordatorios');
   renderResumen();
 }
@@ -511,9 +508,6 @@ function renderAll(){
 const TABLE_CONFIG = {
   facturas: {
     cols: item => [escHtml(item.proveedor||'—'), escHtml(item.concepto||''), `<span class="money ${item.moneda==='USD'?'usd':''}">${fmtMoney(item.monto,item.moneda)}</span>`, fmtDate(item.fecha), badgeHtml('facturas',item)]
-  },
-  comisiones: {
-    cols: item => [escHtml(item.agente||'—'), escHtml(item.referencia||''), `<span class="money ${item.moneda==='USD'?'usd':''}">${fmtMoney(item.monto,item.moneda)}</span>`, fmtDate(item.fecha), badgeHtml('comisiones',item)]
   },
   recordatorios: {
     cols: item => [escHtml(item.tipo||'Otro'), escHtml(item.titulo||'—'), fmtDate(item.fecha), escHtml(RECUR_LABELS[item.recurrencia]||'Ninguna'), badgeHtml('recordatorios',item)]
@@ -596,7 +590,6 @@ function renderResumen(){
   };
   const { cobrar, repartoT } = computeReservaTotals();
   const facturasT = sumPend('facturas','pagada');
-  const comisionesT = sumPend('comisiones','pagada');
   const bspT = { ARS:0, USD:0 };
   STATE.recordatorios.forEach(item => {
     if (item.tipo!=='BSP' || item.resuelto) return;
@@ -605,7 +598,7 @@ function renderResumen(){
   const porPagarT = { ARS: facturasT.ARS + bspT.ARS, USD: facturasT.USD + bspT.USD };
 
   const allItems = [];
-  ['reservas','facturas','comisiones','recordatorios'].forEach(kind => {
+  ['reservas','facturas','recordatorios'].forEach(kind => {
     STATE[kind].forEach(item => {
       if (isDone(kind, item)) return;
       const days = diffDays(item.fecha);
@@ -627,7 +620,6 @@ function renderResumen(){
   document.getElementById('stat-cards').innerHTML = `
     <div class="stat-card"><h4>Por cobrar de clientes</h4><div class="stat-amounts">${cardAmounts(cobrar)}</div></div>
     <div class="stat-card"><h4>Por pagar a proveedores</h4><div class="stat-amounts">${cardAmounts(porPagarT)}</div></div>
-    <div class="stat-card"><h4>Comisiones a agentes pendientes</h4><div class="stat-amounts">${cardAmounts(comisionesT)}</div></div>
     <div class="stat-card"><h4>Reparto pendiente a ejecutivos</h4><div class="stat-amounts">${cardAmounts(repartoT)}</div></div>
     <div class="stat-card alert"><h4>Alertas activas</h4><div class="stat-amounts"><div class="stat-amount">${vencidos.length + proximos.length}</div></div></div>
   `;
@@ -648,21 +640,46 @@ function renderResumen(){
   document.getElementById('list-proximos').innerHTML = proximos.length
     ? proximos.map(x => rowHtml(x,false)).join('')
     : `<div class="empty-msg">Nada en los próximos 15 días.</div>`;
+
+  const porEjecutivo = computeRepartoPorEjecutivo();
+  const nombres = Object.keys(porEjecutivo).sort((a,b) => (porEjecutivo[b].ARS+porEjecutivo[b].USD) - (porEjecutivo[a].ARS+porEjecutivo[a].USD));
+  document.getElementById('list-reparto-ejecutivos').innerHTML = nombres.length
+    ? nombres.map(nombre => {
+        const t = porEjecutivo[nombre];
+        const parts = [];
+        if (t.ARS) parts.push(`<div class="alert-amount">${fmtMoney(t.ARS,'ARS')}</div>`);
+        if (t.USD) parts.push(`<div class="alert-amount" style="color:var(--bronze)">${fmtMoney(t.USD,'USD')}</div>`);
+        return `<div class="alert-row"><div class="alert-title">${escHtml(nombre)}</div><div class="alert-meta">${parts.join('')}</div></div>`;
+      }).join('')
+    : `<div class="empty-msg">Sin reparto pendiente.</div>`;
+}
+function computeRepartoPorEjecutivo(){
+  const map = {};
+  STATE.reservas.forEach(r => {
+    if (r.estado==='cancelada') return;
+    const moneda = r.moneda==='USD' ? 'USD' : 'ARS';
+    const margen = reservaMargen(r);
+    objToArr(r.reparto).forEach(rep => {
+      if (rep.pagado || !rep.ejecutivo) return;
+      if (!map[rep.ejecutivo]) map[rep.ejecutivo] = { ARS:0, USD:0 };
+      map[rep.ejecutivo][moneda] += margen * (Number(rep.porcentaje)||0) / 100;
+    });
+  });
+  return map;
 }
 const TITLE_FIELD = {
   reservas: i => i.cliente || 'Reserva sin cliente',
   facturas: i => i.proveedor || 'Factura sin proveedor',
-  comisiones: i => i.agente || 'Comisión sin agente',
   recordatorios: i => i.titulo || 'Recordatorio',
 };
-const KIND_LABEL = { reservas:'Reserva', facturas:'Factura de proveedor', comisiones:'Comisión a agente', recordatorios:'Recordatorio' };
+const KIND_LABEL = { reservas:'Reserva', facturas:'Factura de proveedor', recordatorios:'Recordatorio' };
 
 function jumpTo(kind, id){
   switchTab(kind);
   if (kind==='reservas') openReserva(id); else openForm(kind, id);
 }
 
-// ── FORMULARIO SIMPLE (modal: facturas / comisiones / recordatorios) ───────
+// ── FORMULARIO SIMPLE (modal: facturas / recordatorios) ───────
 let formCtx = { kind:null, id:null };
 
 const FORM_BUILDERS = {
@@ -684,24 +701,6 @@ const FORM_BUILDERS = {
       ${selOpts(['pendiente','pagada'],['Pendiente','Pagada'],item?.estado||'pendiente')}
     </select></div>
     <div class="frow"><label class="fl">Notas</label><textarea class="fta" id="f-notas" placeholder="Nº de factura, referencia…">${escHtml(item?.notas)}</textarea></div>
-  `,
-  comisiones: (item) => `
-    <h3>${item ? 'Editar comisión' : 'Nueva comisión a agente'}</h3>
-    <div class="frow"><label class="fl">Agente</label><input class="fi" id="f-agente" list="dl-agentes" value="${escHtml(item?.agente)}" placeholder="Nombre del agente">
-      <datalist id="dl-agentes">${META.agentes.map(a=>`<option value="${escHtml(a)}">`).join('')}</datalist>
-    </div>
-    <div class="frow"><label class="fl">Cliente / Reserva</label><input class="fi" id="f-referencia" value="${escHtml(item?.referencia)}" placeholder="A qué venta corresponde"></div>
-    <div class="frow3">
-      <div><label class="fl">Monto</label><input class="fi" id="f-monto" type="number" step="0.01" value="${item?.monto??''}"></div>
-      <div><label class="fl">Moneda</label>${monedaSelect(item?.moneda)}</div>
-    </div>
-    <div class="frow2">
-      <div><label class="fl">Vencimiento</label><input class="fi" id="f-fecha" type="date" value="${item?.fecha||''}"></div>
-      <div><label class="fl">Estado</label><select class="fsel" id="f-estado">
-        ${selOpts(['pendiente','pagada'],['Pendiente','Pagada'],item?.estado||'pendiente')}
-      </select></div>
-    </div>
-    <div class="frow"><label class="fl">Notas</label><textarea class="fta" id="f-notas" placeholder="Condiciones, % de comisión…">${escHtml(item?.notas)}</textarea></div>
   `,
   recordatorios: (item) => `
     <h3>${item ? 'Editar recordatorio' : 'Nuevo recordatorio'}</h3>
@@ -748,7 +747,6 @@ function closeForm(){
 
 const FIELD_MAP = {
   facturas: ['proveedor','concepto','monto','moneda','emision','fecha','estado','notas'],
-  comisiones: ['agente','referencia','monto','moneda','fecha','estado','notas'],
   recordatorios: ['tipo','titulo','fecha','recurrencia','monto','moneda','notas'],
 };
 
@@ -767,9 +765,6 @@ function saveForm(){
   ref.set(val).then(() => {
     if (kind==='facturas' && val.proveedor && !META.proveedores.includes(val.proveedor)){
       META_PROV_REF.set([...META.proveedores, val.proveedor]);
-    }
-    if (kind==='comisiones' && val.agente && !META.agentes.includes(val.agente)){
-      META_AGENTE_REF.set([...META.agentes, val.agente]);
     }
   }).catch(err => console.error(err));
   closeForm();
@@ -908,7 +903,7 @@ function syncBspRecordatorios(){
 let reservaCtx = { id:null, data:null };
 
 function blankReserva(){
-  return { cliente:'', concepto:'', servicios:[], moneda:'ARS', valorCotizado:0, costoTotal:0, tipoCambioCotizacion:'', estado:'cotizada', fechaCotizacion:'', fecha:'', pasajeros:'', aereoCosto:'', aereoMoneda:'', aereoFechaEmision:'', notas:'', pagos:[], reparto:[], comprobantes:[] };
+  return { cliente:'', concepto:'', servicios:[], moneda:'ARS', valorCotizado:0, valorCotizadoMoneda:'', costoTotal:0, costoTotalMoneda:'', tipoCambioCotizacion:'', estado:'cotizada', fechaCotizacion:'', fecha:'', pasajeros:'', aereoCosto:'', aereoMoneda:'', aereoFechaEmision:'', notas:'', pagos:[], reparto:[], comprobantes:[] };
 }
 function toEditable(r){
   return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes) };
@@ -971,18 +966,29 @@ function addReparto(){
 
 function getNum(id){ const el=document.getElementById(id); return el ? (parseFloat(el.value)||0) : 0; }
 
-function recalcDerived(){
+// Lee valor cotizado / costo total del formulario y los convierte a la moneda de
+// referencia de la reserva (usando el TC de cotización) cuando cada uno está cargado
+// en una moneda distinta.
+function getCurrentMargen(){
   const moneda = document.getElementById('r-moneda')?.value || 'ARS';
-  const valorCotizado = getNum('r-valorCotizado');
-  const costoTotal = getNum('r-costoTotal');
-  const margen = valorCotizado - costoTotal;
+  const tc = getNum('r-tc-cotizacion');
+  const valorMoneda = document.getElementById('r-valorCotizado-moneda')?.value || moneda;
+  const costoMoneda = document.getElementById('r-costoTotal-moneda')?.value || moneda;
+  const valorConv = convertMonto(getNum('r-valorCotizado'), valorMoneda, moneda, tc);
+  const costoConv = convertMonto(getNum('r-costoTotal'), costoMoneda, moneda, tc);
+  const ok = valorConv.note!=='falta-tc' && costoConv.note!=='falta-tc';
+  return { margen: valorConv.value - costoConv.value, moneda, ok, valorConv, costoConv };
+}
+
+function recalcDerived(){
+  const { margen, moneda, ok, valorConv, costoConv } = getCurrentMargen();
 
   let pagosTotal = 0;
   document.querySelectorAll('.pago-row').forEach(row => {
     const monto = parseFloat(row.querySelector('.pago-monto').value)||0;
     const pMoneda = row.querySelector('.pago-moneda').value;
     const tc = row.querySelector('.pago-tc').value;
-    const conv = convertPago(monto, pMoneda, moneda, tc);
+    const conv = convertMonto(monto, pMoneda, moneda, tc);
     pagosTotal += conv.value;
     const equivEl = row.querySelector('.pago-equiv');
     if (!equivEl) return;
@@ -996,15 +1002,21 @@ function recalcDerived(){
       equivEl.style.color = 'rgba(43,43,43,.5)';
     }
   });
-  const saldo = valorCotizado - pagosTotal;
+  const saldo = valorConv.value - pagosTotal;
 
-  const mEl = document.getElementById('derived-margen'); if (mEl) mEl.textContent = fmtMoney(margen, moneda);
-  const sEl = document.getElementById('derived-saldo'); if (sEl) sEl.textContent = fmtMoney(saldo, moneda);
+  const mEl = document.getElementById('derived-margen');
+  if (mEl) mEl.textContent = ok ? fmtMoney(margen, moneda) : '⚠ Falta TC';
+  const sEl = document.getElementById('derived-saldo');
+  if (sEl) sEl.textContent = valorConv.note==='falta-tc' ? '⚠ Falta TC' : fmtMoney(saldo, moneda);
+  const tcWarn = document.getElementById('tc-cotizacion-warning');
+  if (tcWarn) tcWarn.textContent = !ok ? 'Valor cotizado y costo total están en monedas distintas: ingresá el tipo de cambio de cotización para calcular el margen.' : '';
+
   recalcReparto(margen, moneda);
 }
 function recalcReparto(margenOverride, monedaOverride){
-  const moneda = monedaOverride || document.getElementById('r-moneda')?.value || 'ARS';
-  const margen = margenOverride!=null ? margenOverride : (getNum('r-valorCotizado')-getNum('r-costoTotal'));
+  const current = getCurrentMargen();
+  const moneda = monedaOverride || current.moneda;
+  const margen = margenOverride!=null ? margenOverride : current.margen;
   const rows = document.querySelectorAll('.reparto-row');
   let sumPct = 0;
   rows.forEach(row => {
@@ -1043,18 +1055,26 @@ function renderReservaPanel(){
         <div class="upload-hint">Con esto el costo se suma solo al recordatorio de pago BSP del período que corresponda.</div>
       </div>
       <div class="frow2">
-        <div><label class="fl">Moneda</label><select class="fsel" id="r-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],d.moneda||'ARS')}</select></div>
+        <div><label class="fl">Moneda de referencia</label><select class="fsel" id="r-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],d.moneda||'ARS')}</select></div>
         <div><label class="fl">Estado</label><select class="fsel" id="r-estado">${selOpts(['cotizada','confirmada','pagada','cerrada','cancelada'],['Cotizada','Confirmada','Pagada','Cerrada','Cancelada'],d.estado||'cotizada')}</select></div>
       </div>
       <div class="frow2">
         <div><label class="fl">Fecha de cotización</label><input class="fi" id="r-fecha-cotizacion" type="date" value="${d.fechaCotizacion||''}"></div>
         <div><label class="fl">Cantidad de pasajeros</label><input class="fi" id="r-pasajeros" type="number" step="1" min="0" value="${d.pasajeros??''}" placeholder="Ej: 40"></div>
       </div>
-      <div class="frow2">
+      <div class="frow3">
         <div><label class="fl">Valor cotizado</label><input class="fi" id="r-valorCotizado" type="number" step="0.01" value="${d.valorCotizado??0}" oninput="recalcDerived()"></div>
-        <div><label class="fl">Costo total</label><input class="fi" id="r-costoTotal" type="number" step="0.01" value="${d.costoTotal??0}" oninput="recalcDerived()"></div>
+        <div><label class="fl">Moneda</label><select class="fsel" id="r-valorCotizado-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],d.valorCotizadoMoneda||d.moneda||'ARS')}</select></div>
       </div>
-      <div class="frow"><label class="fl">Tipo de cambio de cotización (referencia)</label><input class="fi" id="r-tc-cotizacion" type="number" step="0.01" value="${d.tipoCambioCotizacion??''}" placeholder="TC que usaste para armar el precio, ej: 1050"></div>
+      <div class="frow3">
+        <div><label class="fl">Costo total</label><input class="fi" id="r-costoTotal" type="number" step="0.01" value="${d.costoTotal??0}" oninput="recalcDerived()"></div>
+        <div><label class="fl">Moneda</label><select class="fsel" id="r-costoTotal-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],d.costoTotalMoneda||d.moneda||'ARS')}</select></div>
+      </div>
+      <div class="frow">
+        <label class="fl">Tipo de cambio de cotización</label>
+        <input class="fi" id="r-tc-cotizacion" type="number" step="0.01" value="${d.tipoCambioCotizacion??''}" placeholder="Ej: 1050" oninput="recalcDerived()">
+        <div class="upload-hint" id="tc-cotizacion-warning" style="color:var(--amber)"></div>
+      </div>
       <div class="derived-box">
         <div class="derived-item">Margen<b id="derived-margen">${fmtMoney(reservaMargenLocal(d), d.moneda)}</b></div>
         <div class="derived-item">Saldo pendiente<b id="derived-saldo">${fmtMoney((Number(d.valorCotizado)||0)-pagosEquivSum(d.pagos, d.moneda), d.moneda)}</b></div>
@@ -1117,7 +1137,8 @@ function saveReserva(){
     cliente: gv('r-cliente'), concepto: gv('r-concepto'),
     servicios,
     moneda: gv('r-moneda'),
-    valorCotizado: getNum('r-valorCotizado'), costoTotal: getNum('r-costoTotal'),
+    valorCotizado: getNum('r-valorCotizado'), valorCotizadoMoneda: gv('r-valorCotizado-moneda'),
+    costoTotal: getNum('r-costoTotal'), costoTotalMoneda: gv('r-costoTotal-moneda'),
     tipoCambioCotizacion: parseFloat(gv('r-tc-cotizacion'))||'',
     estado: gv('r-estado'), fechaCotizacion: gv('r-fecha-cotizacion'), fecha: gv('r-fecha'),
     pasajeros: parseInt(gv('r-pasajeros'),10)||'', notas: gv('r-notas'),
