@@ -570,7 +570,6 @@ function renderReservasTable(){
 
 function computeReservaTotals(){
   const cobrar = { ARS:0, USD:0 };
-  const margenT = { ARS:0, USD:0 };
   const repartoT = { ARS:0, USD:0 };
   STATE.reservas.forEach(r => {
     if (r.estado==='cancelada') return;
@@ -578,13 +577,12 @@ function computeReservaTotals(){
     const saldo = reservaSaldo(r);
     const margen = reservaMargen(r);
     if (r.estado!=='cerrada' && r.estado!=='pagada' && saldo>0) cobrar[moneda] += saldo;
-    if (!isDone('reservas', r)) margenT[moneda] += margen;
     objToArr(r.reparto).forEach(rep => {
       if (rep.pagado) return;
       repartoT[moneda] += margen * (Number(rep.porcentaje)||0) / 100;
     });
   });
-  return { cobrar, margenT, repartoT };
+  return { cobrar, repartoT };
 }
 
 function renderResumen(){
@@ -596,9 +594,15 @@ function renderResumen(){
     });
     return totals;
   };
-  const { cobrar, margenT, repartoT } = computeReservaTotals();
+  const { cobrar, repartoT } = computeReservaTotals();
   const facturasT = sumPend('facturas','pagada');
   const comisionesT = sumPend('comisiones','pagada');
+  const bspT = { ARS:0, USD:0 };
+  STATE.recordatorios.forEach(item => {
+    if (item.tipo!=='BSP' || item.resuelto) return;
+    bspT[item.moneda==='USD'?'USD':'ARS'] += Number(item.monto)||0;
+  });
+  const porPagarT = { ARS: facturasT.ARS + bspT.ARS, USD: facturasT.USD + bspT.USD };
 
   const allItems = [];
   ['reservas','facturas','comisiones','recordatorios'].forEach(kind => {
@@ -622,8 +626,7 @@ function renderResumen(){
 
   document.getElementById('stat-cards').innerHTML = `
     <div class="stat-card"><h4>Por cobrar de clientes</h4><div class="stat-amounts">${cardAmounts(cobrar)}</div></div>
-    <div class="stat-card"><h4>Margen de reservas activas</h4><div class="stat-amounts">${cardAmounts(margenT)}</div></div>
-    <div class="stat-card"><h4>Por pagar a proveedores</h4><div class="stat-amounts">${cardAmounts(facturasT)}</div></div>
+    <div class="stat-card"><h4>Por pagar a proveedores</h4><div class="stat-amounts">${cardAmounts(porPagarT)}</div></div>
     <div class="stat-card"><h4>Comisiones a agentes pendientes</h4><div class="stat-amounts">${cardAmounts(comisionesT)}</div></div>
     <div class="stat-card"><h4>Reparto pendiente a ejecutivos</h4><div class="stat-amounts">${cardAmounts(repartoT)}</div></div>
     <div class="stat-card alert"><h4>Alertas activas</h4><div class="stat-amounts"><div class="stat-amount">${vencidos.length + proximos.length}</div></div></div>
