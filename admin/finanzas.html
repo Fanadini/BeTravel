@@ -100,11 +100,19 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .new-btn:hover{background:#9a7648}
 .new-btn.outline{background:transparent;color:var(--teal);border:1.5px solid var(--teal);box-shadow:none}
 .new-btn.outline:hover{background:var(--teal-l)}
-.data-table{width:100%;border-collapse:collapse;background:var(--white);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-s)}
-.data-table th{padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:rgba(43,43,43,.45);letter-spacing:1px;text-transform:uppercase;background:var(--beige);border-bottom:1px solid var(--beige-d)}
+.table-wrap{overflow-x:auto;border-radius:10px;box-shadow:var(--shadow-s)}
+.data-table{width:100%;border-collapse:collapse;background:var(--white);border-radius:10px;overflow:hidden}
+.table-wrap .data-table{box-shadow:none}
+.data-table th{padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:rgba(43,43,43,.45);letter-spacing:1px;text-transform:uppercase;background:var(--beige);border-bottom:1px solid var(--beige-d);white-space:nowrap}
 .data-table td{padding:11px 14px;font-size:12.5px;border-bottom:1px solid rgba(0,0,0,.05);vertical-align:middle}
 .data-table tr:last-child td{border-bottom:none}
 .data-table tbody tr:hover td{background:rgba(15,61,62,.03);cursor:pointer}
+.data-table th.sortable-th{cursor:pointer;user-select:none}
+.data-table th.sortable-th:hover{color:var(--teal)}
+.data-table th.sortable-th.active{color:var(--teal)}
+.data-table tr.filter-row th{background:var(--white);padding:6px 10px;border-bottom:1px solid var(--beige-d)}
+.col-filter{width:100%;font-family:'Inter',sans-serif;font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--dark);background:var(--beige);border:1px solid var(--beige-d);border-radius:5px;padding:5px 7px;outline:none}
+.col-filter:focus{border-color:var(--teal);background:var(--white)}
 .badge{font-size:10px;font-weight:600;padding:3px 9px;border-radius:99px;white-space:nowrap;display:inline-block}
 .badge.vencido{background:rgba(184,50,50,.12);color:var(--red)}
 .badge.proximo{background:rgba(201,122,26,.14);color:var(--amber)}
@@ -115,6 +123,8 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .badge.estado-pagada{background:rgba(47,143,78,.13);color:var(--green)}
 .badge.estado-cerrada{background:rgba(47,143,78,.13);color:var(--green)}
 .badge.estado-cancelada{background:rgba(184,50,50,.12);color:var(--red)}
+.badge.fact-facturada{background:rgba(47,143,78,.13);color:var(--green)}
+.badge.fact-pendiente{background:rgba(43,43,43,.08);color:rgba(43,43,43,.6)}
 .money{font-weight:600;white-space:nowrap}
 .money.usd{color:var(--bronze)}
 .table-empty{padding:40px 20px;text-align:center;color:rgba(43,43,43,.35);font-size:12.5px}
@@ -271,10 +281,12 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
       <h2>Reservas</h2>
       <button class="new-btn" onclick="openReserva()">+ Nueva reserva</button>
     </div>
-    <table class="data-table">
-      <thead><tr><th>Cliente</th><th>Concepto</th><th>Servicios</th><th>Pax</th><th>Fecha de viaje</th><th>Valor cotizado</th><th>Saldo pendiente</th><th>Margen</th><th>Estado</th></tr></thead>
-      <tbody id="tbody-reservas"></tbody>
-    </table>
+    <div class="table-wrap">
+      <table class="data-table" id="tabla-reservas">
+        <thead id="thead-reservas"></thead>
+        <tbody id="tbody-reservas"></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- FACTURAS -->
@@ -484,6 +496,10 @@ function estadoReservaBadgeHtml(estado){
   const e = estado || 'cotizada';
   return `<span class="badge estado-${e}">${ESTADO_RESERVA_LABELS[e] || e}</span>`;
 }
+function facturacionBadgeHtml(f){
+  const facturada = !!(f && f.facturada);
+  return `<span class="badge ${facturada?'fact-facturada':'fact-pendiente'}">${facturada?'Facturada':'Pendiente'}</span>`;
+}
 
 function toggleAlertCol(id){
   document.getElementById(id).classList.toggle('collapsed');
@@ -536,35 +552,109 @@ function renderTable(kind){
   }).join('');
 }
 
+// ── TABLA DE RESERVAS: columnas ordenables y filtrables ─────────────────────
+const RESERVAS_COLS = [
+  { key:'cliente', label:'Cliente', type:'text', get:r => r.cliente||'' },
+  { key:'concepto', label:'Concepto', type:'text', get:r => r.concepto||'' },
+  { key:'servicios', label:'Servicios', type:'text', get:r => (r.servicios||[]).join(', ') },
+  { key:'pasajeros', label:'Pax', type:'number', get:r => Number(r.pasajeros)||0 },
+  { key:'fechaCotizacion', label:'Fecha de cotización', type:'date', get:r => r.fechaCotizacion||'' },
+  { key:'fecha', label:'Fecha de viaje', type:'date', get:r => r.fecha||'' },
+  { key:'valorCotizado', label:'Valor cotizado', type:'number', get:r => reservaValorCotizadoEnRef(r) },
+  { key:'saldo', label:'Saldo pendiente', type:'number', get:r => reservaSaldo(r) },
+  { key:'margen', label:'Margen', type:'number', get:r => reservaMargen(r) },
+  { key:'estado', label:'Estado', type:'select', options: ESTADO_RESERVA_LABELS, get:r => r.estado||'cotizada' },
+  { key:'facturacion', label:'Facturación', type:'select', options: { si:'Facturada', no:'Pendiente' }, get:r => (r.facturacion && r.facturacion.facturada) ? 'si' : 'no' },
+];
+let reservasSort = { key:'fecha', dir:1 };
+let reservasFilters = {};
+
+function buildReservasThead(){
+  const headCells = RESERVAS_COLS.map(c => {
+    const active = reservasSort.key===c.key;
+    const arrow = active ? (reservasSort.dir===1 ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable-th${active?' active':''}" onclick="setReservasSort('${c.key}')">${c.label}${arrow}</th>`;
+  }).join('');
+  const filterCells = RESERVAS_COLS.map(c => {
+    const current = reservasFilters[c.key] || '';
+    if (c.type==='select'){
+      const opts = Object.keys(c.options).map(v => `<option value="${v}" ${v===current?'selected':''}>${escHtml(c.options[v])}</option>`).join('');
+      return `<th><select class="col-filter" onclick="event.stopPropagation()" onchange="setReservasFilter('${c.key}',this.value)"><option value="">Todos</option>${opts}</select></th>`;
+    }
+    return `<th><input class="col-filter" type="text" placeholder="Filtrar…" value="${escHtml(current)}" onclick="event.stopPropagation()" oninput="setReservasFilter('${c.key}',this.value)"></th>`;
+  }).join('');
+  return `<tr>${headCells}</tr><tr class="filter-row">${filterCells}</tr>`;
+}
+function initReservasThead(){
+  document.getElementById('thead-reservas').innerHTML = buildReservasThead();
+}
+function setReservasSort(key){
+  if (reservasSort.key===key) reservasSort.dir *= -1;
+  else reservasSort = { key, dir:1 };
+  initReservasThead();
+  renderReservasTable();
+}
+function setReservasFilter(key, value){
+  reservasFilters[key] = value;
+  renderReservasTable();
+}
+
+function reservaRowHtml(r){
+  const saldo = reservaSaldo(r);
+  const margen = reservaMargen(r);
+  const usd = r.moneda==='USD' ? 'usd' : '';
+  // El valor cotizado puede estar cargado en una moneda distinta a la de referencia
+  // de la reserva: se muestra con SU propia moneda, no la de saldo/margen.
+  const valorMoneda = r.valorCotizadoMoneda || r.moneda;
+  const usdValor = valorMoneda==='USD' ? 'usd' : '';
+  const servicios = (r.servicios||[]).map(s => `<span class="servicio-tag ${s==='Aéreo'?'aereo':''}">${escHtml(s)}</span>`).join('') || '—';
+  return `<tr onclick="openReserva('${r.id}')">
+    <td>${escHtml(r.cliente||'—')}</td>
+    <td>${escHtml(r.concepto||'')}</td>
+    <td>${servicios}</td>
+    <td>${r.pasajeros ? escHtml(Number(r.pasajeros).toLocaleString('es-AR')) : '—'}</td>
+    <td>${fmtDate(r.fechaCotizacion)}</td>
+    <td>${fmtDate(r.fecha)}</td>
+    <td><span class="money ${usdValor}">${fmtMoney(r.valorCotizado, valorMoneda)}</span></td>
+    <td><span class="money ${usd}">${fmtMoney(saldo,r.moneda)}</span></td>
+    <td><span class="money ${usd}">${fmtMoney(margen,r.moneda)}</span></td>
+    <td>${estadoReservaBadgeHtml(r.estado)}</td>
+    <td>${facturacionBadgeHtml(r.facturacion)}</td>
+  </tr>`;
+}
+
 function renderReservasTable(){
   const tbody = document.getElementById('tbody-reservas');
-  const items = [...STATE.reservas].sort((a,b) => (a.fecha||'9999').localeCompare(b.fecha||'9999'));
+  let items = [...STATE.reservas];
+
+  RESERVAS_COLS.forEach(c => {
+    const fv = reservasFilters[c.key];
+    if (!fv) return;
+    if (c.type==='select'){
+      items = items.filter(r => c.get(r)===fv);
+    } else if (c.type==='number'){
+      items = items.filter(r => String(c.get(r)).includes(fv));
+    } else {
+      items = items.filter(r => c.get(r).toLowerCase().includes(fv.toLowerCase()));
+    }
+  });
+
+  const sortCol = RESERVAS_COLS.find(c => c.key===reservasSort.key) || RESERVAS_COLS.find(c => c.key==='fecha');
+  items.sort((a,b) => {
+    let av = sortCol.get(a), bv = sortCol.get(b);
+    if (sortCol.type==='number'){ return ((Number(av)||0) - (Number(bv)||0)) * reservasSort.dir; }
+    av = String(av||''); bv = String(bv||'');
+    return av.localeCompare(bv) * reservasSort.dir;
+  });
+
   if (!items.length){
-    tbody.innerHTML = `<tr><td colspan="9" class="table-empty">Todavía no cargaste ninguna reserva.</td></tr>`;
+    const msg = STATE.reservas.length ? 'Ningún resultado con estos filtros.' : 'Todavía no cargaste ninguna reserva.';
+    tbody.innerHTML = `<tr><td colspan="${RESERVAS_COLS.length}" class="table-empty">${msg}</td></tr>`;
     return;
   }
-  tbody.innerHTML = items.map(r => {
-    const saldo = reservaSaldo(r);
-    const margen = reservaMargen(r);
-    const usd = r.moneda==='USD' ? 'usd' : '';
-    // El valor cotizado puede estar cargado en una moneda distinta a la de referencia
-    // de la reserva: se muestra con SU propia moneda, no la de saldo/margen.
-    const valorMoneda = r.valorCotizadoMoneda || r.moneda;
-    const usdValor = valorMoneda==='USD' ? 'usd' : '';
-    const servicios = (r.servicios||[]).map(s => `<span class="servicio-tag ${s==='Aéreo'?'aereo':''}">${escHtml(s)}</span>`).join('') || '—';
-    return `<tr onclick="openReserva('${r.id}')">
-      <td>${escHtml(r.cliente||'—')}</td>
-      <td>${escHtml(r.concepto||'')}</td>
-      <td>${servicios}</td>
-      <td>${r.pasajeros ? escHtml(Number(r.pasajeros).toLocaleString('es-AR')) : '—'}</td>
-      <td>${fmtDate(r.fecha)}</td>
-      <td><span class="money ${usdValor}">${fmtMoney(r.valorCotizado, valorMoneda)}</span></td>
-      <td><span class="money ${usd}">${fmtMoney(saldo,r.moneda)}</span></td>
-      <td><span class="money ${usd}">${fmtMoney(margen,r.moneda)}</span></td>
-      <td>${estadoReservaBadgeHtml(r.estado)}</td>
-    </tr>`;
-  }).join('');
+  tbody.innerHTML = items.map(reservaRowHtml).join('');
 }
+initReservasThead();
 
 // Un reparto puede liquidarse en una moneda distinta a la de referencia de la reserva
 // (ej: margen calculado en ARS, pero le pagás la parte a un ejecutivo en USD).
@@ -919,7 +1009,7 @@ function syncBspRecordatorios(){
 let reservaCtx = { id:null, data:null };
 
 function blankReserva(){
-  return { cliente:'', concepto:'', servicios:[], moneda:'ARS', valorCotizado:0, valorCotizadoMoneda:'', costoTotal:0, costoTotalMoneda:'', tipoCambioCotizacion:'', estado:'cotizada', fechaCotizacion:'', fecha:'', pasajeros:'', aereoCosto:'', aereoMoneda:'', aereoFechaEmision:'', notas:'', pagos:[], reparto:[], comprobantes:[] };
+  return { cliente:'', concepto:'', servicios:[], moneda:'ARS', valorCotizado:0, valorCotizadoMoneda:'', costoTotal:0, costoTotalMoneda:'', tipoCambioCotizacion:'', estado:'cotizada', fechaCotizacion:'', fecha:'', pasajeros:'', aereoCosto:'', aereoMoneda:'', aereoFechaEmision:'', notas:'', pagos:[], reparto:[], comprobantes:[], facturacion:{ facturada:false, fecha:'', concepto:'comision', monto:'', moneda:'', numero:'' } };
 }
 function toEditable(r){
   return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes) };
@@ -1131,6 +1221,23 @@ function renderReservaPanel(){
     </div>
 
     <div class="psec">
+      <div class="psec-title">Facturación</div>
+      <div class="upload-hint" style="margin-bottom:8px">Control de facturación de la reserva. La mayoría de las veces se factura solo la comisión, no el total del paquete.</div>
+      <div class="check-row"><input type="checkbox" id="r-fact-facturada" ${d.facturacion?.facturada?'checked':''} onchange="toggleFacturacionFields()"><label for="r-fact-facturada">Facturada</label></div>
+      <div id="facturacion-fields" style="${d.facturacion?.facturada ? '' : 'display:none'}">
+        <div class="frow2">
+          <div><label class="fl">Fecha de facturación</label><input class="fi" id="r-fact-fecha" type="date" value="${d.facturacion?.fecha||''}"></div>
+          <div><label class="fl">Concepto facturado</label><select class="fsel" id="r-fact-concepto">${selOpts(['comision','total','otro'],['Comisión','Total del paquete','Otro'],d.facturacion?.concepto||'comision')}</select></div>
+        </div>
+        <div class="frow3">
+          <div><label class="fl">Monto facturado</label><input class="fi" id="r-fact-monto" type="number" step="0.01" value="${d.facturacion?.monto??''}"></div>
+          <div><label class="fl">Moneda</label><select class="fsel" id="r-fact-moneda">${selOpts(['ARS','USD'],['ARS','USD'],d.facturacion?.moneda||d.moneda||'ARS')}</select></div>
+        </div>
+        <div class="frow" style="margin-bottom:0"><label class="fl">Número de factura</label><input class="fi" id="r-fact-numero" value="${escHtml(d.facturacion?.numero)}" placeholder="Ej: B-0001-00001234"></div>
+      </div>
+    </div>
+
+    <div class="psec">
       <div class="psec-title">Comprobantes</div>
       <div id="comprobantes-list">${(d.comprobantes||[]).map(comprobanteRowHtml).join('')}</div>
       <button type="button" class="add-item-btn" onclick="addComprobante()">+ Agregar comprobante (link)</button>
@@ -1152,6 +1259,12 @@ function comprobanteRowHtml(c){
 }
 function addComprobante(){
   document.getElementById('comprobantes-list').insertAdjacentHTML('beforeend', comprobanteRowHtml({ id:'new_'+uid(), nombre:'', url:'' }));
+}
+
+function toggleFacturacionFields(){
+  const box = document.getElementById('facturacion-fields');
+  const checked = document.getElementById('r-fact-facturada')?.checked;
+  if (box) box.style.display = checked ? '' : 'none';
 }
 
 function toggleServicioChip(btn){
@@ -1177,6 +1290,14 @@ function saveReserva(){
     aereoCosto: esAereo ? (getNum('r-aereo-costo')||'') : '',
     aereoMoneda: esAereo ? gv('r-aereo-moneda') : '',
     aereoFechaEmision: esAereo ? gv('r-aereo-fecha-emision') : '',
+    facturacion: {
+      facturada: document.getElementById('r-fact-facturada').checked,
+      fecha: gv('r-fact-fecha'),
+      concepto: gv('r-fact-concepto'),
+      monto: getNum('r-fact-monto') || '',
+      moneda: gv('r-fact-moneda'),
+      numero: gv('r-fact-numero'),
+    },
     pagos: {}, reparto: {}, comprobantes: {}
   };
   document.querySelectorAll('.pago-row').forEach(row => {
