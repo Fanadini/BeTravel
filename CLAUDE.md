@@ -19,29 +19,38 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 
 | Componente | Tecnología | Detalle |
 |---|---|---|
-| Hosting | SiteGround | Archivos estáticos en `public_html/` |
-| DNS / CDN | Cloudflare | Read-only desde panel SiteGround |
+| Hosting | **GitHub Pages** | Repo `Fanadini/BeTravel`, archivos estáticos servidos desde la raíz de `main` — sin build step |
+| Deploy | Automático | Todo push/merge a `main` publica en vivo al instante (no hace falta subir nada a mano) |
+| Dominio | `betravel.com.ar` | Configurado vía archivo `CNAME` en la raíz del repo |
+| DNS / CDN | Cloudflare | Apunta el dominio a GitHub Pages (ya no a SiteGround) |
 | Sitio | HTML estático | Sin WordPress, sin CMS |
-| Formularios | `mail.php` | Redirige con `?status=ok&nombre=X` |
-| Email | Cloudflare obfuscation | Manejar obfuscación a nivel HTML |
+| Formularios | Formspree | `https://formspree.io/f/xredoyja`, fetch async desde `index.html` |
 | Kanban CRM | Firebase Realtime DB | Proyecto: `betravel-kanban` |
 | Firebase URL | `betravel-kanban-default-rtdb.firebaseio.com` | |
 | Diseño | Canva | Para piezas sociales |
 | Imágenes | Unsplash / Pexels / fotos propias / Nano Banana (IA) | |
 
+> Ya no usamos SiteGround ni PHP (`mail.php`) para nada — el hosting y el deploy son 100% GitHub Pages.
+
 ---
 
-## Estructura de archivos (public_html)
+## Estructura de archivos (raíz del repo)
 
 ```
-public_html/
-├── index.html               ← Home principal (betravel_home_v2.html)
+/
+├── CNAME                    ← dominio custom para GitHub Pages (betravel.com.ar)
+├── index.html               ← Home principal
 ├── becorporate.html         ← Página Be•Corporate (MICE / corporativo)
 ├── vacacional.html          ← Página Be•Travel · Vacacional (premium)
 ├── becommunity.html         ← Página Be•Community (grupos de afinidad)
-├── mail.php                 ← Handler formulario de contacto
+├── style.css
+├── robots.txt / sitemap.xml
+├── *.jpg                    ← imágenes (hero, editorial, etc.)
+├── guia_interna/
+│   └── index.html           ← Guía de formación interna
 └── admin/
-    └── kanban.html          ← CRM interno (Firebase)
+    ├── kanban.html           ← CRM interno (Firebase)
+    └── finanzas.html         ← Finanzas / Reservas / Facturas de proveedores (Firebase)
 ```
 
 ---
@@ -82,7 +91,7 @@ public_html/
 
 ## Kanban CRM — Notas técnicas
 
-- Desplegado en `betravelarg.com/admin/kanban.html`
+- Desplegado en `betravel.com.ar/admin/kanban.html`
 - Base Firebase: estructura de prospects con multi-contacto
 - Autosave activo en todas las interacciones
 - 60 prospects cargados, segmentados por sector corporativo
