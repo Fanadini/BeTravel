@@ -50,7 +50,7 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 │   └── index.html           ← Guía de formación interna
 └── admin/
     ├── kanban.html           ← CRM interno (Firebase)
-    └── finanzas.html         ← Finanzas / Reservas / Facturas de proveedores (Firebase)
+    └── gestioninterna.html    ← Finanzas / Reservas / Facturas de proveedores (Firebase)
 ```
 
 ---
