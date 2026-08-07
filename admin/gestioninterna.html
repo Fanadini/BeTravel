@@ -519,17 +519,20 @@ function reservaCostosEnRef(r){
 function reservaCostoTotalEnRef(r){ return reservaCostosEnRef(r); }
 function reservaSaldo(r){ return reservaValorCotizadoEnRef(r) - pagosEquivSum(objToArr(r.pagos), r.moneda); }
 function reservaMargen(r){ return reservaValorCotizadoEnRef(r) - reservaCostoTotalEnRef(r); }
-// Monto objetivo a facturar: casi siempre es la comisión (margen); si se cargó
+// Monto objetivo a facturar: casi siempre es la comisión (margen); si se eligió
 // "total del paquete" u "otro" concepto, se usa ese criterio en su lugar.
 function reservaMontoAFacturar(r){
-  const concepto = (r.facturacion && r.facturacion.concepto) || 'comision';
+  const concepto = r.facturacionConcepto || 'comision';
   if (concepto==='total') return reservaValorCotizadoEnRef(r);
   return reservaMargen(r);
 }
+// Puede haber más de una factura emitida por reserva (parcial, en cuotas, etc.);
+// se suman todas, cada una convertida a la moneda de referencia con su propio TC.
+function reservaMontoFacturado(r){
+  return objToArr(r.facturacion).reduce((s,f) => s + convertMonto(Number(f.monto)||0, f.moneda||r.moneda, r.moneda, f.tipoCambio).value, 0);
+}
 function reservaFaltaFacturar(r){
-  const objetivo = reservaMontoAFacturar(r);
-  const facturado = (r.facturacion && r.facturacion.facturada) ? (Number(r.facturacion.monto)||0) : 0;
-  return objetivo - facturado;
+  return reservaMontoAFacturar(r) - reservaMontoFacturado(r);
 }
 
 const DONE_STATES = { facturas:'pagada' };
@@ -558,8 +561,8 @@ function estadoReservaBadgeHtml(estado){
   const e = estado || 'cotizado';
   return `<span class="badge estado-${e}">${ESTADO_RESERVA_LABELS[e] || e}</span>`;
 }
-function facturacionBadgeHtml(f){
-  const facturada = !!(f && f.facturada);
+function facturacionBadgeHtml(facturacionRaw){
+  const facturada = objToArr(facturacionRaw).length > 0;
   return `<span class="badge ${facturada?'fact-facturada':'fact-pendiente'}">${facturada?'Facturada':'Pendiente'}</span>`;
 }
 
@@ -664,7 +667,7 @@ const RESERVAS_COLS = [
   { key:'saldo', label:'Saldo pendiente', type:'number', get:r => reservaSaldo(r) },
   { key:'margen', label:'Margen', type:'number', get:r => reservaMargen(r) },
   { key:'estado', label:'Estado', type:'select', options: ESTADO_RESERVA_LABELS, get:r => r.estado||'cotizado' },
-  { key:'facturacion', label:'Facturación', type:'select', options: { si:'Facturada', no:'Pendiente' }, get:r => (r.facturacion && r.facturacion.facturada) ? 'si' : 'no' },
+  { key:'facturacion', label:'Facturación', type:'select', options: { si:'Facturada', no:'Pendiente' }, get:r => objToArr(r.facturacion).length>0 ? 'si' : 'no' },
 ];
 let reservasSort = { key:'fechaInicio', dir:1 };
 let reservasFilters = {};
@@ -874,7 +877,7 @@ function renderResumen(){
         if (g.ARS) parts.push(`<div class="alert-amount">${fmtMoney(g.ARS,'ARS')}</div>`);
         if (g.USD) parts.push(`<div class="alert-amount" style="color:var(--bronze)">${fmtMoney(g.USD,'USD')}</div>`);
         const detalle = g.items.map(({r,falta}) => `<div class="alert-row" onclick="jumpTo('reservas','${r.id}')" style="padding-left:18px">
-          <div><div class="alert-title">${escHtml(r.codigo||'—')} — ${escHtml(r.cliente||'Sin cliente')}</div><div class="alert-sub">${r.facturacion&&r.facturacion.facturada?'Facturado parcial':'Sin facturar'}</div></div>
+          <div><div class="alert-title">${escHtml(r.codigo||'—')} — ${escHtml(r.cliente||'Sin cliente')}</div><div class="alert-sub">${objToArr(r.facturacion).length>0?'Facturado parcial':'Sin facturar'}</div></div>
           <div class="alert-meta"><div class="alert-amount">${fmtMoney(falta, r.moneda)}</div></div>
         </div>`).join('');
         return `<div style="margin-bottom:6px">
@@ -1201,6 +1204,28 @@ function migrateReservasLegacy(){
       const key3 = REFS.reservas.push().key;
       updates[r.id + '/cotizado'] = { [key3]: { tipo:'Otro', concepto:'Valor cotizado (migrado)', monto:Number(r.valorCotizado), moneda:r.valorCotizadoMoneda||r.moneda||'ARS', tipoCambio:'' } };
     }
+
+    // La facturación era un único registro (una factura por reserva); ahora es
+    // una lista, porque puede haber más de una. El concepto elegido (comisión/
+    // total/otro) pasa a ser una preferencia de la reserva, separada de las
+    // facturas ya emitidas.
+    if (r.facturacion && r.facturacion.facturada !== undefined) {
+      updates[r.id + '/facturacionConcepto'] = r.facturacion.concepto || 'comision';
+      const huboFactura = r.facturacion.facturada && (Number(r.facturacion.monto) > 0 || r.facturacion.numero || r.facturacion.link);
+      if (huboFactura) {
+        const keyF = REFS.reservas.push().key;
+        updates[r.id + '/facturacion'] = { [keyF]: {
+          fecha: r.facturacion.fecha || '',
+          monto: Number(r.facturacion.monto) || 0,
+          moneda: r.facturacion.moneda || r.moneda || 'ARS',
+          tipoCambio: '',
+          numero: r.facturacion.numero || '',
+          link: r.facturacion.link || '',
+        } };
+      } else {
+        updates[r.id + '/facturacion'] = null;
+      }
+    }
   });
 
   if (Object.keys(updates).length) {
@@ -1215,10 +1240,10 @@ function migrateReservasLegacy(){
 let reservaCtx = { id:null, data:null };
 
 function blankReserva(){
-  return { codigo:'', cliente:'', concepto:'', servicios:[], servicioOtroTexto:'', moneda:'ARS', estado:'cotizado', fechaCotizacion:'', fechaInicio:'', fechaFin:'', pasajeros:'', notas:'', pagos:[], reparto:[], comprobantes:[], costos:[], cotizado:[], pasajerosData:[], facturacion:{ facturada:false, fecha:'', concepto:'comision', monto:'', moneda:'', numero:'', link:'' } };
+  return { codigo:'', cliente:'', concepto:'', servicios:[], servicioOtroTexto:'', moneda:'ARS', estado:'cotizado', fechaCotizacion:'', fechaInicio:'', fechaFin:'', pasajeros:'', notas:'', pagos:[], reparto:[], comprobantes:[], costos:[], cotizado:[], pasajerosData:[], facturacionConcepto:'comision', facturacion:[] };
 }
 function toEditable(r){
-  return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes), costos: objToArr(r.costos), cotizado: objToArr(r.cotizado), pasajerosData: objToArr(r.pasajerosData) };
+  return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes), costos: objToArr(r.costos), cotizado: objToArr(r.cotizado), pasajerosData: objToArr(r.pasajerosData), facturacion: objToArr(r.facturacion) };
 }
 
 function openReserva(id){
@@ -1263,6 +1288,22 @@ function pagoRowHtml(p, monedaReserva){
     <div class="item-field" style="margin-top:6px"><span class="item-field-label">Comentario</span><input class="pago-comentario" value="${escHtml(p.comentario)}" placeholder="Nota sobre este pago"></div>
     <div class="item-field" style="margin-top:6px"><span class="item-field-label">Link al comprobante</span><input class="pago-link" type="url" value="${escHtml(p.link)}" placeholder="https://drive.google.com/…"></div>
     <div class="pago-equiv" style="font-size:11px;margin-top:6px"></div>
+  </div>`;
+}
+function facturaRowHtml(f, monedaReserva){
+  const fMoneda = f.moneda || monedaReserva || 'ARS';
+  return `<div class="item-card factura-row" data-row-id="${f.id}">
+    <div class="item-card-header"><span class="item-card-label">Factura</span><button type="button" class="item-delete-btn" onclick="this.closest('.factura-row').remove();saveReserva()">✕</button></div>
+    <div class="item-fields cols3">
+      <div class="item-field"><span class="item-field-label">Fecha</span><input type="date" class="factura-fecha" value="${f.fecha||''}"></div>
+      <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="factura-monto" value="${f.monto??''}"></div>
+      <div class="item-field"><span class="item-field-label">Moneda</span><select class="factura-moneda">${selOpts(['ARS','USD'],['ARS','USD'],fMoneda)}</select></div>
+    </div>
+    <div class="item-fields" style="margin-top:6px">
+      <div class="item-field"><span class="item-field-label">Número de factura</span><input class="factura-numero" value="${escHtml(f.numero)}" placeholder="Ej: B-0001-00001234"></div>
+      <div class="item-field"><span class="item-field-label">T.C. (si es otra moneda)</span><input type="number" step="0.01" class="factura-tc" value="${f.tipoCambio??''}" placeholder="Ej: 1050"></div>
+    </div>
+    <div class="item-field" style="margin-top:6px"><span class="item-field-label">Link al comprobante</span><input class="factura-link" type="url" value="${escHtml(f.link)}" placeholder="https://drive.google.com/…"></div>
   </div>`;
 }
 function costoRowHtml(c, monedaReserva){
@@ -1363,6 +1404,10 @@ function addPago(){
   const monedaReserva = document.getElementById('r-moneda')?.value || 'ARS';
   document.getElementById('pagos-list').insertAdjacentHTML('beforeend', pagoRowHtml({ id:'new_'+uid(), fecha:todayISO(), monto:0, moneda:monedaReserva, medio:'' }, monedaReserva));
   recalcDerived();
+}
+function addFactura(){
+  const monedaReserva = document.getElementById('r-moneda')?.value || 'ARS';
+  document.getElementById('facturacion-list').insertAdjacentHTML('beforeend', facturaRowHtml({ id:'new_'+uid(), fecha:todayISO(), monto:0, moneda:monedaReserva }, monedaReserva));
 }
 function addReparto(){
   const monedaReserva = document.getElementById('r-moneda')?.value || 'ARS';
@@ -1564,20 +1609,10 @@ function renderReservaPanel(){
 
     <div class="psec">
       <div class="psec-title">Facturación</div>
-      <div class="upload-hint" style="margin-bottom:8px">Control de facturación de la reserva. La mayoría de las veces se factura solo la comisión, no el total del paquete.</div>
-      <div class="check-row"><input type="checkbox" id="r-fact-facturada" ${d.facturacion?.facturada?'checked':''} onchange="toggleFacturacionFields()"><label for="r-fact-facturada">Facturada</label></div>
-      <div id="facturacion-fields" style="${d.facturacion?.facturada ? '' : 'display:none'}">
-        <div class="frow2">
-          <div><label class="fl">Fecha de facturación</label><input class="fi" id="r-fact-fecha" type="date" value="${d.facturacion?.fecha||''}"></div>
-          <div><label class="fl">Concepto facturado</label><select class="fsel" id="r-fact-concepto">${selOpts(['comision','total','otro'],['Comisión','Total del paquete','Otro'],d.facturacion?.concepto||'comision')}</select></div>
-        </div>
-        <div class="frow3">
-          <div><label class="fl">Monto facturado</label><input class="fi" id="r-fact-monto" type="number" step="0.01" value="${d.facturacion?.monto??''}"></div>
-          <div><label class="fl">Moneda</label><select class="fsel" id="r-fact-moneda">${selOpts(['ARS','USD'],['ARS','USD'],d.facturacion?.moneda||d.moneda||'ARS')}</select></div>
-        </div>
-        <div class="frow"><label class="fl">Número de factura</label><input class="fi" id="r-fact-numero" value="${escHtml(d.facturacion?.numero)}" placeholder="Ej: B-0001-00001234"></div>
-        <div class="frow" style="margin-bottom:0"><label class="fl">Link al comprobante</label><input class="fi" id="r-fact-link" type="url" value="${escHtml(d.facturacion?.link)}" placeholder="https://drive.google.com/…"></div>
-      </div>
+      <div class="upload-hint" style="margin-bottom:8px">Puede haber más de una factura por reserva (parcial, en cuotas, etc.). La mayoría de las veces se factura solo la comisión, no el total del paquete.</div>
+      <div class="frow" style="margin-bottom:14px"><label class="fl">Concepto a facturar</label><select class="fsel" id="r-fact-concepto">${selOpts(['comision','total','otro'],['Comisión','Total del paquete','Otro'],d.facturacionConcepto||'comision')}</select></div>
+      <div id="facturacion-list">${(d.facturacion||[]).map(facturaRowHtml).join('')}</div>
+      <button type="button" class="add-item-btn" onclick="addFactura()">+ Agregar factura</button>
     </div>
 
     <div class="psec">
@@ -1610,12 +1645,6 @@ function addComprobante(){
   document.getElementById('comprobantes-list').insertAdjacentHTML('beforeend', comprobanteRowHtml({ id:'new_'+uid(), nombre:'', url:'' }));
 }
 
-function toggleFacturacionFields(){
-  const box = document.getElementById('facturacion-fields');
-  const checked = document.getElementById('r-fact-facturada')?.checked;
-  if (box) box.style.display = checked ? '' : 'none';
-}
-
 function toggleServicioChip(btn){
   btn.classList.toggle('on');
   if (btn.dataset.servicio === 'Otro'){
@@ -1639,16 +1668,8 @@ function saveReserva(){
     estado: gv('r-estado'), fechaCotizacion: gv('r-fecha-cotizacion'),
     fechaInicio: gv('r-fecha-inicio'), fechaFin: gv('r-fecha-fin'),
     pasajeros: parseInt(gv('r-pasajeros'),10)||'', notas: gv('r-notas'),
-    facturacion: {
-      facturada: document.getElementById('r-fact-facturada').checked,
-      fecha: gv('r-fact-fecha'),
-      concepto: gv('r-fact-concepto'),
-      monto: getNum('r-fact-monto') || '',
-      moneda: gv('r-fact-moneda'),
-      numero: gv('r-fact-numero'),
-      link: gv('r-fact-link'),
-    },
-    pagos: {}, reparto: {}, comprobantes: {}, costos: {}, cotizado: {}, pasajerosData: {}
+    facturacionConcepto: gv('r-fact-concepto'),
+    pagos: {}, reparto: {}, comprobantes: {}, costos: {}, cotizado: {}, pasajerosData: {}, facturacion: {}
   };
   // Filas nuevas (todavía sin key de Firebase): se les asigna una key ahora, pero
   // el dataset del DOM recién se actualiza si el guardado sale bien, así que un
@@ -1705,6 +1726,16 @@ function saveReserva(){
       monto: parseFloat(row.querySelector('.cotizado-monto').value)||0,
       moneda: row.querySelector('.cotizado-moneda').value,
       tipoCambio: parseFloat(row.querySelector('.cotizado-tc').value)||'',
+    };
+  });
+  document.querySelectorAll('.factura-row').forEach(row => {
+    val.facturacion[rid(row)] = {
+      fecha: row.querySelector('.factura-fecha').value,
+      monto: parseFloat(row.querySelector('.factura-monto').value)||0,
+      moneda: row.querySelector('.factura-moneda').value,
+      tipoCambio: parseFloat(row.querySelector('.factura-tc').value)||'',
+      numero: row.querySelector('.factura-numero').value.trim(),
+      link: row.querySelector('.factura-link').value.trim(),
     };
   });
   document.querySelectorAll('.pasajero-row').forEach(row => {
