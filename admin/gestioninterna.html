@@ -522,7 +522,8 @@ function reservaMargen(r){ return reservaValorCotizadoEnRef(r) - reservaCostoTot
 // Monto objetivo a facturar: casi siempre es la comisión (margen); si se eligió
 // "total del paquete" u "otro" concepto, se usa ese criterio en su lugar.
 function reservaMontoAFacturar(r){
-  const concepto = r.facturacionConcepto || 'comision';
+  const items = objToArr(r.facturacion);
+  const concepto = (items[0] && items[0].concepto) || 'comision';
   if (concepto==='total') return reservaValorCotizadoEnRef(r);
   return reservaMargen(r);
 }
@@ -1206,11 +1207,9 @@ function migrateReservasLegacy(){
     }
 
     // La facturación era un único registro (una factura por reserva); ahora es
-    // una lista, porque puede haber más de una. El concepto elegido (comisión/
-    // total/otro) pasa a ser una preferencia de la reserva, separada de las
-    // facturas ya emitidas.
+    // una lista, porque puede haber más de una. El concepto (comisión/total/
+    // otro) sigue siendo un dato de cada factura, no de la reserva.
     if (r.facturacion && r.facturacion.facturada !== undefined) {
-      updates[r.id + '/facturacionConcepto'] = r.facturacion.concepto || 'comision';
       const huboFactura = r.facturacion.facturada && (Number(r.facturacion.monto) > 0 || r.facturacion.numero || r.facturacion.link);
       if (huboFactura) {
         const keyF = REFS.reservas.push().key;
@@ -1219,6 +1218,7 @@ function migrateReservasLegacy(){
           monto: Number(r.facturacion.monto) || 0,
           moneda: r.facturacion.moneda || r.moneda || 'ARS',
           tipoCambio: '',
+          concepto: r.facturacion.concepto || 'comision',
           numero: r.facturacion.numero || '',
           link: r.facturacion.link || '',
         } };
@@ -1240,7 +1240,7 @@ function migrateReservasLegacy(){
 let reservaCtx = { id:null, data:null };
 
 function blankReserva(){
-  return { codigo:'', cliente:'', concepto:'', servicios:[], servicioOtroTexto:'', moneda:'ARS', estado:'cotizado', fechaCotizacion:'', fechaInicio:'', fechaFin:'', pasajeros:'', notas:'', pagos:[], reparto:[], comprobantes:[], costos:[], cotizado:[], pasajerosData:[], facturacionConcepto:'comision', facturacion:[] };
+  return { codigo:'', cliente:'', concepto:'', servicios:[], servicioOtroTexto:'', moneda:'ARS', estado:'cotizado', fechaCotizacion:'', fechaInicio:'', fechaFin:'', pasajeros:'', notas:'', pagos:[], reparto:[], comprobantes:[], costos:[], cotizado:[], pasajerosData:[], facturacion:[] };
 }
 function toEditable(r){
   return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes), costos: objToArr(r.costos), cotizado: objToArr(r.cotizado), pasajerosData: objToArr(r.pasajerosData), facturacion: objToArr(r.facturacion) };
@@ -1300,10 +1300,13 @@ function facturaRowHtml(f, monedaReserva){
       <div class="item-field"><span class="item-field-label">Moneda</span><select class="factura-moneda">${selOpts(['ARS','USD'],['ARS','USD'],fMoneda)}</select></div>
     </div>
     <div class="item-fields" style="margin-top:6px">
+      <div class="item-field"><span class="item-field-label">Concepto</span><select class="factura-concepto">${selOpts(['comision','total','otro'],['Comisión','Total del paquete','Otro'],f.concepto||'comision')}</select></div>
       <div class="item-field"><span class="item-field-label">Número de factura</span><input class="factura-numero" value="${escHtml(f.numero)}" placeholder="Ej: B-0001-00001234"></div>
-      <div class="item-field"><span class="item-field-label">T.C. (si es otra moneda)</span><input type="number" step="0.01" class="factura-tc" value="${f.tipoCambio??''}" placeholder="Ej: 1050"></div>
     </div>
-    <div class="item-field" style="margin-top:6px"><span class="item-field-label">Link al comprobante</span><input class="factura-link" type="url" value="${escHtml(f.link)}" placeholder="https://drive.google.com/…"></div>
+    <div class="item-fields" style="margin-top:6px">
+      <div class="item-field"><span class="item-field-label">T.C. (si es otra moneda)</span><input type="number" step="0.01" class="factura-tc" value="${f.tipoCambio??''}" placeholder="Ej: 1050"></div>
+      <div class="item-field"><span class="item-field-label">Link al comprobante</span><input class="factura-link" type="url" value="${escHtml(f.link)}" placeholder="https://drive.google.com/…"></div>
+    </div>
   </div>`;
 }
 function costoRowHtml(c, monedaReserva){
@@ -1407,7 +1410,7 @@ function addPago(){
 }
 function addFactura(){
   const monedaReserva = document.getElementById('r-moneda')?.value || 'ARS';
-  document.getElementById('facturacion-list').insertAdjacentHTML('beforeend', facturaRowHtml({ id:'new_'+uid(), fecha:todayISO(), monto:0, moneda:monedaReserva }, monedaReserva));
+  document.getElementById('facturacion-list').insertAdjacentHTML('beforeend', facturaRowHtml({ id:'new_'+uid(), fecha:todayISO(), monto:0, moneda:monedaReserva, concepto:'comision' }, monedaReserva));
 }
 function addReparto(){
   const monedaReserva = document.getElementById('r-moneda')?.value || 'ARS';
@@ -1610,8 +1613,7 @@ function renderReservaPanel(){
     <div class="psec">
       <div class="psec-title">Facturación</div>
       <div class="upload-hint" style="margin-bottom:8px">Puede haber más de una factura por reserva (parcial, en cuotas, etc.). La mayoría de las veces se factura solo la comisión, no el total del paquete.</div>
-      <div class="frow" style="margin-bottom:14px"><label class="fl">Concepto a facturar</label><select class="fsel" id="r-fact-concepto">${selOpts(['comision','total','otro'],['Comisión','Total del paquete','Otro'],d.facturacionConcepto||'comision')}</select></div>
-      <div id="facturacion-list">${(d.facturacion||[]).map(facturaRowHtml).join('')}</div>
+      <div id="facturacion-list">${(d.facturacion||[]).map(f => facturaRowHtml(f, d.moneda)).join('')}</div>
       <button type="button" class="add-item-btn" onclick="addFactura()">+ Agregar factura</button>
     </div>
 
@@ -1668,7 +1670,6 @@ function saveReserva(){
     estado: gv('r-estado'), fechaCotizacion: gv('r-fecha-cotizacion'),
     fechaInicio: gv('r-fecha-inicio'), fechaFin: gv('r-fecha-fin'),
     pasajeros: parseInt(gv('r-pasajeros'),10)||'', notas: gv('r-notas'),
-    facturacionConcepto: gv('r-fact-concepto'),
     pagos: {}, reparto: {}, comprobantes: {}, costos: {}, cotizado: {}, pasajerosData: {}, facturacion: {}
   };
   // Filas nuevas (todavía sin key de Firebase): se les asigna una key ahora, pero
@@ -1734,6 +1735,7 @@ function saveReserva(){
       monto: parseFloat(row.querySelector('.factura-monto').value)||0,
       moneda: row.querySelector('.factura-moneda').value,
       tipoCambio: parseFloat(row.querySelector('.factura-tc').value)||'',
+      concepto: row.querySelector('.factura-concepto').value,
       numero: row.querySelector('.factura-numero').value.trim(),
       link: row.querySelector('.factura-link').value.trim(),
     };
