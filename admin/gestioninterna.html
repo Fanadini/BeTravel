@@ -398,7 +398,7 @@ const META_EJEC_REF = db.ref('finanzas/meta/ejecutivos');
 const META_CODIGO_REF = db.ref('finanzas/meta/reservaCodigoCounter');
 
 const DEFAULT_PROVEEDORES = ['Tucano Tours','Carnival Tours','RateHawk','MyBeds','Hotelbeds','Bedsonline','Freeway','Top Dest','Grupo Ocho'];
-const SERVICIO_TIPOS = ['Aéreo','Hotel','Traslados','Actividades','Tickets','Otro'];
+const SERVICIO_TIPOS = ['Aéreo','Hotel','Traslados','Autos','Actividades','Crucero','Atracciones','Otro'];
 const MEDIO_PAGO_TIPOS = ['bsp','tarjeta','transferencia','efectivo','otro'];
 const MEDIO_PAGO_LABELS = { bsp:'BSP', tarjeta:'Tarjeta de crédito', transferencia:'Transferencia', efectivo:'Efectivo', otro:'Otro' };
 
@@ -649,7 +649,7 @@ const RESERVAS_COLS = [
   { key:'codigo', label:'Código', type:'text', get:r => r.codigo||'' },
   { key:'cliente', label:'Cliente', type:'text', get:r => r.cliente||'' },
   { key:'concepto', label:'Concepto', type:'text', get:r => r.concepto||'' },
-  { key:'servicios', label:'Servicios', type:'text', get:r => (r.servicios||[]).join(', ') },
+  { key:'servicios', label:'Servicios', type:'text', get:r => (r.servicios||[]).map(s => s==='Otro'&&r.servicioOtroTexto ? `Otro: ${r.servicioOtroTexto}` : s).join(', ') },
   { key:'pasajeros', label:'Pax', type:'number', get:r => Number(r.pasajeros)||0 },
   { key:'fechaCotizacion', label:'Fecha de cotización', type:'date', get:r => r.fechaCotizacion||'' },
   { key:'fechaInicio', label:'Inicio de viaje', type:'date', get:r => r.fechaInicio||'' },
@@ -701,7 +701,10 @@ function reservaRowHtml(r){
   // de la reserva: se muestra con SU propia moneda, no la de saldo/margen.
   const valorMoneda = r.valorCotizadoMoneda || r.moneda;
   const usdValor = valorMoneda==='USD' ? 'usd' : '';
-  const servicios = (r.servicios||[]).map(s => `<span class="servicio-tag ${s==='Aéreo'?'aereo':''}">${escHtml(s)}</span>`).join('') || '—';
+  const servicios = (r.servicios||[]).map(s => {
+    const label = (s==='Otro' && r.servicioOtroTexto) ? `Otro: ${r.servicioOtroTexto}` : s;
+    return `<span class="servicio-tag ${s==='Aéreo'?'aereo':''}">${escHtml(label)}</span>`;
+  }).join('') || '—';
   return `<tr onclick="openReserva('${r.id}')">
     <td>${escHtml(r.codigo||'—')}</td>
     <td>${escHtml(r.cliente||'—')}</td>
@@ -1204,7 +1207,7 @@ function migrateReservasLegacy(){
 let reservaCtx = { id:null, data:null };
 
 function blankReserva(){
-  return { codigo:'', cliente:'', concepto:'', servicios:[], moneda:'ARS', valorCotizado:0, valorCotizadoMoneda:'', tipoCambioCotizacion:'', estado:'cotizado', fechaCotizacion:'', fechaInicio:'', fechaFin:'', pasajeros:'', notas:'', pagos:[], reparto:[], comprobantes:[], costos:[], pasajerosData:[], facturacion:{ facturada:false, fecha:'', concepto:'comision', monto:'', moneda:'', numero:'' } };
+  return { codigo:'', cliente:'', concepto:'', servicios:[], servicioOtroTexto:'', moneda:'ARS', valorCotizado:0, valorCotizadoMoneda:'', tipoCambioCotizacion:'', estado:'cotizado', fechaCotizacion:'', fechaInicio:'', fechaFin:'', pasajeros:'', notas:'', pagos:[], reparto:[], comprobantes:[], costos:[], pasajerosData:[], facturacion:{ facturada:false, fecha:'', concepto:'comision', monto:'', moneda:'', numero:'' } };
 }
 function toEditable(r){
   return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes), costos: objToArr(r.costos), pasajerosData: objToArr(r.pasajerosData) };
@@ -1225,10 +1228,21 @@ function closeReserva(){
   document.getElementById('reserva-panel').classList.remove('open');
 }
 
+// Autoguardado: al salir de cualquier campo del panel (blur), se guarda solo,
+// sin necesidad de tocar el botón "Guardar" (igual que en kanban.html).
+function initReservaPanelAutosave(){
+  const body = document.getElementById('reserva-panel-body');
+  if (!body) return;
+  body.addEventListener('focusout', (e) => {
+    if (e.target.matches('input, select, textarea')) saveReserva();
+  });
+}
+initReservaPanelAutosave();
+
 function pagoRowHtml(p, monedaReserva){
   const pMoneda = p.moneda || monedaReserva || 'ARS';
   return `<div class="item-card pago-row" data-row-id="${p.id}">
-    <div class="item-card-header"><span class="item-card-label">Pago</span><button type="button" class="item-delete-btn" onclick="this.closest('.pago-row').remove();recalcDerived()">✕</button></div>
+    <div class="item-card-header"><span class="item-card-label">Pago</span><button type="button" class="item-delete-btn" onclick="this.closest('.pago-row').remove();recalcDerived();saveReserva()">✕</button></div>
     <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Fecha</span><input type="date" class="pago-fecha" value="${p.fecha||''}"></div>
       <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="pago-monto" value="${p.monto??''}" oninput="recalcDerived()"></div>
@@ -1248,7 +1262,7 @@ function costoRowHtml(c, monedaReserva){
   const medio = c.medio || 'otro';
   const showFechaEmision = c.tipo==='Aéreo' && medio==='bsp';
   return `<div class="item-card costo-row" data-row-id="${c.id}">
-    <div class="item-card-header"><span class="item-card-label">Costo</span><button type="button" class="item-delete-btn" onclick="this.closest('.costo-row').remove();recalcDerived()">✕</button></div>
+    <div class="item-card-header"><span class="item-card-label">Costo</span><button type="button" class="item-delete-btn" onclick="this.closest('.costo-row').remove();recalcDerived();saveReserva()">✕</button></div>
     <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Tipo</span><select class="costo-tipo" onchange="onCostoRowChange(this)">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,c.tipo||'Otro')}</select></div>
       <div class="item-field"><span class="item-field-label">Medio de pago</span><select class="costo-medio" onchange="onCostoRowChange(this)">${selOpts(MEDIO_PAGO_TIPOS,MEDIO_PAGO_TIPOS.map(m=>MEDIO_PAGO_LABELS[m]),medio)}</select></div>
@@ -1277,7 +1291,7 @@ function onCostoRowChange(el){
 }
 function pasajeroRowHtml(p){
   return `<div class="item-card pasajero-row" data-row-id="${p.id}">
-    <div class="item-card-header"><span class="item-card-label">Pasajero</span><button type="button" class="item-delete-btn" onclick="this.closest('.pasajero-row').remove()">✕</button></div>
+    <div class="item-card-header"><span class="item-card-label">Pasajero</span><button type="button" class="item-delete-btn" onclick="this.closest('.pasajero-row').remove();saveReserva()">✕</button></div>
     <div class="item-fields">
       <div class="item-field"><span class="item-field-label">Nombre</span><input class="pasajero-nombre" value="${escHtml(p.nombre)}" placeholder="Nombre"></div>
       <div class="item-field"><span class="item-field-label">Apellido</span><input class="pasajero-apellido" value="${escHtml(p.apellido)}" placeholder="Apellido"></div>
@@ -1293,7 +1307,7 @@ function pasajeroRowHtml(p){
 function repartoRowHtml(r, monedaReserva){
   const rMoneda = r.moneda || monedaReserva || 'ARS';
   return `<div class="item-card reparto-row" data-row-id="${r.id}">
-    <div class="item-card-header"><span class="item-card-label">Ejecutivo</span><button type="button" class="item-delete-btn" onclick="this.closest('.reparto-row').remove();recalcReparto()">✕</button></div>
+    <div class="item-card-header"><span class="item-card-label">Ejecutivo</span><button type="button" class="item-delete-btn" onclick="this.closest('.reparto-row').remove();recalcReparto();saveReserva()">✕</button></div>
     <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Nombre</span><input class="reparto-ejec" list="dl-ejecutivos" value="${escHtml(r.ejecutivo)}" placeholder="Nombre"></div>
       <div class="item-field"><span class="item-field-label">Porcentaje</span><input type="number" step="0.1" class="reparto-pct" value="${r.porcentaje??''}" oninput="recalcReparto()"></div>
@@ -1443,7 +1457,7 @@ function renderReservaPanel(){
   document.getElementById('reserva-panel-body').innerHTML = `
     <div class="psec">
       <div class="psec-title">Datos generales</div>
-      ${d.codigo ? `<div class="frow"><label class="fl">Código interno</label><div style="font-size:15px;font-weight:600;color:var(--teal)">${escHtml(d.codigo)}</div></div>` : `<div class="upload-hint" style="margin-bottom:14px">El código interno (BeT#) se asigna automáticamente al guardar.</div>`}
+      <div class="frow"><label class="fl">Código interno</label><input class="fi" id="r-codigo" value="${escHtml(d.codigo)}" placeholder="Se asigna automáticamente (BeT#) si lo dejás vacío"></div>
       <div class="frow"><label class="fl">Cliente</label><input class="fi" id="r-cliente" value="${escHtml(d.cliente)}" placeholder="Nombre del cliente / empresa"></div>
       <div class="frow"><label class="fl">Concepto / Destino</label><input class="fi" id="r-concepto" value="${escHtml(d.concepto)}" placeholder="Ej: Grupo Bariloche · 40 pax"></div>
       <div class="frow">
@@ -1451,6 +1465,7 @@ function renderReservaPanel(){
         <div class="servicio-chips" id="servicio-chips">
           ${SERVICIO_TIPOS.map(s => `<button type="button" class="servicio-chip ${(d.servicios||[]).includes(s)?'on':''}" data-servicio="${s}" onclick="toggleServicioChip(this)">${s}</button>`).join('')}
         </div>
+        <input class="fi" id="r-servicio-otro" style="margin-top:8px;${(d.servicios||[]).includes('Otro')?'':'display:none'}" value="${escHtml(d.servicioOtroTexto)}" placeholder="Especificar el servicio">
       </div>
       <div class="frow2">
         <div><label class="fl">Moneda de referencia</label><select class="fsel" id="r-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],d.moneda||'ARS')}</select></div>
@@ -1539,7 +1554,7 @@ function reservaMargenLocal(d){ return (Number(d.valorCotizado)||0) - objToArr(d
 
 function comprobanteRowHtml(c){
   return `<div class="item-card comprobante-row" data-row-id="${c.id}">
-    <div class="item-card-header"><span class="item-card-label">Comprobante</span><button type="button" class="item-delete-btn" onclick="this.closest('.comprobante-row').remove()">✕</button></div>
+    <div class="item-card-header"><span class="item-card-label">Comprobante</span><button type="button" class="item-delete-btn" onclick="this.closest('.comprobante-row').remove();saveReserva()">✕</button></div>
     <div class="item-fields">
       <div class="item-field"><span class="item-field-label">Nombre</span><input class="comprobante-nombre" value="${escHtml(c.nombre)}" placeholder="Ej: Factura Tucano #123"></div>
       <div class="item-field"><span class="item-field-label">Link</span><input class="comprobante-url" type="url" value="${escHtml(c.url)}" placeholder="https://drive.google.com/…"></div>
@@ -1558,15 +1573,23 @@ function toggleFacturacionFields(){
 
 function toggleServicioChip(btn){
   btn.classList.toggle('on');
+  if (btn.dataset.servicio === 'Otro'){
+    const otroInput = document.getElementById('r-servicio-otro');
+    if (otroInput) otroInput.style.display = btn.classList.contains('on') ? '' : 'none';
+  }
+  saveReserva();
 }
 
 function saveReserva(){
+  if (!document.getElementById('r-cliente')) return; // el panel no está abierto
   const servicios = [...document.querySelectorAll('.servicio-chip.on')].map(el => el.dataset.servicio);
   const id = reservaCtx.id;
+  // No autoguardar una reserva nueva todavía sin datos mínimos (evita crear registros vacíos).
+  if (!id && !gv('r-cliente') && !gv('r-concepto')) return;
   const val = {
-    codigo: reservaCtx.data.codigo || '',
+    codigo: gv('r-codigo'),
     cliente: gv('r-cliente'), concepto: gv('r-concepto'),
-    servicios,
+    servicios, servicioOtroTexto: servicios.includes('Otro') ? gv('r-servicio-otro') : '',
     moneda: gv('r-moneda'),
     valorCotizado: getNum('r-valorCotizado'), valorCotizadoMoneda: gv('r-valorCotizado-moneda'),
     tipoCambioCotizacion: parseFloat(gv('r-tc-cotizacion'))||'',
@@ -1583,10 +1606,19 @@ function saveReserva(){
     },
     pagos: {}, reparto: {}, comprobantes: {}, costos: {}, pasajerosData: {}
   };
-  document.querySelectorAll('.pago-row').forEach(row => {
+  // Filas nuevas (todavía sin key de Firebase): se les asigna una key ahora, pero
+  // el dataset del DOM recién se actualiza si el guardado sale bien, así que un
+  // segundo autoguardado antes de eso no las trata como nuevas otra vez.
+  const newRowMappings = [];
+  const rid = (row) => {
     const rowId = row.dataset.rowId;
-    const rid = rowId.startsWith('new_') ? REFS.reservas.push().key : rowId;
-    val.pagos[rid] = {
+    if (!rowId.startsWith('new_')) return rowId;
+    const key = REFS.reservas.push().key;
+    newRowMappings.push({ row, rid: key });
+    return key;
+  };
+  document.querySelectorAll('.pago-row').forEach(row => {
+    val.pagos[rid(row)] = {
       fecha: row.querySelector('.pago-fecha').value,
       monto: parseFloat(row.querySelector('.pago-monto').value)||0,
       moneda: row.querySelector('.pago-moneda').value,
@@ -1597,10 +1629,8 @@ function saveReserva(){
     };
   });
   document.querySelectorAll('.reparto-row').forEach(row => {
-    const rowId = row.dataset.rowId;
-    const rid = rowId.startsWith('new_') ? REFS.reservas.push().key : rowId;
     const ejecutivo = row.querySelector('.reparto-ejec').value.trim();
-    val.reparto[rid] = {
+    val.reparto[rid(row)] = {
       ejecutivo,
       porcentaje: parseFloat(row.querySelector('.reparto-pct').value)||0,
       moneda: row.querySelector('.reparto-moneda').value,
@@ -1610,10 +1640,8 @@ function saveReserva(){
     if (ejecutivo && !META.ejecutivos.includes(ejecutivo)) META_EJEC_REF.set([...META.ejecutivos, ejecutivo]);
   });
   document.querySelectorAll('.costo-row').forEach(row => {
-    const rowId = row.dataset.rowId;
-    const rid = rowId.startsWith('new_') ? REFS.reservas.push().key : rowId;
     const proveedor = row.querySelector('.costo-proveedor').value.trim();
-    val.costos[rid] = {
+    val.costos[rid(row)] = {
       tipo: row.querySelector('.costo-tipo').value,
       proveedor,
       concepto: row.querySelector('.costo-concepto').value.trim(),
@@ -1627,13 +1655,11 @@ function saveReserva(){
     if (proveedor && !META.proveedores.includes(proveedor)) META_PROV_REF.set([...META.proveedores, proveedor]);
   });
   document.querySelectorAll('.pasajero-row').forEach(row => {
-    const rowId = row.dataset.rowId;
-    const rid = rowId.startsWith('new_') ? REFS.reservas.push().key : rowId;
     const nombre = row.querySelector('.pasajero-nombre').value.trim();
     const apellido = row.querySelector('.pasajero-apellido').value.trim();
     const numero = row.querySelector('.pasajero-numero').value.trim();
     if (!nombre && !apellido && !numero) return;
-    val.pasajerosData[rid] = {
+    val.pasajerosData[rid(row)] = {
       nombre, apellido,
       tipoDocumento: row.querySelector('.pasajero-tipo-doc').value,
       numero,
@@ -1642,24 +1668,27 @@ function saveReserva(){
     };
   });
   document.querySelectorAll('.comprobante-row').forEach(row => {
-    const rowId = row.dataset.rowId;
-    const rid = rowId.startsWith('new_') ? REFS.reservas.push().key : rowId;
     const nombre = row.querySelector('.comprobante-nombre').value.trim();
     const url = row.querySelector('.comprobante-url').value.trim();
     if (!nombre && !url) return;
-    val.comprobantes[rid] = { nombre, url };
+    val.comprobantes[rid(row)] = { nombre, url };
   });
 
   const finishSave = () => {
     const ref = id ? REFS.reservas.child(id) : REFS.reservas.push();
     ref.set(val).then(() => {
       const newId = id || ref.key;
+      const wasNew = !id;
       reservaCtx = { id:newId, data: toEditable(val) };
-      document.getElementById('panel-title').textContent = 'Editar reserva';
-      document.getElementById('reserva-delete-btn').style.display = 'block';
-      renderReservaPanel();
+      newRowMappings.forEach(({row,rid}) => { row.dataset.rowId = rid; });
+      if (wasNew){
+        document.getElementById('panel-title').textContent = 'Editar reserva';
+        document.getElementById('reserva-delete-btn').style.display = 'block';
+        const codigoEl = document.getElementById('r-codigo');
+        if (codigoEl) codigoEl.value = val.codigo;
+      }
       const msg = document.getElementById('panel-save-msg');
-      if (msg){ msg.textContent = 'Guardado ✓'; setTimeout(()=>{ if (msg) msg.textContent=''; }, 2500); }
+      if (msg){ msg.textContent = 'Guardado ✓'; setTimeout(()=>{ if (msg) msg.textContent=''; }, 2000); }
     }).catch(err => { console.error(err); alert('Error al guardar. Revisá tu conexión o los permisos de la base.'); });
   };
 
@@ -1668,6 +1697,10 @@ function saveReserva(){
     const nextNum = Math.max(META.codigoCounter||0, maxExisting) + 1;
     val.codigo = 'BeT' + nextNum;
     META_CODIGO_REF.set(nextNum).then(finishSave).catch(err => { console.error(err); alert('Error al asignar el código interno. Intentá de nuevo.'); });
+  } else if (val.codigo) {
+    const dup = STATE.reservas.find(r => r.id!==id && r.codigo===val.codigo);
+    if (dup && !confirm(`El código "${val.codigo}" ya lo usa la reserva de ${dup.cliente||'otro cliente'}. ¿Guardar igual?`)) return;
+    finishSave();
   } else {
     finishSave();
   }
