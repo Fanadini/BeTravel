@@ -500,13 +500,12 @@ function pagosSum(pagosArr){ return (pagosArr||[]).reduce((s,p) => s + (Number(p
 function pagosEquivSum(pagosArr, monedaReserva){
   return (pagosArr||[]).reduce((s,p) => s + convertMonto(Number(p.monto)||0, p.moneda||monedaReserva, monedaReserva, p.tipoCambio).value, 0);
 }
-// Valor cotizado y costo total pueden estar cargados cada uno en una moneda distinta a la
-// moneda de referencia de la reserva; se convierten con el tipo de cambio de cotización.
+// El valor cotizado y el costo total son cada uno la suma de sus líneas por
+// servicio (cada línea puede estar en una moneda distinta a la de referencia
+// de la reserva, con su propio TC).
 function reservaValorCotizadoEnRef(r){
-  return convertMonto(Number(r.valorCotizado)||0, r.valorCotizadoMoneda||r.moneda, r.moneda, r.tipoCambioCotizacion).value;
+  return objToArr(r.cotizado).reduce((s,c) => s + convertMonto(Number(c.monto)||0, c.moneda||r.moneda, r.moneda, c.tipoCambio).value, 0);
 }
-// El costo total es la suma de las líneas de costo por servicio (cada una puede
-// estar en una moneda distinta a la de referencia de la reserva, con su propio TC).
 function reservaCostosEnRef(r){
   return objToArr(r.costos).reduce((s,c) => s + convertMonto(Number(c.monto)||0, c.moneda||r.moneda, r.moneda, c.tipoCambio).value, 0);
 }
@@ -696,11 +695,8 @@ function setReservasFilter(key, value){
 function reservaRowHtml(r){
   const saldo = reservaSaldo(r);
   const margen = reservaMargen(r);
+  const valorCotizado = reservaValorCotizadoEnRef(r);
   const usd = r.moneda==='USD' ? 'usd' : '';
-  // El valor cotizado puede estar cargado en una moneda distinta a la de referencia
-  // de la reserva: se muestra con SU propia moneda, no la de saldo/margen.
-  const valorMoneda = r.valorCotizadoMoneda || r.moneda;
-  const usdValor = valorMoneda==='USD' ? 'usd' : '';
   const servicios = (r.servicios||[]).map(s => {
     const label = (s==='Otro' && r.servicioOtroTexto) ? `Otro: ${r.servicioOtroTexto}` : s;
     return `<span class="servicio-tag ${s==='Aéreo'?'aereo':''}">${escHtml(label)}</span>`;
@@ -714,7 +710,7 @@ function reservaRowHtml(r){
     <td>${fmtDate(r.fechaCotizacion)}</td>
     <td>${fmtDate(r.fechaInicio)}</td>
     <td>${fmtDate(r.fechaFin)}</td>
-    <td><span class="money ${usdValor}">${fmtMoney(r.valorCotizado, valorMoneda)}</span></td>
+    <td><span class="money ${usd}">${fmtMoney(valorCotizado, r.moneda)}</span></td>
     <td><span class="money ${usd}">${fmtMoney(saldo,r.moneda)}</span></td>
     <td><span class="money ${usd}">${fmtMoney(margen,r.moneda)}</span></td>
     <td>${estadoReservaBadgeHtml(r.estado)}</td>
@@ -1185,13 +1181,18 @@ function migrateReservasLegacy(){
       const costos = {};
       if (Number(r.aereoCosto) > 0) {
         const key = REFS.reservas.push().key;
-        costos[key] = { tipo:'Aéreo', proveedor:'', concepto:'Aéreo (migrado)', monto:Number(r.aereoCosto), moneda:r.aereoMoneda||r.moneda||'ARS', tipoCambio:'', medio:'bsp', fechaEmision:r.aereoFechaEmision||'', pagado:false };
+        costos[key] = { tipo:'Aéreo', proveedor:'', concepto:'Aéreo (migrado)', monto:Number(r.aereoCosto), moneda:r.aereoMoneda||r.moneda||'ARS', tipoCambio:'', medio:'bsp', fechaEmision:r.aereoFechaEmision||'' };
       }
       if (Number(r.costoTotal) > 0) {
         const key2 = REFS.reservas.push().key;
-        costos[key2] = { tipo:'Otro', proveedor:'', concepto:'Costo total (migrado) — revisar si ya incluía el aéreo', monto:Number(r.costoTotal), moneda:r.costoTotalMoneda||r.moneda||'ARS', tipoCambio:'', medio:'otro', fechaEmision:'', pagado:false };
+        costos[key2] = { tipo:'Otro', proveedor:'', concepto:'Costo total (migrado) — revisar si ya incluía el aéreo', monto:Number(r.costoTotal), moneda:r.costoTotalMoneda||r.moneda||'ARS', tipoCambio:'', medio:'otro', fechaEmision:'' };
       }
       if (Object.keys(costos).length) updates[r.id + '/costos'] = costos;
+    }
+
+    if (!r.cotizado && Number(r.valorCotizado) > 0) {
+      const key3 = REFS.reservas.push().key;
+      updates[r.id + '/cotizado'] = { [key3]: { tipo:'Otro', concepto:'Valor cotizado (migrado)', monto:Number(r.valorCotizado), moneda:r.valorCotizadoMoneda||r.moneda||'ARS', tipoCambio:'' } };
     }
   });
 
@@ -1207,10 +1208,10 @@ function migrateReservasLegacy(){
 let reservaCtx = { id:null, data:null };
 
 function blankReserva(){
-  return { codigo:'', cliente:'', concepto:'', servicios:[], servicioOtroTexto:'', moneda:'ARS', valorCotizado:0, valorCotizadoMoneda:'', tipoCambioCotizacion:'', estado:'cotizado', fechaCotizacion:'', fechaInicio:'', fechaFin:'', pasajeros:'', notas:'', pagos:[], reparto:[], comprobantes:[], costos:[], pasajerosData:[], facturacion:{ facturada:false, fecha:'', concepto:'comision', monto:'', moneda:'', numero:'' } };
+  return { codigo:'', cliente:'', concepto:'', servicios:[], servicioOtroTexto:'', moneda:'ARS', estado:'cotizado', fechaCotizacion:'', fechaInicio:'', fechaFin:'', pasajeros:'', notas:'', pagos:[], reparto:[], comprobantes:[], costos:[], cotizado:[], pasajerosData:[], facturacion:{ facturada:false, fecha:'', concepto:'comision', monto:'', moneda:'', numero:'', link:'' } };
 }
 function toEditable(r){
-  return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes), costos: objToArr(r.costos), pasajerosData: objToArr(r.pasajerosData) };
+  return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes), costos: objToArr(r.costos), cotizado: objToArr(r.cotizado), pasajerosData: objToArr(r.pasajerosData) };
 }
 
 function openReserva(id){
@@ -1276,9 +1277,6 @@ function costoRowHtml(c, monedaReserva){
     </div>
     <div class="item-field costo-fechaemision-wrap" style="margin-top:6px;${showFechaEmision?'':'display:none'}"><span class="item-field-label">Fecha de emisión del billete (para BSP)</span><input type="date" class="costo-fecha-emision" value="${c.fechaEmision||''}"></div>
     <div class="costo-equiv" style="font-size:11px;margin-top:6px"></div>
-    <div class="reparto-foot">
-      <label class="reparto-check"><input type="checkbox" class="costo-pagado"${c.pagado?' checked':''}> Pagado</label>
-    </div>
   </div>`;
 }
 function onCostoRowChange(el){
@@ -1288,6 +1286,22 @@ function onCostoRowChange(el){
   const wrap = row.querySelector('.costo-fechaemision-wrap');
   if (wrap) wrap.style.display = (tipo==='Aéreo' && medio==='bsp') ? '' : 'none';
   recalcDerived();
+}
+function cotizadoRowHtml(c, monedaReserva){
+  const cMoneda = c.moneda || monedaReserva || 'ARS';
+  return `<div class="item-card cotizado-row" data-row-id="${c.id}">
+    <div class="item-card-header"><span class="item-card-label">Ítem cotizado</span><button type="button" class="item-delete-btn" onclick="this.closest('.cotizado-row').remove();recalcDerived();saveReserva()">✕</button></div>
+    <div class="item-fields cols3">
+      <div class="item-field"><span class="item-field-label">Tipo</span><select class="cotizado-tipo">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,c.tipo||'Otro')}</select></div>
+      <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="cotizado-monto" value="${c.monto??''}" oninput="recalcDerived()"></div>
+      <div class="item-field"><span class="item-field-label">Moneda</span><select class="cotizado-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],cMoneda)}</select></div>
+    </div>
+    <div class="item-fields" style="margin-top:6px">
+      <div class="item-field"><span class="item-field-label">Concepto</span><input class="cotizado-concepto" value="${escHtml(c.concepto)}" placeholder="Ej: Hotel Llao Llao, 3 noches"></div>
+      <div class="item-field"><span class="item-field-label">T.C. (si es otra moneda)</span><input type="number" step="0.01" class="cotizado-tc" value="${c.tipoCambio??''}" oninput="recalcDerived()" placeholder="Ej: 1050"></div>
+    </div>
+    <div class="cotizado-equiv" style="font-size:11px;margin-top:6px"></div>
+  </div>`;
 }
 function pasajeroRowHtml(p){
   return `<div class="item-card pasajero-row" data-row-id="${p.id}">
@@ -1316,6 +1330,7 @@ function repartoRowHtml(r, monedaReserva){
     <div class="item-fields" style="margin-top:6px">
       <div class="item-field"><span class="item-field-label">T.C. (si liquida en otra moneda)</span><input type="number" step="0.01" class="reparto-tc" value="${r.tipoCambio??''}" oninput="recalcReparto()" placeholder="Ej: 1050"></div>
     </div>
+    <div class="item-field" style="margin-top:6px"><span class="item-field-label">Link al comprobante de liquidación</span><input class="reparto-link" type="url" value="${escHtml(r.link)}" placeholder="https://drive.google.com/…"></div>
     <div class="reparto-foot">
       <label class="reparto-check"><input type="checkbox" class="reparto-pagado" ${r.pagado?'checked':''}> Liquidado</label>
       <span class="reparto-monto-display"></span>
@@ -1335,7 +1350,12 @@ function addReparto(){
 }
 function addCosto(){
   const monedaReserva = document.getElementById('r-moneda')?.value || 'ARS';
-  document.getElementById('costos-list').insertAdjacentHTML('beforeend', costoRowHtml({ id:'new_'+uid(), tipo:'Otro', proveedor:'', concepto:'', monto:0, moneda:monedaReserva, medio:'otro', fechaEmision:'', pagado:false }, monedaReserva));
+  document.getElementById('costos-list').insertAdjacentHTML('beforeend', costoRowHtml({ id:'new_'+uid(), tipo:'Otro', proveedor:'', concepto:'', monto:0, moneda:monedaReserva, medio:'otro', fechaEmision:'' }, monedaReserva));
+  recalcDerived();
+}
+function addCotizado(){
+  const monedaReserva = document.getElementById('r-moneda')?.value || 'ARS';
+  document.getElementById('cotizado-list').insertAdjacentHTML('beforeend', cotizadoRowHtml({ id:'new_'+uid(), tipo:'Otro', concepto:'', monto:0, moneda:monedaReserva }, monedaReserva));
   recalcDerived();
 }
 function addPasajero(){
@@ -1344,31 +1364,34 @@ function addPasajero(){
 
 function getNum(id){ const el=document.getElementById(id); return el ? (parseFloat(el.value)||0) : 0; }
 
-// Lee valor cotizado del formulario y lo convierte a la moneda de referencia de
-// la reserva (usando el TC de cotización) cuando está cargado en otra moneda.
-// El costo total sale de sumar cada línea de la lista de costos por servicio,
-// cada una con su propia moneda y TC (igual que pagos/reparto).
-function getCurrentCostoTotal(monedaRef){
+// Suma las líneas de una lista de ítems por servicio (costos o valor cotizado),
+// cada una con su propia moneda y TC, convertidas a la moneda de referencia.
+function sumRowsEnMoneda(rowSelector, montoClass, monedaClass, tcClass, monedaRef){
   let total = 0;
   let ok = true;
-  document.querySelectorAll('.costo-row').forEach(row => {
-    const monto = parseFloat(row.querySelector('.costo-monto').value)||0;
-    const cMoneda = row.querySelector('.costo-moneda').value;
-    const tc = row.querySelector('.costo-tc').value;
+  document.querySelectorAll(rowSelector).forEach(row => {
+    const monto = parseFloat(row.querySelector(montoClass).value)||0;
+    const cMoneda = row.querySelector(monedaClass).value;
+    const tc = row.querySelector(tcClass).value;
     const conv = convertMonto(monto, cMoneda, monedaRef, tc);
     if (conv.note==='falta-tc'){ ok = false; return; }
     total += conv.value;
   });
   return { total, ok };
 }
+function getCurrentCostoTotal(monedaRef){
+  return sumRowsEnMoneda('.costo-row', '.costo-monto', '.costo-moneda', '.costo-tc', monedaRef);
+}
+function getCurrentCotizadoTotal(monedaRef){
+  return sumRowsEnMoneda('.cotizado-row', '.cotizado-monto', '.cotizado-moneda', '.cotizado-tc', monedaRef);
+}
 function getCurrentMargen(){
   const moneda = document.getElementById('r-moneda')?.value || 'ARS';
-  const tc = getNum('r-tc-cotizacion');
-  const valorMoneda = document.getElementById('r-valorCotizado-moneda')?.value || moneda;
-  const valorConv = convertMonto(getNum('r-valorCotizado'), valorMoneda, moneda, tc);
+  const valorResult = getCurrentCotizadoTotal(moneda);
   const costoResult = getCurrentCostoTotal(moneda);
-  const ok = valorConv.note!=='falta-tc' && costoResult.ok;
-  return { margen: valorConv.value - costoResult.total, moneda, ok, valorConv, costoTotal: costoResult.total };
+  const ok = valorResult.ok && costoResult.ok;
+  const valorConv = { value: valorResult.total, note: valorResult.ok ? null : 'falta-tc' };
+  return { margen: valorResult.total - costoResult.total, moneda, ok, valorConv, costoTotal: costoResult.total };
 }
 
 function recalcDerived(){
@@ -1394,32 +1417,34 @@ function recalcDerived(){
     }
   });
 
-  document.querySelectorAll('.costo-row').forEach(row => {
-    const monto = parseFloat(row.querySelector('.costo-monto').value)||0;
-    const cMoneda = row.querySelector('.costo-moneda').value;
-    const tc = row.querySelector('.costo-tc').value;
-    const conv = convertMonto(monto, cMoneda, moneda, tc);
-    const equivEl = row.querySelector('.costo-equiv');
-    if (!equivEl) return;
-    if (cMoneda === moneda){
-      equivEl.textContent = '';
-    } else if (conv.note === 'falta-tc'){
-      equivEl.textContent = '⚠ Falta el tipo de cambio — no se está sumando al costo total.';
-      equivEl.style.color = 'var(--amber)';
-    } else {
-      equivEl.textContent = `≈ ${fmtMoney(conv.value, moneda)}`;
-      equivEl.style.color = 'rgba(43,43,43,.5)';
-    }
-  });
+  const rowEquiv = (rowSelector, montoClass, monedaClass, tcClass, equivClass, warnMsg) => {
+    document.querySelectorAll(rowSelector).forEach(row => {
+      const monto = parseFloat(row.querySelector(montoClass).value)||0;
+      const cMoneda = row.querySelector(monedaClass).value;
+      const tc = row.querySelector(tcClass).value;
+      const conv = convertMonto(monto, cMoneda, moneda, tc);
+      const equivEl = row.querySelector(equivClass);
+      if (!equivEl) return;
+      if (cMoneda === moneda){
+        equivEl.textContent = '';
+      } else if (conv.note === 'falta-tc'){
+        equivEl.textContent = warnMsg;
+        equivEl.style.color = 'var(--amber)';
+      } else {
+        equivEl.textContent = `≈ ${fmtMoney(conv.value, moneda)}`;
+        equivEl.style.color = 'rgba(43,43,43,.5)';
+      }
+    });
+  };
+  rowEquiv('.costo-row', '.costo-monto', '.costo-moneda', '.costo-tc', '.costo-equiv', '⚠ Falta el tipo de cambio — no se está sumando al costo total.');
+  rowEquiv('.cotizado-row', '.cotizado-monto', '.cotizado-moneda', '.cotizado-tc', '.cotizado-equiv', '⚠ Falta el tipo de cambio — no se está sumando al valor cotizado.');
 
   const saldo = valorConv.value - pagosTotal;
 
   const mEl = document.getElementById('derived-margen');
-  if (mEl) mEl.textContent = ok ? fmtMoney(margen, moneda) : '⚠ Falta TC en algún costo';
+  if (mEl) mEl.textContent = ok ? fmtMoney(margen, moneda) : '⚠ Falta TC en alguna línea';
   const sEl = document.getElementById('derived-saldo');
   if (sEl) sEl.textContent = valorConv.note==='falta-tc' ? '⚠ Falta TC' : fmtMoney(saldo, moneda);
-  const tcWarn = document.getElementById('tc-cotizacion-warning');
-  if (tcWarn) tcWarn.textContent = valorConv.note==='falta-tc' ? 'El valor cotizado está en otra moneda: ingresá el tipo de cambio de cotización para calcularlo en la moneda de referencia.' : '';
 
   recalcReparto(margen, moneda);
 }
@@ -1475,24 +1500,22 @@ function renderReservaPanel(){
         <div><label class="fl">Fecha de cotización</label><input class="fi" id="r-fecha-cotizacion" type="date" value="${d.fechaCotizacion||''}"></div>
         <div><label class="fl">Cantidad de pasajeros</label><input class="fi" id="r-pasajeros" type="number" step="1" min="0" value="${d.pasajeros??''}" placeholder="Ej: 40"></div>
       </div>
-      <div class="frow3">
-        <div><label class="fl">Valor cotizado</label><input class="fi" id="r-valorCotizado" type="number" step="0.01" value="${d.valorCotizado??0}" oninput="recalcDerived()"></div>
-        <div><label class="fl">Moneda</label><select class="fsel" id="r-valorCotizado-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],d.valorCotizadoMoneda||d.moneda||'ARS')}</select></div>
-      </div>
-      <div class="frow">
-        <label class="fl">Tipo de cambio de cotización</label>
-        <input class="fi" id="r-tc-cotizacion" type="number" step="0.01" value="${d.tipoCambioCotizacion??''}" placeholder="Ej: 1050" oninput="recalcDerived()">
-        <div class="upload-hint" id="tc-cotizacion-warning" style="color:var(--amber)"></div>
-      </div>
-      <div class="derived-box">
-        <div class="derived-item">Margen<b id="derived-margen">${fmtMoney(reservaMargenLocal(d), d.moneda)}</b></div>
-        <div class="derived-item">Saldo pendiente<b id="derived-saldo">${fmtMoney((Number(d.valorCotizado)||0)-pagosEquivSum(d.pagos, d.moneda), d.moneda)}</b></div>
-      </div>
       <div class="frow2">
         <div><label class="fl">Inicio de viaje</label><input class="fi" id="r-fecha-inicio" type="date" value="${d.fechaInicio||''}"></div>
         <div><label class="fl">Fin de viaje</label><input class="fi" id="r-fecha-fin" type="date" value="${d.fechaFin||''}"></div>
       </div>
       <div class="frow"><label class="fl">Notas</label><textarea class="fta" id="r-notas" placeholder="Detalle, itinerario, condiciones…">${escHtml(d.notas)}</textarea></div>
+    </div>
+
+    <div class="psec">
+      <div class="psec-title">Valor cotizado</div>
+      <div class="upload-hint" style="margin-bottom:8px">Una línea por cada servicio cotizado al cliente (igual que Costos), para desglosar de qué se compone el total.</div>
+      <div id="cotizado-list">${(d.cotizado||[]).map(c => cotizadoRowHtml(c, d.moneda)).join('')}</div>
+      <button type="button" class="add-item-btn" onclick="addCotizado()">+ Agregar ítem cotizado</button>
+      <div class="derived-box" style="margin-top:14px">
+        <div class="derived-item">Margen<b id="derived-margen">${fmtMoney(reservaMargenLocal(d), d.moneda)}</b></div>
+        <div class="derived-item">Saldo pendiente<b id="derived-saldo">${fmtMoney(objToArr(d.cotizado).reduce((s,c)=>s+(Number(c.monto)||0),0)-pagosEquivSum(d.pagos, d.moneda), d.moneda)}</b></div>
+      </div>
     </div>
 
     <div class="psec">
@@ -1531,7 +1554,8 @@ function renderReservaPanel(){
           <div><label class="fl">Monto facturado</label><input class="fi" id="r-fact-monto" type="number" step="0.01" value="${d.facturacion?.monto??''}"></div>
           <div><label class="fl">Moneda</label><select class="fsel" id="r-fact-moneda">${selOpts(['ARS','USD'],['ARS','USD'],d.facturacion?.moneda||d.moneda||'ARS')}</select></div>
         </div>
-        <div class="frow" style="margin-bottom:0"><label class="fl">Número de factura</label><input class="fi" id="r-fact-numero" value="${escHtml(d.facturacion?.numero)}" placeholder="Ej: B-0001-00001234"></div>
+        <div class="frow"><label class="fl">Número de factura</label><input class="fi" id="r-fact-numero" value="${escHtml(d.facturacion?.numero)}" placeholder="Ej: B-0001-00001234"></div>
+        <div class="frow" style="margin-bottom:0"><label class="fl">Link al comprobante</label><input class="fi" id="r-fact-link" type="url" value="${escHtml(d.facturacion?.link)}" placeholder="https://drive.google.com/…"></div>
       </div>
     </div>
 
@@ -1550,7 +1574,7 @@ function renderReservaPanel(){
   `;
   recalcDerived();
 }
-function reservaMargenLocal(d){ return (Number(d.valorCotizado)||0) - objToArr(d.costos).reduce((s,c) => s + (Number(c.monto)||0), 0); }
+function reservaMargenLocal(d){ return objToArr(d.cotizado).reduce((s,c) => s + (Number(c.monto)||0), 0) - objToArr(d.costos).reduce((s,c) => s + (Number(c.monto)||0), 0); }
 
 function comprobanteRowHtml(c){
   return `<div class="item-card comprobante-row" data-row-id="${c.id}">
@@ -1591,8 +1615,6 @@ function saveReserva(){
     cliente: gv('r-cliente'), concepto: gv('r-concepto'),
     servicios, servicioOtroTexto: servicios.includes('Otro') ? gv('r-servicio-otro') : '',
     moneda: gv('r-moneda'),
-    valorCotizado: getNum('r-valorCotizado'), valorCotizadoMoneda: gv('r-valorCotizado-moneda'),
-    tipoCambioCotizacion: parseFloat(gv('r-tc-cotizacion'))||'',
     estado: gv('r-estado'), fechaCotizacion: gv('r-fecha-cotizacion'),
     fechaInicio: gv('r-fecha-inicio'), fechaFin: gv('r-fecha-fin'),
     pasajeros: parseInt(gv('r-pasajeros'),10)||'', notas: gv('r-notas'),
@@ -1603,8 +1625,9 @@ function saveReserva(){
       monto: getNum('r-fact-monto') || '',
       moneda: gv('r-fact-moneda'),
       numero: gv('r-fact-numero'),
+      link: gv('r-fact-link'),
     },
-    pagos: {}, reparto: {}, comprobantes: {}, costos: {}, pasajerosData: {}
+    pagos: {}, reparto: {}, comprobantes: {}, costos: {}, cotizado: {}, pasajerosData: {}
   };
   // Filas nuevas (todavía sin key de Firebase): se les asigna una key ahora, pero
   // el dataset del DOM recién se actualiza si el guardado sale bien, así que un
@@ -1636,6 +1659,7 @@ function saveReserva(){
       moneda: row.querySelector('.reparto-moneda').value,
       tipoCambio: parseFloat(row.querySelector('.reparto-tc').value)||'',
       pagado: row.querySelector('.reparto-pagado').checked,
+      link: row.querySelector('.reparto-link').value.trim(),
     };
     if (ejecutivo && !META.ejecutivos.includes(ejecutivo)) META_EJEC_REF.set([...META.ejecutivos, ejecutivo]);
   });
@@ -1650,9 +1674,17 @@ function saveReserva(){
       tipoCambio: parseFloat(row.querySelector('.costo-tc').value)||'',
       medio: row.querySelector('.costo-medio').value,
       fechaEmision: row.querySelector('.costo-fecha-emision').value,
-      pagado: row.querySelector('.costo-pagado').checked,
     };
     if (proveedor && !META.proveedores.includes(proveedor)) META_PROV_REF.set([...META.proveedores, proveedor]);
+  });
+  document.querySelectorAll('.cotizado-row').forEach(row => {
+    val.cotizado[rid(row)] = {
+      tipo: row.querySelector('.cotizado-tipo').value,
+      concepto: row.querySelector('.cotizado-concepto').value.trim(),
+      monto: parseFloat(row.querySelector('.cotizado-monto').value)||0,
+      moneda: row.querySelector('.cotizado-moneda').value,
+      tipoCambio: parseFloat(row.querySelector('.cotizado-tc').value)||'',
+    };
   });
   document.querySelectorAll('.pasajero-row').forEach(row => {
     const nombre = row.querySelector('.pasajero-nombre').value.trim();
