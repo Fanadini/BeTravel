@@ -181,6 +181,8 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .item-field input:focus,.item-field select:focus{border-color:var(--teal)}
 .add-item-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border-radius:7px;border:1.5px dashed var(--beige-d);background:transparent;color:rgba(43,43,43,.45);font-family:'Inter',sans-serif;font-size:12px;font-weight:500;cursor:pointer;width:100%;margin-top:2px}
 .add-item-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-l)}
+.mini-add-btn{flex-shrink:0;width:28px;height:28px;border-radius:5px;border:1px solid var(--beige-d);background:var(--white);color:var(--teal);font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+.mini-add-btn:hover{background:var(--teal-l);border-color:var(--teal)}
 .servicio-chips{display:flex;flex-wrap:wrap;gap:6px}
 .servicio-chip{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:5px 12px;border-radius:99px;border:1.5px solid var(--beige-d);background:var(--white);color:rgba(43,43,43,.55);cursor:pointer;transition:all .15s}
 .servicio-chip:hover{border-color:var(--teal)}
@@ -397,7 +399,7 @@ const META_PROV_REF = db.ref('finanzas/meta/proveedores');
 const META_EJEC_REF = db.ref('finanzas/meta/ejecutivos');
 const META_CODIGO_REF = db.ref('finanzas/meta/reservaCodigoCounter');
 
-const DEFAULT_PROVEEDORES = ['Tucano Tours','Carnival Tours','RateHawk','MyBeds','Hotelbeds','Bedsonline','Freeway','Top Dest','Grupo Ocho'];
+const DEFAULT_PROVEEDORES = ['Tucano Tours','Carnival Tours','RateHawk','MyBeds','Hotelbeds','Bedsonline','Freeway','Top Dest','Grupo Ocho','TicketYa','Chasma'];
 const SERVICIO_TIPOS = ['Aéreo','Hotel','Traslados','Autos','Actividades','Crucero','Atracciones','Otro'];
 const MEDIO_PAGO_TIPOS = ['bsp','tarjeta','transferencia','efectivo','otro'];
 const MEDIO_PAGO_LABELS = { bsp:'BSP', tarjeta:'Tarjeta de crédito', transferencia:'Transferencia', efectivo:'Efectivo', otro:'Otro' };
@@ -456,7 +458,12 @@ function attachListeners() {
   META_PROV_REF.on('value', snap => {
     const v = snap.val();
     META.proveedores = v ? Object.values(v) : [...DEFAULT_PROVEEDORES];
-    if (!v) META_PROV_REF.set(DEFAULT_PROVEEDORES);
+    if (!v) {
+      META_PROV_REF.set(DEFAULT_PROVEEDORES);
+    } else {
+      const faltantes = DEFAULT_PROVEEDORES.filter(p => !META.proveedores.includes(p));
+      if (faltantes.length) META_PROV_REF.set([...META.proveedores, ...faltantes]);
+    }
   });
   META_EJEC_REF.on('value', snap => { META.ejecutivos = snap.val() ? Object.values(snap.val()) : []; });
   META_CODIGO_REF.on('value', snap => { META.codigoCounter = snap.val() || 0; });
@@ -1267,7 +1274,12 @@ function costoRowHtml(c, monedaReserva){
     <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Tipo</span><select class="costo-tipo" onchange="onCostoRowChange(this)">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,c.tipo||'Otro')}</select></div>
       <div class="item-field"><span class="item-field-label">Medio de pago</span><select class="costo-medio" onchange="onCostoRowChange(this)">${selOpts(MEDIO_PAGO_TIPOS,MEDIO_PAGO_TIPOS.map(m=>MEDIO_PAGO_LABELS[m]),medio)}</select></div>
-      <div class="item-field"><span class="item-field-label">Proveedor</span><input class="costo-proveedor" list="dl-proveedores" value="${escHtml(c.proveedor)}" placeholder="Nombre"></div>
+      <div class="item-field"><span class="item-field-label">Proveedor</span>
+        <div style="display:flex;gap:4px">
+          <input class="costo-proveedor" list="dl-proveedores" value="${escHtml(c.proveedor)}" placeholder="Nombre" style="flex:1;min-width:0">
+          <button type="button" class="mini-add-btn" onclick="addNuevoProveedor(this)" title="Agregar proveedor nuevo a la lista">+</button>
+        </div>
+      </div>
     </div>
     <div class="item-field" style="margin-top:6px"><span class="item-field-label">Concepto</span><input class="costo-concepto" value="${escHtml(c.concepto)}" placeholder="Ej: Hotel Llao Llao, 3 noches"></div>
     <div class="item-fields cols3" style="margin-top:6px">
@@ -1278,6 +1290,15 @@ function costoRowHtml(c, monedaReserva){
     <div class="item-field costo-fechaemision-wrap" style="margin-top:6px;${showFechaEmision?'':'display:none'}"><span class="item-field-label">Fecha de emisión del billete (para BSP)</span><input type="date" class="costo-fecha-emision" value="${c.fechaEmision||''}"></div>
     <div class="costo-equiv" style="font-size:11px;margin-top:6px"></div>
   </div>`;
+}
+function addNuevoProveedor(btn){
+  const nombre = prompt('Nombre del nuevo proveedor:');
+  if (!nombre || !nombre.trim()) return;
+  const limpio = nombre.trim();
+  const input = btn.closest('.item-field').querySelector('.costo-proveedor');
+  if (input) input.value = limpio;
+  if (!META.proveedores.includes(limpio)) META_PROV_REF.set([...META.proveedores, limpio]);
+  saveReserva();
 }
 function onCostoRowChange(el){
   const row = el.closest('.costo-row');
