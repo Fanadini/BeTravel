@@ -768,7 +768,10 @@ function repartoMontoEnSuMoneda(r, rep){
   const margen = reservaMargen(r);
   const montoRef = margen * (Number(rep.porcentaje)||0) / 100;
   const repMoneda = rep.moneda || r.moneda;
-  return convertMonto(montoRef, r.moneda, repMoneda, rep.tipoCambio);
+  const conv = convertMonto(montoRef, r.moneda, repMoneda, rep.tipoCambio);
+  if (conv.note==='falta-tc') return conv;
+  const descuento = Number(rep.montoCobradoDirecto)||0;
+  return { value: conv.value - descuento, note: conv.note };
 }
 
 function computeReservaTotals(){
@@ -1394,7 +1397,9 @@ function repartoRowHtml(r, monedaReserva){
     </div>
     <div class="item-fields" style="margin-top:6px">
       <div class="item-field"><span class="item-field-label">T.C. (si liquida en otra moneda)</span><input type="number" step="0.01" class="reparto-tc" value="${r.tipoCambio??''}" oninput="recalcReparto()" placeholder="Ej: 1050"></div>
+      <div class="item-field"><span class="item-field-label">Ya cobró directo del pasajero</span><input type="number" step="0.01" class="reparto-cobrado-directo" value="${r.montoCobradoDirecto??''}" oninput="recalcReparto()" placeholder="0"></div>
     </div>
+    <div class="upload-hint" style="margin-top:2px">Si el pasajero le pagó una parte directo al ejecutivo (no a la agencia), cargá ese monto acá — se resta de lo que le queda por liquidar. El pago en sí igual se carga en "Pagos recibidos" para que el saldo de la reserva quede bien.</div>
     <div class="item-field" style="margin-top:6px"><span class="item-field-label">Link al comprobante de liquidación</span><input class="reparto-link" type="url" value="${escHtml(r.link)}" placeholder="https://drive.google.com/…"></div>
     <div class="reparto-foot">
       <label class="reparto-check"><input type="checkbox" class="reparto-pagado" ${r.pagado?'checked':''}> Liquidado</label>
@@ -1535,7 +1540,11 @@ function recalcReparto(margenOverride, monedaOverride){
       disp.textContent = '⚠ Falta TC';
       disp.style.color = 'var(--amber)';
     } else {
-      disp.textContent = fmtMoney(conv.value, rowMoneda);
+      const descuento = parseFloat(row.querySelector('.reparto-cobrado-directo')?.value)||0;
+      const neto = conv.value - descuento;
+      disp.textContent = descuento
+        ? `${fmtMoney(neto, rowMoneda)} a liquidar (bruto ${fmtMoney(conv.value, rowMoneda)})`
+        : fmtMoney(conv.value, rowMoneda);
       disp.style.color = 'var(--teal)';
     }
   });
@@ -1701,6 +1710,7 @@ function saveReserva(){
       porcentaje: parseFloat(row.querySelector('.reparto-pct').value)||0,
       moneda: row.querySelector('.reparto-moneda').value,
       tipoCambio: parseFloat(row.querySelector('.reparto-tc').value)||'',
+      montoCobradoDirecto: parseFloat(row.querySelector('.reparto-cobrado-directo').value)||'',
       pagado: row.querySelector('.reparto-pagado').checked,
       link: row.querySelector('.reparto-link').value.trim(),
     };
