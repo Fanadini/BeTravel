@@ -262,6 +262,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 <div class="tabs">
   <button class="tab-btn on" data-tab="resumen" onclick="switchTab('resumen')">Resumen</button>
   <button class="tab-btn" data-tab="reservas" onclick="switchTab('reservas')">Reservas</button>
+  <button class="tab-btn" data-tab="pasajeros" onclick="switchTab('pasajeros')">Pasajeros</button>
   <button class="tab-btn" data-tab="calendario" onclick="switchTab('calendario')">Calendario</button>
   <button class="tab-btn" data-tab="facturas" onclick="switchTab('facturas')">Facturas de proveedores</button>
   <button class="tab-btn" data-tab="recordatorios" onclick="switchTab('recordatorios')">Recordatorios</button>
@@ -303,6 +304,20 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
       <table class="data-table" id="tabla-reservas">
         <thead id="thead-reservas"></thead>
         <tbody id="tbody-reservas"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PASAJEROS -->
+  <div id="view-pasajeros" style="display:none">
+    <div class="section-head">
+      <h2>Pasajeros</h2>
+    </div>
+    <div class="upload-hint" style="margin-bottom:10px">Se completa solo con los pasajeros cargados en cada reserva. Para editar un pasajero, entrá a su reserva.</div>
+    <div class="table-wrap">
+      <table class="data-table" id="tabla-pasajeros">
+        <thead id="thead-pasajeros"></thead>
+        <tbody id="tbody-pasajeros"></tbody>
       </table>
     </div>
   </div>
@@ -562,8 +577,9 @@ function estadoReservaBadgeHtml(estado){
   const e = estado || 'cotizado';
   return `<span class="badge estado-${e}">${ESTADO_RESERVA_LABELS[e] || e}</span>`;
 }
-function facturacionBadgeHtml(facturacionRaw){
+function facturacionBadgeHtml(facturacionRaw, estado){
   const facturada = objToArr(facturacionRaw).length > 0;
+  if (!facturada && (estado==='cancelado' || estado==='perdida')) return `<span class="badge">N/A</span>`;
   return `<span class="badge ${facturada?'fact-facturada':'fact-pendiente'}">${facturada?'Facturada':'Pendiente'}</span>`;
 }
 
@@ -574,7 +590,7 @@ function toggleAlertCol(id){
 // ── TABS ───────────────────────────────────────────────────────────────────
 function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('on', b.dataset.tab===tab));
-  ['resumen','reservas','calendario','facturas','recordatorios'].forEach(t => {
+  ['resumen','reservas','pasajeros','calendario','facturas','recordatorios'].forEach(t => {
     document.getElementById('view-'+t).style.display = (t===tab ? '' : 'none');
   });
   if (tab==='calendario') renderCalendario();
@@ -587,6 +603,7 @@ function renderAll(){
   renderTable('recordatorios');
   renderResumen();
   renderCalendario();
+  renderPasajerosTable();
 }
 
 // ── CALENDARIO ───────────────────────────────────────────────────────────
@@ -725,7 +742,7 @@ function reservaRowHtml(r){
     <td><span class="money ${usd}">${fmtMoney(saldo,r.moneda)}</span></td>
     <td><span class="money ${usd}">${fmtMoney(margen,r.moneda)}</span></td>
     <td>${estadoReservaBadgeHtml(r.estado)}</td>
-    <td>${facturacionBadgeHtml(r.facturacion)}</td>
+    <td>${facturacionBadgeHtml(r.facturacion, r.estado)}</td>
   </tr>`;
 }
 
@@ -761,6 +778,107 @@ function renderReservasTable(){
   tbody.innerHTML = items.map(reservaRowHtml).join('');
 }
 initReservasThead();
+
+// ── TABLA DE PASAJEROS (agregada de todas las reservas) ─────────────────────
+const TIPO_DOC_LABELS = { pasaporte:'Pasaporte', dni:'DNI' };
+const PASAJEROS_COLS = [
+  { key:'nombre', label:'Nombre', type:'text', get:p => p.nombre||'' },
+  { key:'apellido', label:'Apellido', type:'text', get:p => p.apellido||'' },
+  { key:'tipoDocumento', label:'Documento', type:'select', options: TIPO_DOC_LABELS, get:p => p.tipoDocumento||'dni' },
+  { key:'numero', label:'Número', type:'text', get:p => p.numero||'' },
+  { key:'vencimiento', label:'Vencimiento', type:'date', get:p => p.vencimiento||'' },
+  { key:'nacionalidad', label:'Nacionalidad', type:'text', get:p => p.nacionalidad||'' },
+  { key:'reservaCodigo', label:'Reserva', type:'text', get:p => p.reservaCodigo||'' },
+  { key:'reservaCliente', label:'Cliente', type:'text', get:p => p.reservaCliente||'' },
+  { key:'reservaFechaInicio', label:'Fecha de viaje', type:'date', get:p => p.reservaFechaInicio||'' },
+];
+let pasajerosSort = { key:'apellido', dir:1 };
+let pasajerosFilters = {};
+
+function buildPasajerosFlat(){
+  const list = [];
+  STATE.reservas.forEach(r => {
+    objToArr(r.pasajerosData).forEach(p => {
+      list.push({ ...p, reservaId:r.id, reservaCodigo:r.codigo, reservaCliente:r.cliente, reservaFechaInicio:r.fechaInicio });
+    });
+  });
+  return list;
+}
+
+function buildPasajerosThead(){
+  const headCells = PASAJEROS_COLS.map(c => {
+    const active = pasajerosSort.key===c.key;
+    const arrow = active ? (pasajerosSort.dir===1 ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable-th${active?' active':''}" onclick="setPasajerosSort('${c.key}')">${c.label}${arrow}</th>`;
+  }).join('');
+  const filterCells = PASAJEROS_COLS.map(c => {
+    const current = pasajerosFilters[c.key] || '';
+    if (c.type==='select'){
+      const opts = Object.keys(c.options).map(v => `<option value="${v}" ${v===current?'selected':''}>${escHtml(c.options[v])}</option>`).join('');
+      return `<th><select class="col-filter" onclick="event.stopPropagation()" onchange="setPasajerosFilter('${c.key}',this.value)"><option value="">Todos</option>${opts}</select></th>`;
+    }
+    return `<th><input class="col-filter" type="text" placeholder="Filtrar…" value="${escHtml(current)}" onclick="event.stopPropagation()" oninput="setPasajerosFilter('${c.key}',this.value)"></th>`;
+  }).join('');
+  return `<tr>${headCells}</tr><tr class="filter-row">${filterCells}</tr>`;
+}
+function initPasajerosThead(){
+  document.getElementById('thead-pasajeros').innerHTML = buildPasajerosThead();
+}
+function setPasajerosSort(key){
+  if (pasajerosSort.key===key) pasajerosSort.dir *= -1;
+  else pasajerosSort = { key, dir:1 };
+  initPasajerosThead();
+  renderPasajerosTable();
+}
+function setPasajerosFilter(key, value){
+  pasajerosFilters[key] = value;
+  renderPasajerosTable();
+}
+
+function pasajeroTableRowHtml(p){
+  return `<tr onclick="jumpTo('reservas','${p.reservaId}')">
+    <td>${escHtml(p.nombre||'—')}</td>
+    <td>${escHtml(p.apellido||'—')}</td>
+    <td>${TIPO_DOC_LABELS[p.tipoDocumento]||'—'}</td>
+    <td>${escHtml(p.numero||'—')}</td>
+    <td>${fmtDate(p.vencimiento)}</td>
+    <td>${escHtml(p.nacionalidad||'—')}</td>
+    <td>${escHtml(p.reservaCodigo||'—')}</td>
+    <td>${escHtml(p.reservaCliente||'—')}</td>
+    <td>${fmtDate(p.reservaFechaInicio)}</td>
+  </tr>`;
+}
+
+function renderPasajerosTable(){
+  const tbody = document.getElementById('tbody-pasajeros');
+  if (!tbody) return;
+  let items = buildPasajerosFlat();
+
+  PASAJEROS_COLS.forEach(c => {
+    const fv = pasajerosFilters[c.key];
+    if (!fv) return;
+    if (c.type==='select'){
+      items = items.filter(p => c.get(p)===fv);
+    } else {
+      items = items.filter(p => c.get(p).toLowerCase().includes(fv.toLowerCase()));
+    }
+  });
+
+  const sortCol = PASAJEROS_COLS.find(c => c.key===pasajerosSort.key) || PASAJEROS_COLS[1];
+  items.sort((a,b) => {
+    const av = String(sortCol.get(a)||''), bv = String(sortCol.get(b)||'');
+    return av.localeCompare(bv) * pasajerosSort.dir;
+  });
+
+  if (!items.length){
+    const total = buildPasajerosFlat().length;
+    const msg = total ? 'Ningún resultado con estos filtros.' : 'Todavía no cargaste pasajeros en ninguna reserva.';
+    tbody.innerHTML = `<tr><td colspan="${PASAJEROS_COLS.length}" class="table-empty">${msg}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = items.map(pasajeroTableRowHtml).join('');
+}
+initPasajerosThead();
 
 // Un reparto puede liquidarse en una moneda distinta a la de referencia de la reserva
 // (ej: margen calculado en ARS, pero le pagás la parte a un ejecutivo en USD).
