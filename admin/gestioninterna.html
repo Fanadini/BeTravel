@@ -800,6 +800,7 @@ const PASAJEROS_COLS = [
   { key:'apellido', label:'Apellido', type:'text', get:p => p.apellido||'' },
   { key:'tipoDocumento', label:'Documento', type:'select', options: TIPO_DOC_LABELS, get:p => p.tipoDocumento||'dni' },
   { key:'numero', label:'Número', type:'text', get:p => p.numero||'' },
+  { key:'fechaNacimiento', label:'Fecha de nacimiento', type:'date', get:p => p.fechaNacimiento||'' },
   { key:'vencimiento', label:'Vencimiento', type:'date', get:p => p.vencimiento||'' },
   { key:'nacionalidad', label:'Nacionalidad', type:'text', get:p => p.nacionalidad||'' },
   { key:'reservas', label:'Reservas', type:'text', get:p => pasajeroReservasLabel(p.id) },
@@ -850,6 +851,7 @@ function pasajeroTableRowHtml(p){
     <td>${escHtml(p.apellido||'—')}</td>
     <td>${TIPO_DOC_LABELS[p.tipoDocumento]||'—'}</td>
     <td>${escHtml(p.numero||'—')}</td>
+    <td>${fmtDate(p.fechaNacimiento)}</td>
     <td>${fmtDate(p.vencimiento)}</td>
     <td>${escHtml(p.nacionalidad||'—')}</td>
     <td>${escHtml(pasajeroReservasLabel(p.id)||'—')}</td>
@@ -910,8 +912,11 @@ function openPasajeroForm(id, presetReservaId){
       <div><label class="fl">Número</label><input class="fi" id="f-pas-numero" value="${escHtml(item?.numero)}" placeholder="Número"></div>
     </div>
     <div class="frow2">
-      <div><label class="fl">Vencimiento</label><input class="fi" id="f-pas-vencimiento" type="date" value="${item?.vencimiento||''}"></div>
-      <div><label class="fl">Nacionalidad</label><input class="fi" id="f-pas-nacionalidad" value="${escHtml(item?.nacionalidad)}" placeholder="Ej: Argentina"></div>
+      <div><label class="fl">Fecha de nacimiento</label><input class="fi" id="f-pas-fechaNacimiento" type="date" value="${item?.fechaNacimiento||''}"></div>
+      <div><label class="fl">Vencimiento del documento</label><input class="fi" id="f-pas-vencimiento" type="date" value="${item?.vencimiento||''}"></div>
+    </div>
+    <div class="frow">
+      <label class="fl">Nacionalidad</label><input class="fi" id="f-pas-nacionalidad" value="${escHtml(item?.nacionalidad)}" placeholder="Ej: Argentina">
     </div>
     <div class="frow">
       <label class="fl">Reservas asociadas</label>
@@ -950,6 +955,7 @@ function savePasajeroForm(){
     nombre, apellido,
     tipoDocumento: document.getElementById('f-pas-tipoDocumento').value,
     numero: document.getElementById('f-pas-numero').value.trim(),
+    fechaNacimiento: document.getElementById('f-pas-fechaNacimiento').value,
     vencimiento: document.getElementById('f-pas-vencimiento').value,
     nacionalidad: document.getElementById('f-pas-nacionalidad').value.trim(),
   };
