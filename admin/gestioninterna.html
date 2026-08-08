@@ -288,6 +288,10 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
       <h3><span class="alert-dot" style="background:var(--bronze)"></span>Reparto pendiente por ejecutivo</h3>
       <div id="list-reparto-ejecutivos"></div>
     </div>
+    <div class="alert-col" id="col-ganancia-ejecutivos" style="margin-top:14px">
+      <h3><span class="alert-dot" style="background:var(--teal)"></span>Ganancia total por ejecutivo (a la fecha)</h3>
+      <div id="list-ganancia-ejecutivos"></div>
+    </div>
     <div class="alert-col" id="col-facturacion" style="margin-top:14px">
       <h3 onclick="toggleAlertCol('col-facturacion')"><span class="alert-dot" style="background:var(--teal)"></span>Facturación pendiente por mes<span class="chevron">▾</span></h3>
       <div id="list-facturacion"></div>
@@ -1082,17 +1086,19 @@ function renderResumen(){
     ? proximos.map(x => rowHtml(x,false)).join('')
     : `<div class="empty-msg">Nada en los próximos 15 días.</div>`;
 
-  const porEjecutivo = computeRepartoPorEjecutivo();
-  const nombres = Object.keys(porEjecutivo).sort((a,b) => (porEjecutivo[b].ARS+porEjecutivo[b].USD) - (porEjecutivo[a].ARS+porEjecutivo[a].USD));
-  document.getElementById('list-reparto-ejecutivos').innerHTML = nombres.length
-    ? nombres.map(nombre => {
-        const t = porEjecutivo[nombre];
-        const parts = [];
-        if (t.ARS) parts.push(`<div class="alert-amount">${fmtMoney(t.ARS,'ARS')}</div>`);
-        if (t.USD) parts.push(`<div class="alert-amount" style="color:var(--bronze)">${fmtMoney(t.USD,'USD')}</div>`);
-        return `<div class="alert-row"><div class="alert-title">${escHtml(nombre)}</div><div class="alert-meta">${parts.join('')}</div></div>`;
-      }).join('')
-    : `<div class="empty-msg">Sin reparto pendiente.</div>`;
+  const ejecutivoRowsHtml = (porEjecutivo, emptyMsg) => {
+    const nombres = Object.keys(porEjecutivo).sort((a,b) => (porEjecutivo[b].ARS+porEjecutivo[b].USD) - (porEjecutivo[a].ARS+porEjecutivo[a].USD));
+    if (!nombres.length) return `<div class="empty-msg">${emptyMsg}</div>`;
+    return nombres.map(nombre => {
+      const t = porEjecutivo[nombre];
+      const parts = [];
+      if (t.ARS) parts.push(`<div class="alert-amount">${fmtMoney(t.ARS,'ARS')}</div>`);
+      if (t.USD) parts.push(`<div class="alert-amount" style="color:var(--bronze)">${fmtMoney(t.USD,'USD')}</div>`);
+      return `<div class="alert-row"><div class="alert-title">${escHtml(nombre)}</div><div class="alert-meta">${parts.join('')}</div></div>`;
+    }).join('');
+  };
+  document.getElementById('list-reparto-ejecutivos').innerHTML = ejecutivoRowsHtml(computeRepartoPorEjecutivo(true), 'Sin reparto pendiente.');
+  document.getElementById('list-ganancia-ejecutivos').innerHTML = ejecutivoRowsHtml(computeRepartoPorEjecutivo(false), 'Todavía no hay reparto cargado.');
 
   const mesKeys = Object.keys(facturacionMeses).sort();
   document.getElementById('list-facturacion').innerHTML = mesKeys.length
@@ -1134,12 +1140,15 @@ function computeFacturacionPorMes(){
   });
   return meses;
 }
-function computeRepartoPorEjecutivo(){
+// soloPendiente=true: lo que todavía hay que liquidarle (para "por pagar").
+// soloPendiente=false: todo lo que ganó hasta el momento, ya liquidado o no.
+function computeRepartoPorEjecutivo(soloPendiente){
   const map = {};
   STATE.reservas.forEach(r => {
     if (r.estado==='cancelado' || r.estado==='perdida') return;
     objToArr(r.reparto).forEach(rep => {
-      if (rep.pagado || !rep.ejecutivo) return;
+      if (!rep.ejecutivo) return;
+      if (soloPendiente && rep.pagado) return;
       const conv = repartoMontoEnSuMoneda(r, rep);
       if (conv.note==='falta-tc') return;
       const repMoneda = rep.moneda==='USD' ? 'USD' : 'ARS';
