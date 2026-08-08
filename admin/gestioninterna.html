@@ -130,7 +130,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .table-empty{padding:40px 20px;text-align:center;color:rgba(43,43,43,.35);font-size:12.5px}
 
 /* ── FORM (modal simple) ── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:900;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s}
 .modal-overlay.open{opacity:1;pointer-events:all}
 .modal{background:var(--white);border-radius:14px;padding:28px;width:100%;max-width:460px;box-shadow:var(--shadow-l);transform:translateY(10px);transition:transform .2s;max-height:90vh;overflow-y:auto;position:relative}
 .modal-overlay.open .modal{transform:translateY(0)}
@@ -312,8 +312,9 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   <div id="view-pasajeros" style="display:none">
     <div class="section-head">
       <h2>Pasajeros</h2>
+      <button class="new-btn" onclick="openPasajeroForm()">+ Nuevo pasajero</button>
     </div>
-    <div class="upload-hint" style="margin-bottom:10px">Se completa solo con los pasajeros cargados en cada reserva. Para editar un pasajero, entrá a su reserva.</div>
+    <div class="upload-hint" style="margin-bottom:10px">Lista única de pasajeros — se pueden asociar a una o más reservas. Para editar uno, hacé clic en su fila.</div>
     <div class="table-wrap">
       <table class="data-table" id="tabla-pasajeros">
         <thead id="thead-pasajeros"></thead>
@@ -409,6 +410,7 @@ const REFS = {
   reservas:      db.ref('finanzas/reservas'),
   facturas:      db.ref('finanzas/facturas'),
   recordatorios: db.ref('finanzas/recordatorios'),
+  pasajeros:     db.ref('finanzas/pasajeros'),
 };
 const META_PROV_REF = db.ref('finanzas/meta/proveedores');
 const META_EJEC_REF = db.ref('finanzas/meta/ejecutivos');
@@ -450,10 +452,11 @@ function setSyncStatus(status, label) {
 }
 
 // ── ESTADO LOCAL ───────────────────────────────────────────────────────────
-const STATE = { reservas:[], facturas:[], recordatorios:[] };
+const STATE = { reservas:[], facturas:[], recordatorios:[], pasajeros:[] };
 let META = { proveedores: [...DEFAULT_PROVEEDORES], ejecutivos: [], codigoCounter: 0 };
-const loadedOnce = { reservas:false, recordatorios:false };
+const loadedOnce = { reservas:false, recordatorios:false, pasajeros:false };
 let migrationRan = false;
+let migrationPasajerosRan = false;
 
 function attachListeners() {
   setSyncStatus('loading','Cargando…');
@@ -461,13 +464,14 @@ function attachListeners() {
     REFS[key].on('value', snap => {
       const val = snap.val() || {};
       STATE[key] = Object.keys(val).map(id => ({ id, ...val[id] }));
-      if (key==='reservas' || key==='recordatorios') loadedOnce[key] = true;
+      if (key==='reservas' || key==='recordatorios' || key==='pasajeros') loadedOnce[key] = true;
       renderAll();
       setSyncStatus('ok','Sincronizado');
       if (loadedOnce.reservas && loadedOnce.recordatorios) {
         syncBspRecordatorios();
         migrateReservasLegacy();
       }
+      if (loadedOnce.reservas && loadedOnce.pasajeros) migratePasajerosEmbebidos();
     }, err => { setSyncStatus('err','Error de sync'); console.error(err); });
   });
   META_PROV_REF.on('value', snap => {
@@ -614,6 +618,12 @@ function calMonthShift(delta){
   calendarioMes = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   renderCalendario();
 }
+function reservaPrimerPasajeroNombre(r){
+  const ids = Object.keys(r.pasajeroIds||{});
+  if (!ids.length) return '';
+  const p = STATE.pasajeros.find(x => x.id===ids[0]);
+  return p ? pasajeroLabel(p) : '';
+}
 function renderCalendario(){
   const wrap = document.getElementById('calendario-grid');
   if (!wrap) return;
@@ -633,7 +643,11 @@ function renderCalendario(){
   for (let day=1; day<=daysInMonth; day++){
     const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const items = reservasActivas.filter(r => dateStr >= r.fechaInicio && dateStr <= (r.fechaFin || r.fechaInicio));
-    const tags = items.slice(0,3).map(r => `<div class="cal-item" onclick="jumpTo('reservas','${r.id}')" title="${escHtml(r.cliente||'')}">${escHtml(r.codigo||r.cliente||'—')}</div>`).join('');
+    const tags = items.slice(0,3).map(r => {
+      const primerPasajero = reservaPrimerPasajeroNombre(r);
+      const label = [r.concepto, primerPasajero].filter(Boolean).join(' · ') || r.codigo || r.cliente || '—';
+      return `<div class="cal-item" onclick="jumpTo('reservas','${r.id}')" title="${escHtml(r.cliente||'')}">${escHtml(label)}</div>`;
+    }).join('');
     const more = items.length>3 ? `<div class="cal-more">+${items.length-3} más</div>` : '';
     cells.push(`<div class="cal-cell${dateStr===hoy?' cal-today':''}"><div class="cal-daynum">${day}</div>${tags}${more}</div>`);
   }
@@ -779,7 +793,7 @@ function renderReservasTable(){
 }
 initReservasThead();
 
-// ── TABLA DE PASAJEROS (agregada de todas las reservas) ─────────────────────
+// ── TABLA DE PASAJEROS (lista única, cada reserva solo referencia el id) ────
 const TIPO_DOC_LABELS = { pasaporte:'Pasaporte', dni:'DNI' };
 const PASAJEROS_COLS = [
   { key:'nombre', label:'Nombre', type:'text', get:p => p.nombre||'' },
@@ -788,21 +802,16 @@ const PASAJEROS_COLS = [
   { key:'numero', label:'Número', type:'text', get:p => p.numero||'' },
   { key:'vencimiento', label:'Vencimiento', type:'date', get:p => p.vencimiento||'' },
   { key:'nacionalidad', label:'Nacionalidad', type:'text', get:p => p.nacionalidad||'' },
-  { key:'reservaCodigo', label:'Reserva', type:'text', get:p => p.reservaCodigo||'' },
-  { key:'reservaCliente', label:'Cliente', type:'text', get:p => p.reservaCliente||'' },
-  { key:'reservaFechaInicio', label:'Fecha de viaje', type:'date', get:p => p.reservaFechaInicio||'' },
+  { key:'reservas', label:'Reservas', type:'text', get:p => pasajeroReservasLabel(p.id) },
 ];
 let pasajerosSort = { key:'apellido', dir:1 };
 let pasajerosFilters = {};
 
-function buildPasajerosFlat(){
-  const list = [];
-  STATE.reservas.forEach(r => {
-    objToArr(r.pasajerosData).forEach(p => {
-      list.push({ ...p, reservaId:r.id, reservaCodigo:r.codigo, reservaCliente:r.cliente, reservaFechaInicio:r.fechaInicio });
-    });
-  });
-  return list;
+function reservasDePasajero(pasajeroId){
+  return STATE.reservas.filter(r => r.pasajeroIds && r.pasajeroIds[pasajeroId]);
+}
+function pasajeroReservasLabel(id){
+  return reservasDePasajero(id).map(r => r.codigo||r.cliente||'—').join(', ');
 }
 
 function buildPasajerosThead(){
@@ -836,23 +845,21 @@ function setPasajerosFilter(key, value){
 }
 
 function pasajeroTableRowHtml(p){
-  return `<tr onclick="jumpTo('reservas','${p.reservaId}')">
+  return `<tr onclick="openPasajeroForm('${p.id}')">
     <td>${escHtml(p.nombre||'—')}</td>
     <td>${escHtml(p.apellido||'—')}</td>
     <td>${TIPO_DOC_LABELS[p.tipoDocumento]||'—'}</td>
     <td>${escHtml(p.numero||'—')}</td>
     <td>${fmtDate(p.vencimiento)}</td>
     <td>${escHtml(p.nacionalidad||'—')}</td>
-    <td>${escHtml(p.reservaCodigo||'—')}</td>
-    <td>${escHtml(p.reservaCliente||'—')}</td>
-    <td>${fmtDate(p.reservaFechaInicio)}</td>
+    <td>${escHtml(pasajeroReservasLabel(p.id)||'—')}</td>
   </tr>`;
 }
 
 function renderPasajerosTable(){
   const tbody = document.getElementById('tbody-pasajeros');
   if (!tbody) return;
-  let items = buildPasajerosFlat();
+  let items = [...STATE.pasajeros];
 
   PASAJEROS_COLS.forEach(c => {
     const fv = pasajerosFilters[c.key];
@@ -871,14 +878,105 @@ function renderPasajerosTable(){
   });
 
   if (!items.length){
-    const total = buildPasajerosFlat().length;
-    const msg = total ? 'Ningún resultado con estos filtros.' : 'Todavía no cargaste pasajeros en ninguna reserva.';
+    const msg = STATE.pasajeros.length ? 'Ningún resultado con estos filtros.' : 'Todavía no cargaste ningún pasajero.';
     tbody.innerHTML = `<tr><td colspan="${PASAJEROS_COLS.length}" class="table-empty">${msg}</td></tr>`;
     return;
   }
   tbody.innerHTML = items.map(pasajeroTableRowHtml).join('');
 }
 initPasajerosThead();
+
+// ── FORMULARIO DE PASAJERO (modal): alta/edición + asociación a reservas ────
+let pasajeroFormCtx = { id:null };
+function reservaOptionLabel(r){
+  return `${r.codigo||'(sin código)'} — ${r.cliente||'sin cliente'}`;
+}
+function reservaAssocChipHtml(r){
+  return `<span class="servicio-tag reserva-assoc-chip" data-reserva-id="${r.id}" style="display:inline-flex;align-items:center;gap:5px">${escHtml(reservaOptionLabel(r))}<button type="button" onclick="this.closest('.reserva-assoc-chip').remove()" style="border:none;background:transparent;cursor:pointer;color:inherit;padding:0;font-size:11px;line-height:1">✕</button></span>`;
+}
+function openPasajeroForm(id, presetReservaId){
+  const item = id ? STATE.pasajeros.find(p => p.id===id) : null;
+  pasajeroFormCtx = { id: id||null };
+  const chipsHtml = (id ? reservasDePasajero(id) : []).map(reservaAssocChipHtml).join('');
+  document.getElementById('modal-box').innerHTML = `
+    <button class="modal-close-x" onclick="closeForm()">✕</button>
+    <h3>${item ? 'Editar pasajero' : 'Nuevo pasajero'}</h3>
+    <div class="frow2">
+      <div><label class="fl">Nombre</label><input class="fi" id="f-pas-nombre" value="${escHtml(item?.nombre)}" placeholder="Nombre"></div>
+      <div><label class="fl">Apellido</label><input class="fi" id="f-pas-apellido" value="${escHtml(item?.apellido)}" placeholder="Apellido"></div>
+    </div>
+    <div class="frow3">
+      <div><label class="fl">Documento</label><select class="fsel" id="f-pas-tipoDocumento">${selOpts(['dni','pasaporte'],['DNI','Pasaporte'],item?.tipoDocumento||'dni')}</select></div>
+      <div><label class="fl">Número</label><input class="fi" id="f-pas-numero" value="${escHtml(item?.numero)}" placeholder="Número"></div>
+    </div>
+    <div class="frow2">
+      <div><label class="fl">Vencimiento</label><input class="fi" id="f-pas-vencimiento" type="date" value="${item?.vencimiento||''}"></div>
+      <div><label class="fl">Nacionalidad</label><input class="fi" id="f-pas-nacionalidad" value="${escHtml(item?.nacionalidad)}" placeholder="Ej: Argentina"></div>
+    </div>
+    <div class="frow">
+      <label class="fl">Reservas asociadas</label>
+      <div id="pasajero-reservas-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${chipsHtml}</div>
+      <div style="display:flex;gap:6px">
+        <input class="fi" id="f-pas-reserva-buscar" list="dl-reservas-para-pasajero" placeholder="Buscar reserva por código o cliente…" style="flex:1;min-width:0">
+        <button type="button" class="mini-add-btn" onclick="addReservaChipParaPasajero()">+</button>
+      </div>
+      <datalist id="dl-reservas-para-pasajero">${STATE.reservas.map(r => `<option value="${escHtml(reservaOptionLabel(r))}">`).join('')}</datalist>
+    </div>
+    <button class="save-btn" onclick="savePasajeroForm()">Guardar</button>
+    ${item ? `<button class="delete-btn" onclick="deletePasajeroForm()">Eliminar pasajero</button>` : ''}
+  `;
+  document.getElementById('modal').classList.add('open');
+  if (presetReservaId){
+    const r = STATE.reservas.find(x => x.id===presetReservaId);
+    if (r) document.getElementById('pasajero-reservas-chips').insertAdjacentHTML('beforeend', reservaAssocChipHtml(r));
+  }
+}
+function addReservaChipParaPasajero(){
+  const input = document.getElementById('f-pas-reserva-buscar');
+  const texto = input.value.trim();
+  if (!texto) return;
+  const match = STATE.reservas.find(r => reservaOptionLabel(r)===texto);
+  if (!match) { alert('No encontré esa reserva.'); return; }
+  const chipsBox = document.getElementById('pasajero-reservas-chips');
+  if (chipsBox.querySelector(`[data-reserva-id="${match.id}"]`)) { input.value=''; return; }
+  chipsBox.insertAdjacentHTML('beforeend', reservaAssocChipHtml(match));
+  input.value = '';
+}
+function savePasajeroForm(){
+  const nombre = document.getElementById('f-pas-nombre').value.trim();
+  const apellido = document.getElementById('f-pas-apellido').value.trim();
+  if (!nombre && !apellido) { alert('Cargá al menos el nombre o el apellido.'); return; }
+  const val = {
+    nombre, apellido,
+    tipoDocumento: document.getElementById('f-pas-tipoDocumento').value,
+    numero: document.getElementById('f-pas-numero').value.trim(),
+    vencimiento: document.getElementById('f-pas-vencimiento').value,
+    nacionalidad: document.getElementById('f-pas-nacionalidad').value.trim(),
+  };
+  const targetReservaIds = [...document.querySelectorAll('#pasajero-reservas-chips .reserva-assoc-chip')].map(el => el.dataset.reservaId);
+  const id = pasajeroFormCtx.id;
+  const ref = id ? REFS.pasajeros.child(id) : REFS.pasajeros.push();
+  ref.set(val).then(() => {
+    const pasajeroId = id || ref.key;
+    const originalReservaIds = id ? reservasDePasajero(id).map(r => r.id) : [];
+    targetReservaIds.filter(rid => !originalReservaIds.includes(rid)).forEach(rid => REFS.reservas.child(rid).update({ ['pasajeroIds/'+pasajeroId]: true }));
+    originalReservaIds.filter(rid => !targetReservaIds.includes(rid)).forEach(rid => REFS.reservas.child(rid).update({ ['pasajeroIds/'+pasajeroId]: null }));
+    // Si la reserva abierta en el panel quedó asociada, reflejarlo ya mismo sin esperar el próximo sync.
+    const chipsBox = document.getElementById('pasajeros-chips');
+    if (chipsBox && reservaCtx.id && targetReservaIds.includes(reservaCtx.id) && !chipsBox.querySelector(`[data-pasajero-id="${pasajeroId}"]`)) {
+      chipsBox.insertAdjacentHTML('beforeend', pasajeroChipHtmlFromData(pasajeroId, val));
+    }
+  }).catch(err => { console.error(err); alert('Error al guardar el pasajero. Revisá tu conexión o los permisos de la base.'); });
+  closeForm();
+}
+function deletePasajeroForm(){
+  const id = pasajeroFormCtx.id;
+  if (!id) return;
+  if (!confirm('¿Eliminar este pasajero? Se desasocia de todas sus reservas. No se puede deshacer.')) return;
+  reservasDePasajero(id).forEach(r => REFS.reservas.child(r.id).update({ ['pasajeroIds/'+id]: null }));
+  REFS.pasajeros.child(id).remove();
+  closeForm();
+}
 
 // Un reparto puede liquidarse en una moneda distinta a la de referencia de la reserva
 // (ej: margen calculado en ARS, pero le pagás la parte a un ejecutivo en USD).
@@ -1357,14 +1455,43 @@ function migrateReservasLegacy(){
   }
 }
 
+// Los pasajeros dejan de copiarse dentro de cada reserva y pasan a una lista
+// única (finanzas/pasajeros), para poder reutilizarlos sin repetir datos.
+// Esta migración mueve lo que ya estaba embebido en cada reserva a la lista
+// maestra (con el mismo id que tenía), y deja en la reserva solo la
+// asociación (pasajeroIds). No intenta detectar si dos pasajeros embebidos
+// en reservas distintas son la misma persona — eso se puede unificar a mano
+// desde la pestaña Pasajeros si hace falta.
+function migratePasajerosEmbebidos(){
+  if (migrationPasajerosRan) return;
+  migrationPasajerosRan = true;
+  const reservaUpdates = {};
+  const pasajeroUpdates = {};
+  STATE.reservas.forEach(r => {
+    if (!r.pasajerosData) return;
+    const pids = {};
+    objToArr(r.pasajerosData).forEach(p => {
+      pasajeroUpdates[p.id] = {
+        nombre: p.nombre||'', apellido: p.apellido||'', tipoDocumento: p.tipoDocumento||'dni',
+        numero: p.numero||'', vencimiento: p.vencimiento||'', nacionalidad: p.nacionalidad||'',
+      };
+      pids[p.id] = true;
+    });
+    reservaUpdates[r.id + '/pasajeroIds'] = pids;
+    reservaUpdates[r.id + '/pasajerosData'] = null;
+  });
+  if (Object.keys(pasajeroUpdates).length) REFS.pasajeros.update(pasajeroUpdates).catch(err => console.error('Error migrando pasajeros:', err));
+  if (Object.keys(reservaUpdates).length) REFS.reservas.update(reservaUpdates).catch(err => console.error('Error migrando pasajeros en reservas:', err));
+}
+
 // ── RESERVA (panel / carpeta) ───────────────────────────────────────────────
 let reservaCtx = { id:null, data:null };
 
 function blankReserva(){
-  return { codigo:'', cliente:'', concepto:'', servicios:[], servicioOtroTexto:'', moneda:'ARS', estado:'cotizado', fechaCotizacion:'', fechaInicio:'', fechaFin:'', pasajeros:'', notas:'', pagos:[], reparto:[], comprobantes:[], costos:[], cotizado:[], pasajerosData:[], facturacion:[] };
+  return { codigo:'', cliente:'', concepto:'', servicios:[], servicioOtroTexto:'', moneda:'ARS', estado:'cotizado', fechaCotizacion:'', fechaInicio:'', fechaFin:'', pasajeros:'', notas:'', pagos:[], reparto:[], comprobantes:[], costos:[], cotizado:[], pasajeroIds:{}, facturacion:[] };
 }
 function toEditable(r){
-  return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes), costos: objToArr(r.costos), cotizado: objToArr(r.cotizado), pasajerosData: objToArr(r.pasajerosData), facturacion: objToArr(r.facturacion) };
+  return { ...r, pagos: objToArr(r.pagos), reparto: objToArr(r.reparto), comprobantes: objToArr(r.comprobantes), costos: objToArr(r.costos), cotizado: objToArr(r.cotizado), pasajeroIds: r.pasajeroIds||{}, facturacion: objToArr(r.facturacion) };
 }
 
 function openReserva(id){
@@ -1489,20 +1616,40 @@ function cotizadoRowHtml(c, monedaReserva){
     <div class="cotizado-equiv" style="font-size:11px;margin-top:6px"></div>
   </div>`;
 }
-function pasajeroRowHtml(p){
-  return `<div class="item-card pasajero-row" data-row-id="${p.id}">
-    <div class="item-card-header"><span class="item-card-label">Pasajero</span><button type="button" class="item-delete-btn" onclick="this.closest('.pasajero-row').remove();saveReserva()">✕</button></div>
-    <div class="item-fields">
-      <div class="item-field"><span class="item-field-label">Nombre</span><input class="pasajero-nombre" value="${escHtml(p.nombre)}" placeholder="Nombre"></div>
-      <div class="item-field"><span class="item-field-label">Apellido</span><input class="pasajero-apellido" value="${escHtml(p.apellido)}" placeholder="Apellido"></div>
-    </div>
-    <div class="item-fields cols3" style="margin-top:6px">
-      <div class="item-field"><span class="item-field-label">Documento</span><select class="pasajero-tipo-doc">${selOpts(['pasaporte','dni'],['Pasaporte','DNI'],p.tipoDocumento||'dni')}</select></div>
-      <div class="item-field"><span class="item-field-label">Número</span><input class="pasajero-numero" value="${escHtml(p.numero)}" placeholder="Número"></div>
-      <div class="item-field"><span class="item-field-label">Vencimiento</span><input type="date" class="pasajero-vencimiento" value="${p.vencimiento||''}"></div>
-    </div>
-    <div class="item-field" style="margin-top:6px"><span class="item-field-label">Nacionalidad</span><input class="pasajero-nacionalidad" value="${escHtml(p.nacionalidad)}" placeholder="Ej: Argentina"></div>
-  </div>`;
+// ── PASAJEROS: lista única (finanzas/pasajeros), las reservas solo los referencian ──
+function pasajeroLabel(p){
+  return `${(p?.nombre||'').trim()} ${(p?.apellido||'').trim()}`.trim() || '(sin nombre)';
+}
+function pasajeroOptionLabel(p){
+  return `${pasajeroLabel(p)} — ${p.numero||'s/doc'}`;
+}
+function pasajeroChipHtml(id){
+  const p = STATE.pasajeros.find(x => x.id===id);
+  return pasajeroChipHtmlFromData(id, p || {});
+}
+function pasajeroChipHtmlFromData(id, data){
+  const label = pasajeroLabel(data) + (data.numero ? ` — ${data.numero}` : '');
+  return `<span class="servicio-tag pasajero-chip" data-pasajero-id="${id}" style="display:inline-flex;align-items:center;gap:5px">${escHtml(label)}<button type="button" onclick="removePasajeroChip(this)" style="border:none;background:transparent;cursor:pointer;color:inherit;padding:0;font-size:11px;line-height:1">✕</button></span>`;
+}
+function removePasajeroChip(btn){
+  btn.closest('.pasajero-chip').remove();
+  saveReserva();
+}
+function addPasajeroExistente(){
+  const input = document.getElementById('r-pasajero-buscar');
+  const texto = input.value.trim();
+  if (!texto) return;
+  const match = STATE.pasajeros.find(p => pasajeroOptionLabel(p)===texto);
+  if (!match) { alert('No encontré ese pasajero en la lista. Si es nuevo, usá "Crear pasajero nuevo".'); return; }
+  const chipsBox = document.getElementById('pasajeros-chips');
+  if (chipsBox.querySelector(`[data-pasajero-id="${match.id}"]`)) { input.value=''; return; }
+  chipsBox.insertAdjacentHTML('beforeend', pasajeroChipHtml(match.id));
+  input.value = '';
+  saveReserva();
+}
+function crearPasajeroDesdeReserva(){
+  if (!reservaCtx.id) { alert('Cargá al menos el cliente o el concepto de la reserva primero (para que se guarde) antes de agregar pasajeros.'); return; }
+  openPasajeroForm(null, reservaCtx.id);
 }
 function repartoRowHtml(r, monedaReserva){
   const rMoneda = r.moneda || monedaReserva || 'ARS';
@@ -1550,10 +1697,6 @@ function addCotizado(){
   document.getElementById('cotizado-list').insertAdjacentHTML('beforeend', cotizadoRowHtml({ id:'new_'+uid(), tipo:'Otro', concepto:'', monto:0, moneda:monedaReserva }, monedaReserva));
   recalcDerived();
 }
-function addPasajero(){
-  document.getElementById('pasajeros-list').insertAdjacentHTML('beforeend', pasajeroRowHtml({ id:'new_'+uid(), nombre:'', apellido:'', tipoDocumento:'dni', numero:'', vencimiento:'', nacionalidad:'' }));
-}
-
 function getNum(id){ const el=document.getElementById(id); return el ? (parseFloat(el.value)||0) : 0; }
 
 // Suma las líneas de una lista de ítems por servicio (costos o valor cotizado),
@@ -1746,8 +1889,14 @@ function renderReservaPanel(){
 
     <div class="psec">
       <div class="psec-title">Pasajeros</div>
-      <div id="pasajeros-list">${(d.pasajerosData||[]).map(pasajeroRowHtml).join('')}</div>
-      <button type="button" class="add-item-btn" onclick="addPasajero()">+ Agregar pasajero</button>
+      <div class="upload-hint" style="margin-bottom:8px">Buscá un pasajero ya cargado (para no repetir datos) o creá uno nuevo. Para editar los datos de un pasajero, hacelo desde la pestaña Pasajeros.</div>
+      <div id="pasajeros-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${Object.keys(d.pasajeroIds||{}).map(pasajeroChipHtml).join('')}</div>
+      <div style="display:flex;gap:6px">
+        <input class="fi" id="r-pasajero-buscar" list="dl-pasajeros" placeholder="Buscar pasajero por nombre…" style="flex:1;min-width:0">
+        <button type="button" class="mini-add-btn" onclick="addPasajeroExistente()" title="Asociar pasajero encontrado">+</button>
+      </div>
+      <datalist id="dl-pasajeros">${STATE.pasajeros.map(p => `<option value="${escHtml(pasajeroOptionLabel(p))}">`).join('')}</datalist>
+      <button type="button" class="add-item-btn" style="margin-top:8px" onclick="crearPasajeroDesdeReserva()">+ Crear pasajero nuevo</button>
     </div>
 
     <div class="psec">
@@ -1797,7 +1946,7 @@ function saveReserva(){
     estado: gv('r-estado'), fechaCotizacion: gv('r-fecha-cotizacion'),
     fechaInicio: gv('r-fecha-inicio'), fechaFin: gv('r-fecha-fin'),
     pasajeros: parseInt(gv('r-pasajeros'),10)||'', notas: gv('r-notas'),
-    pagos: {}, reparto: {}, comprobantes: {}, costos: {}, cotizado: {}, pasajerosData: {}, facturacion: {}
+    pagos: {}, reparto: {}, comprobantes: {}, costos: {}, cotizado: {}, facturacion: {}, pasajeroIds: {}
   };
   // Filas nuevas (todavía sin key de Firebase): se les asigna una key ahora, pero
   // el dataset del DOM recién se actualiza si el guardado sale bien, así que un
@@ -1868,18 +2017,8 @@ function saveReserva(){
       link: row.querySelector('.factura-link').value.trim(),
     };
   });
-  document.querySelectorAll('.pasajero-row').forEach(row => {
-    const nombre = row.querySelector('.pasajero-nombre').value.trim();
-    const apellido = row.querySelector('.pasajero-apellido').value.trim();
-    const numero = row.querySelector('.pasajero-numero').value.trim();
-    if (!nombre && !apellido && !numero) return;
-    val.pasajerosData[rid(row)] = {
-      nombre, apellido,
-      tipoDocumento: row.querySelector('.pasajero-tipo-doc').value,
-      numero,
-      vencimiento: row.querySelector('.pasajero-vencimiento').value,
-      nacionalidad: row.querySelector('.pasajero-nacionalidad').value.trim(),
-    };
+  document.querySelectorAll('#pasajeros-chips .pasajero-chip').forEach(el => {
+    val.pasajeroIds[el.dataset.pasajeroId] = true;
   });
   document.querySelectorAll('.comprobante-row').forEach(row => {
     const nombre = row.querySelector('.comprobante-nombre').value.trim();
