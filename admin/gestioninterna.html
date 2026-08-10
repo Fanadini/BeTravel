@@ -60,7 +60,8 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 
 /* Resumen */
 .cards-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:18px}
-.stat-card{background:var(--white);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow-s)}
+.stat-card{background:var(--white);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow-s);cursor:grab}
+.stat-card.dragging{opacity:.4}
 .stat-card h4{font-size:11px;font-weight:600;color:rgba(43,43,43,.5);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px}
 .stat-amounts{display:flex;flex-direction:column;gap:2px}
 .stat-amount{font-size:20px;font-weight:600;color:var(--teal);line-height:1.3}
@@ -74,7 +75,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .alert-col h3{font-size:12px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none}
 .alert-col h3 .chevron{margin-left:auto;font-size:10px;opacity:.5;transition:transform .15s}
 .alert-col.collapsed h3 .chevron{transform:rotate(-90deg)}
-.alert-col.collapsed #list-vencidos,.alert-col.collapsed #list-proximos{display:none}
+.alert-col.collapsed>div{display:none}
 .alert-count{font-size:10.5px;font-weight:600;opacity:.6}
 .alert-col.vencidos h3{color:var(--red)}
 .alert-col.proximos h3{color:var(--amber)}
@@ -210,6 +211,8 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .cal-cell.cal-today{box-shadow:inset 0 0 0 2px var(--bronze)}
 .cal-daynum{font-weight:600;color:rgba(43,43,43,.45);margin-bottom:4px}
 .cal-item{background:var(--teal-l);color:var(--teal);border-radius:4px;padding:2px 5px;margin-bottom:2px;font-size:10px;font-weight:500;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-item-bsp{background:rgba(201,122,26,.14);color:var(--amber)}
+.cal-item-tarjeta{background:rgba(184,50,50,.12);color:var(--red)}
 .cal-more{font-size:9.5px;color:rgba(43,43,43,.4)}
 
 @media (max-width:640px){
@@ -279,17 +282,17 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
         <h3 onclick="toggleAlertCol('col-vencidos')"><span class="alert-dot"></span>Vencidos <span id="count-vencidos"></span><span class="chevron">▾</span></h3>
         <div id="list-vencidos"></div>
       </div>
-      <div class="alert-col proximos">
-        <h3><span class="alert-dot"></span>Próximos 15 días</h3>
+      <div class="alert-col proximos" id="col-proximos">
+        <h3 onclick="toggleAlertCol('col-proximos')"><span class="alert-dot"></span>Próximos 15 días<span class="chevron">▾</span></h3>
         <div id="list-proximos"></div>
       </div>
     </div>
     <div class="alert-col" id="col-reparto-ejecutivos" style="margin-top:14px">
-      <h3><span class="alert-dot" style="background:var(--bronze)"></span>Reparto pendiente por ejecutivo</h3>
+      <h3 onclick="toggleAlertCol('col-reparto-ejecutivos')"><span class="alert-dot" style="background:var(--bronze)"></span>Reparto pendiente por ejecutivo<span class="chevron">▾</span></h3>
       <div id="list-reparto-ejecutivos"></div>
     </div>
     <div class="alert-col" id="col-ganancia-ejecutivos" style="margin-top:14px">
-      <h3><span class="alert-dot" style="background:var(--teal)"></span>Ganancia total por ejecutivo (a la fecha)</h3>
+      <h3 onclick="toggleAlertCol('col-ganancia-ejecutivos')"><span class="alert-dot" style="background:var(--teal)"></span>Ganancia total por ejecutivo (a la fecha)<span class="chevron">▾</span></h3>
       <div id="list-ganancia-ejecutivos"></div>
     </div>
     <div class="alert-col" id="col-por-pagar" style="margin-top:14px">
@@ -612,6 +615,53 @@ function toggleAlertCol(id){
   document.getElementById(id).classList.toggle('collapsed');
 }
 
+// ── STAT CARDS DRAG-AND-DROP ─────────────────────────────────────────────────
+const STAT_CARD_ORDER_KEY = 'betravel_stat_card_order';
+function getStatCardOrder(defaultOrder){
+  try {
+    const saved = JSON.parse(localStorage.getItem(STAT_CARD_ORDER_KEY) || 'null');
+    if (Array.isArray(saved) && saved.length){
+      const merged = saved.filter(k => defaultOrder.includes(k));
+      defaultOrder.forEach(k => { if (!merged.includes(k)) merged.push(k); });
+      return merged;
+    }
+  } catch(e){}
+  return defaultOrder.slice();
+}
+function saveStatCardOrder(order){
+  localStorage.setItem(STAT_CARD_ORDER_KEY, JSON.stringify(order));
+}
+function initStatCardDrag(){
+  const container = document.getElementById('stat-cards');
+  if (!container) return;
+  let dragKey = null;
+  container.querySelectorAll('.stat-card').forEach(card => {
+    card.addEventListener('dragstart', e => {
+      dragKey = card.dataset.cardKey;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      const targetKey = card.dataset.cardKey;
+      if (!dragKey || dragKey===targetKey) return;
+      const order = Array.from(container.querySelectorAll('.stat-card')).map(c => c.dataset.cardKey);
+      const from = order.indexOf(dragKey);
+      const to = order.indexOf(targetKey);
+      if (from<0 || to<0) return;
+      order.splice(from,1);
+      order.splice(to,0,dragKey);
+      saveStatCardOrder(order);
+      renderResumen();
+    });
+  });
+}
+
 // ── TABS ───────────────────────────────────────────────────────────────────
 function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('on', b.dataset.tab===tab));
@@ -658,18 +708,30 @@ function renderCalendario(){
   const hoy = todayISO();
 
   const reservasActivas = STATE.reservas.filter(r => r.estado!=='cancelado' && r.estado!=='perdida' && r.fechaInicio);
+  const bspPendientes = STATE.recordatorios.filter(item => item.tipo==='BSP' && !item.resuelto && item.fecha);
+  const tarjetaPendientes = computeCostosTarjetaPendientes().filter(c => c.fechaVencimiento);
 
   const cells = [];
   for (let i=0;i<startWeekday;i++) cells.push('<div class="cal-cell cal-empty"></div>');
   for (let day=1; day<=daysInMonth; day++){
     const dateStr = `${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const items = reservasActivas.filter(r => dateStr >= r.fechaInicio && dateStr <= (r.fechaFin || r.fechaInicio));
-    const tags = items.slice(0,3).map(r => {
+    const bspDia = bspPendientes.filter(item => item.fecha===dateStr);
+    const tarjetaDia = tarjetaPendientes.filter(c => c.fechaVencimiento===dateStr);
+    const pointTags = [];
+    items.forEach(r => {
       const primerPasajero = reservaPrimerPasajeroNombre(r);
       const label = [r.concepto, primerPasajero].filter(Boolean).join(' · ') || r.codigo || r.cliente || '—';
-      return `<div class="cal-item" onclick="jumpTo('reservas','${r.id}')" title="${escHtml(r.cliente||'')}">${escHtml(label)}</div>`;
-    }).join('');
-    const more = items.length>3 ? `<div class="cal-more">+${items.length-3} más</div>` : '';
+      pointTags.push(`<div class="cal-item" onclick="jumpTo('reservas','${r.id}')" title="${escHtml(r.cliente||'')}">${escHtml(label)}</div>`);
+    });
+    bspDia.forEach(item => {
+      pointTags.push(`<div class="cal-item cal-item-bsp" onclick="jumpTo('recordatorios','${item.id}')" title="Vencimiento de pago BSP">Vence BSP · ${fmtMoney(item.monto,item.moneda)}</div>`);
+    });
+    tarjetaDia.forEach(c => {
+      pointTags.push(`<div class="cal-item cal-item-tarjeta" onclick="jumpTo('costo-tarjeta','${c.reservaId}')" title="Vencimiento de tarjeta — ${escHtml(c.proveedor)}">Vence tarjeta · ${escHtml(c.proveedor)}</div>`);
+    });
+    const tags = pointTags.slice(0,3).join('');
+    const more = pointTags.length>3 ? `<div class="cal-more">+${pointTags.length-3} más</div>` : '';
     cells.push(`<div class="cal-cell${dateStr===hoy?' cal-today':''}"><div class="cal-daynum">${day}</div>${tags}${more}</div>`);
   }
   wrap.innerHTML = cells.join('');
@@ -1137,13 +1199,20 @@ function renderResumen(){
   const facturarT = { ARS:0, USD:0 };
   Object.values(facturacionMeses).forEach(g => { facturarT.ARS += g.ARS; facturarT.USD += g.USD; });
 
-  document.getElementById('stat-cards').innerHTML = `
-    <div class="stat-card"><h4>Por cobrar de clientes</h4><div class="stat-amounts">${cardAmounts(cobrar)}</div></div>
-    <div class="stat-card"><h4>Por pagar a proveedores</h4><div class="stat-amounts">${cardAmounts(porPagarT)}</div></div>
-    <div class="stat-card"><h4>Reparto pendiente a ejecutivos</h4><div class="stat-amounts">${cardAmounts(repartoT)}</div></div>
-    <div class="stat-card"><h4>Falta facturar</h4><div class="stat-amounts">${cardAmounts(facturarT)}</div></div>
-    <div class="stat-card alert"><h4>Alertas activas</h4><div class="stat-amounts"><div class="stat-amount">${vencidos.length + proximos.length}</div></div></div>
-  `;
+  const statCardDefs = {
+    cobrar:   { cls:'', title:'Por cobrar de clientes', body:`<div class="stat-amounts">${cardAmounts(cobrar)}</div>` },
+    porPagar: { cls:'', title:'Por pagar a proveedores', body:`<div class="stat-amounts">${cardAmounts(porPagarT)}</div>` },
+    reparto:  { cls:'', title:'Reparto pendiente a ejecutivos', body:`<div class="stat-amounts">${cardAmounts(repartoT)}</div>` },
+    facturar: { cls:'', title:'Falta facturar', body:`<div class="stat-amounts">${cardAmounts(facturarT)}</div>` },
+    alertas:  { cls:' alert', title:'Alertas activas', body:`<div class="stat-amounts"><div class="stat-amount">${vencidos.length + proximos.length}</div></div>` },
+  };
+  const statOrder = getStatCardOrder(Object.keys(statCardDefs));
+  document.getElementById('stat-cards').innerHTML = statOrder.map(key => {
+    const d = statCardDefs[key];
+    if (!d) return '';
+    return `<div class="stat-card${d.cls}" draggable="true" data-card-key="${key}"><h4>${d.title}</h4>${d.body}</div>`;
+  }).join('');
+  initStatCardDrag();
 
   const rowHtml = (x, isOverdue) => {
     const title = TITLE_FIELD[x.kind](x.item);
