@@ -1030,6 +1030,7 @@ function computeCostosTarjetaPendientes(){
         reservaId: r.id, reservaCodigo: r.codigo, reservaCliente: r.cliente,
         costoId: c.id, proveedor: c.proveedor || 'Sin proveedor especificado',
         concepto: c.concepto || c.tipo || 'Costo', monto: Number(c.monto)||0, moneda: c.moneda || r.moneda || 'ARS',
+        fechaVencimiento: c.fechaVencimiento || '',
       });
     });
   });
@@ -1056,7 +1057,7 @@ function computePorPagarPorProveedor(){
     addItem(f.proveedor||'Sin proveedor', f.moneda, monto, { kind:'factura', id:f.id, label:f.concepto||'Factura', monto, moneda:f.moneda });
   });
   computeCostosTarjetaPendientes().forEach(c => {
-    addItem(c.proveedor, c.moneda, c.monto, { kind:'costo', reservaId:c.reservaId, costoId:c.costoId, label:`${c.concepto} — ${c.reservaCodigo||c.reservaCliente||'reserva'}`, monto:c.monto, moneda:c.moneda });
+    addItem(c.proveedor, c.moneda, c.monto, { kind:'costo', reservaId:c.reservaId, costoId:c.costoId, label:`${c.concepto} — ${c.reservaCodigo||c.reservaCliente||'reserva'}`, monto:c.monto, moneda:c.moneda, fechaVencimiento:c.fechaVencimiento });
   });
   STATE.recordatorios.forEach(item => {
     if (item.tipo!=='BSP' || item.resuelto) return;
@@ -1114,6 +1115,12 @@ function renderResumen(){
       if (days==null) return;
       allItems.push({ kind, item, days });
     });
+  });
+  computeCostosTarjetaPendientes().forEach(c => {
+    if (!c.fechaVencimiento) return;
+    const days = diffDays(c.fechaVencimiento);
+    if (days==null) return;
+    allItems.push({ kind:'costo-tarjeta', item: { id:c.reservaId, monto:c.monto, moneda:c.moneda, proveedor:c.proveedor, concepto:c.concepto }, days });
   });
   const vencidos = allItems.filter(x => x.days<0).sort((a,b)=>a.days-b.days);
   const proximos = allItems.filter(x => x.days>=0 && x.days<=15).sort((a,b)=>a.days-b.days);
@@ -1198,12 +1205,18 @@ function renderResumen(){
         if (g.USD) parts.push(`<div class="alert-amount" style="color:var(--bronze)">${fmtMoney(g.USD,'USD')}</div>`);
         const detalle = g.items.map(it => {
           if (it.kind==='costo'){
+            let fechaHtml = '';
+            if (it.fechaVencimiento){
+              const days = diffDays(it.fechaVencimiento);
+              const color = days<0 ? 'var(--red)' : (days<=15 ? 'var(--amber)' : 'rgba(43,43,43,.45)');
+              fechaHtml = `<div style="font-size:10px;font-weight:600;color:${color}">Vence ${fmtDate(it.fechaVencimiento)}</div>`;
+            }
             return `<div class="alert-row" onclick="jumpTo('reservas','${it.reservaId}')" style="padding-left:18px">
               <div style="display:flex;align-items:center;gap:8px">
                 <input type="checkbox" onclick="event.stopPropagation()" onchange="toggleCostoPagado('${it.reservaId}','${it.costoId}',this.checked)" style="accent-color:var(--teal)">
                 <div class="alert-title">${escHtml(it.label)}</div>
               </div>
-              <div class="alert-meta"><div class="alert-amount">${fmtMoney(it.monto, it.moneda)}</div></div>
+              <div class="alert-meta">${fechaHtml}<div class="alert-amount">${fmtMoney(it.monto, it.moneda)}</div></div>
             </div>`;
           }
           const jumpKind = it.kind==='factura' ? 'facturas' : 'recordatorios';
@@ -1268,12 +1281,14 @@ const TITLE_FIELD = {
   reservas: i => i.cliente || 'Reserva sin cliente',
   facturas: i => i.proveedor || 'Factura sin proveedor',
   recordatorios: i => i.titulo || 'Recordatorio',
+  'costo-tarjeta': i => `${i.proveedor} — ${i.concepto}`,
 };
-const KIND_LABEL = { reservas:'Reserva', facturas:'Factura de proveedor', recordatorios:'Recordatorio' };
+const KIND_LABEL = { reservas:'Reserva', facturas:'Factura de proveedor', recordatorios:'Recordatorio', 'costo-tarjeta':'Tarjeta de crédito' };
 
 function jumpTo(kind, id){
-  switchTab(kind);
-  if (kind==='reservas') openReserva(id); else openForm(kind, id);
+  const tab = kind==='costo-tarjeta' ? 'reservas' : kind;
+  switchTab(tab);
+  if (kind==='reservas' || kind==='costo-tarjeta') openReserva(id); else openForm(kind, id);
 }
 
 // ── FORMULARIO SIMPLE (modal: facturas / recordatorios) ───────
@@ -1685,6 +1700,7 @@ function costoRowHtml(c, monedaReserva){
   const cMoneda = c.moneda || monedaReserva || 'ARS';
   const medio = c.medio || 'otro';
   const showFechaEmision = c.tipo==='Aéreo' && medio==='bsp';
+  const showVencimientoTarjeta = medio==='tarjeta';
   return `<div class="item-card costo-row" data-row-id="${c.id}" data-pagado="${c.pagado?'true':'false'}">
     <div class="item-card-header"><span class="item-card-label">Costo</span><button type="button" class="item-delete-btn" onclick="this.closest('.costo-row').remove();recalcDerived();saveReserva()">✕</button></div>
     <div class="item-fields cols3">
@@ -1704,6 +1720,7 @@ function costoRowHtml(c, monedaReserva){
       <div class="item-field"><span class="item-field-label">T.C. (si es otra moneda)</span><input type="number" step="0.01" class="costo-tc" value="${c.tipoCambio??''}" oninput="recalcDerived()" placeholder="Ej: 1050"></div>
     </div>
     <div class="item-field costo-fechaemision-wrap" style="margin-top:6px;${showFechaEmision?'':'display:none'}"><span class="item-field-label">Fecha de emisión del billete (para BSP)</span><input type="date" class="costo-fecha-emision" value="${c.fechaEmision||''}"></div>
+    <div class="item-field costo-vencimiento-tarjeta-wrap" style="margin-top:6px;${showVencimientoTarjeta?'':'display:none'}"><span class="item-field-label">Fecha de vencimiento de la tarjeta</span><input type="date" class="costo-vencimiento-tarjeta" value="${c.fechaVencimiento||''}"></div>
     <div class="costo-equiv" style="font-size:11px;margin-top:6px"></div>
   </div>`;
 }
@@ -1722,6 +1739,8 @@ function onCostoRowChange(el){
   const medio = row.querySelector('.costo-medio').value;
   const wrap = row.querySelector('.costo-fechaemision-wrap');
   if (wrap) wrap.style.display = (tipo==='Aéreo' && medio==='bsp') ? '' : 'none';
+  const wrapTarjeta = row.querySelector('.costo-vencimiento-tarjeta-wrap');
+  if (wrapTarjeta) wrapTarjeta.style.display = (medio==='tarjeta') ? '' : 'none';
   recalcDerived();
 }
 function cotizadoRowHtml(c, monedaReserva){
@@ -2129,6 +2148,7 @@ function saveReserva(){
       tipoCambio: parseFloat(row.querySelector('.costo-tc').value)||'',
       medio: row.querySelector('.costo-medio').value,
       fechaEmision: row.querySelector('.costo-fecha-emision').value,
+      fechaVencimiento: row.querySelector('.costo-vencimiento-tarjeta').value,
       pagado: row.dataset.pagado === 'true',
     };
     if (proveedor && !META.proveedores.includes(proveedor)) META_PROV_REF.set([...META.proveedores, proveedor]);
