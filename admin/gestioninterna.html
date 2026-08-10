@@ -76,6 +76,9 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .alert-col h3 .chevron{margin-left:auto;font-size:10px;opacity:.5;transition:transform .15s}
 .alert-col.collapsed h3 .chevron{transform:rotate(-90deg)}
 .alert-col.collapsed>div{display:none}
+.medio-header .chevron{margin-left:7px;font-size:10px;opacity:.5;transition:transform .15s;display:inline-block}
+.medio-group.collapsed .medio-header .chevron{transform:rotate(-90deg)}
+.medio-group.collapsed .medio-detail{display:none}
 .alert-count{font-size:10.5px;font-weight:600;opacity:.6}
 .alert-col.vencidos h3{color:var(--red)}
 .alert-col.proximos h3{color:var(--amber)}
@@ -1105,29 +1108,38 @@ function toggleCostoPagado(reservaId, costoId, checked){
 // Junta facturas de proveedores pendientes, costos con tarjeta pendientes y
 // BSP sin resolver, agrupado por proveedor, para saber a quién hay que
 // pagarle y cuánto.
-function computePorPagarPorProveedor(){
-  const map = {};
-  const addItem = (prov, moneda, monto, item) => {
-    if (!map[prov]) map[prov] = { ARS:0, USD:0, items:[] };
-    map[prov][moneda==='USD'?'USD':'ARS'] += monto;
-    map[prov].items.push(item);
+const MEDIO_PAGAR_LABELS = { tarjeta:'Tarjeta de crédito', bsp:'BSP', factura:'Facturas de proveedores' };
+const MEDIO_PAGAR_ORDER = ['tarjeta','bsp','factura'];
+function computePorPagarPorMedio(){
+  const map = {
+    tarjeta: { ARS:0, USD:0, items:[] },
+    bsp: { ARS:0, USD:0, items:[] },
+    factura: { ARS:0, USD:0, items:[] },
+  };
+  const addItem = (medio, prov, moneda, monto, item) => {
+    const g = map[medio];
+    g[moneda==='USD'?'USD':'ARS'] += monto;
+    g.items.push({ ...item, proveedor: prov });
   };
   STATE.facturas.forEach(f => {
     if (f.estado==='pagada') return;
     const monto = Number(f.monto)||0;
     if (!monto) return;
-    addItem(f.proveedor||'Sin proveedor', f.moneda, monto, { kind:'factura', id:f.id, label:f.concepto||'Factura', monto, moneda:f.moneda });
+    addItem('factura', f.proveedor||'Sin proveedor', f.moneda, monto, { kind:'factura', id:f.id, label:f.concepto||'Factura', monto, moneda:f.moneda });
   });
   computeCostosTarjetaPendientes().forEach(c => {
-    addItem(c.proveedor, c.moneda, c.monto, { kind:'costo', reservaId:c.reservaId, costoId:c.costoId, label:`${c.concepto} — ${c.reservaCodigo||c.reservaCliente||'reserva'}`, monto:c.monto, moneda:c.moneda, fechaVencimiento:c.fechaVencimiento });
+    addItem('tarjeta', c.proveedor, c.moneda, c.monto, { kind:'costo', reservaId:c.reservaId, costoId:c.costoId, label:`${c.concepto} — ${c.reservaCodigo||c.reservaCliente||'reserva'}`, monto:c.monto, moneda:c.moneda, fechaVencimiento:c.fechaVencimiento });
   });
   STATE.recordatorios.forEach(item => {
     if (item.tipo!=='BSP' || item.resuelto) return;
     const monto = Number(item.monto)||0;
     if (!monto) return;
-    addItem('BSP (aéreo)', item.moneda, monto, { kind:'bsp', id:item.id, label:item.titulo||'Pago BSP', monto, moneda:item.moneda });
+    addItem('bsp', 'BSP (aéreo)', item.moneda, monto, { kind:'bsp', id:item.id, label:item.titulo||'Pago BSP', monto, moneda:item.moneda });
   });
   return map;
+}
+function toggleMedioGroup(key){
+  document.getElementById('medio-group-'+key).classList.toggle('collapsed');
 }
 
 function computeReservaTotals(){
@@ -1264,39 +1276,51 @@ function renderResumen(){
       }).join('')
     : `<div class="empty-msg">Todo facturado.</div>`;
 
-  const porProveedor = computePorPagarPorProveedor();
-  const proveedoresList = Object.keys(porProveedor).sort((a,b) => (porProveedor[b].ARS+porProveedor[b].USD) - (porProveedor[a].ARS+porProveedor[a].USD));
-  document.getElementById('list-por-pagar').innerHTML = proveedoresList.length
-    ? proveedoresList.map(prov => {
-        const g = porProveedor[prov];
+  const porMedio = computePorPagarPorMedio();
+  const medioKeysConDatos = MEDIO_PAGAR_ORDER.filter(k => porMedio[k].items.length);
+  document.getElementById('list-por-pagar').innerHTML = medioKeysConDatos.length
+    ? medioKeysConDatos.map(medioKey => {
+        const g = porMedio[medioKey];
         const parts = [];
         if (g.ARS) parts.push(`<div class="alert-amount">${fmtMoney(g.ARS,'ARS')}</div>`);
         if (g.USD) parts.push(`<div class="alert-amount" style="color:var(--bronze)">${fmtMoney(g.USD,'USD')}</div>`);
-        const detalle = g.items.map(it => {
-          if (it.kind==='costo'){
-            let fechaHtml = '';
-            if (it.fechaVencimiento){
-              const days = diffDays(it.fechaVencimiento);
-              const color = days<0 ? 'var(--red)' : (days<=15 ? 'var(--amber)' : 'rgba(43,43,43,.45)');
-              fechaHtml = `<div style="font-size:10px;font-weight:600;color:${color}">Vence ${fmtDate(it.fechaVencimiento)}</div>`;
+        const porProveedor = {};
+        g.items.forEach(it => {
+          const key = it.proveedor || 'Sin proveedor especificado';
+          (porProveedor[key] = porProveedor[key] || []).push(it);
+        });
+        const proveedoresList = Object.keys(porProveedor).sort();
+        const detalle = proveedoresList.map(prov => {
+          const itemsHtml = porProveedor[prov].map(it => {
+            if (it.kind==='costo'){
+              let fechaHtml = '';
+              if (it.fechaVencimiento){
+                const days = diffDays(it.fechaVencimiento);
+                const color = days<0 ? 'var(--red)' : (days<=15 ? 'var(--amber)' : 'rgba(43,43,43,.45)');
+                fechaHtml = `<div style="font-size:10px;font-weight:600;color:${color}">Vence ${fmtDate(it.fechaVencimiento)}</div>`;
+              }
+              return `<div class="alert-row" onclick="jumpTo('reservas','${it.reservaId}')" style="padding-left:32px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <input type="checkbox" onclick="event.stopPropagation()" onchange="toggleCostoPagado('${it.reservaId}','${it.costoId}',this.checked)" style="accent-color:var(--teal)">
+                  <div class="alert-title">${escHtml(it.label)}</div>
+                </div>
+                <div class="alert-meta">${fechaHtml}<div class="alert-amount">${fmtMoney(it.monto, it.moneda)}</div></div>
+              </div>`;
             }
-            return `<div class="alert-row" onclick="jumpTo('reservas','${it.reservaId}')" style="padding-left:18px">
-              <div style="display:flex;align-items:center;gap:8px">
-                <input type="checkbox" onclick="event.stopPropagation()" onchange="toggleCostoPagado('${it.reservaId}','${it.costoId}',this.checked)" style="accent-color:var(--teal)">
-                <div class="alert-title">${escHtml(it.label)}</div>
-              </div>
-              <div class="alert-meta">${fechaHtml}<div class="alert-amount">${fmtMoney(it.monto, it.moneda)}</div></div>
+            const jumpKind = it.kind==='factura' ? 'facturas' : 'recordatorios';
+            return `<div class="alert-row" onclick="jumpTo('${jumpKind}','${it.id}')" style="padding-left:32px">
+              <div class="alert-title">${escHtml(it.label)}</div>
+              <div class="alert-meta"><div class="alert-amount">${fmtMoney(it.monto, it.moneda)}</div></div>
             </div>`;
-          }
-          const jumpKind = it.kind==='factura' ? 'facturas' : 'recordatorios';
-          return `<div class="alert-row" onclick="jumpTo('${jumpKind}','${it.id}')" style="padding-left:18px">
-            <div class="alert-title">${escHtml(it.label)}</div>
-            <div class="alert-meta"><div class="alert-amount">${fmtMoney(it.monto, it.moneda)}</div></div>
-          </div>`;
+          }).join('');
+          return `<div class="alert-row" style="padding-left:18px;cursor:default"><div class="alert-title">${escHtml(prov)}</div></div>${itemsHtml}`;
         }).join('');
-        return `<div style="margin-bottom:6px">
-          <div class="alert-row"><div class="alert-title">${escHtml(prov)}</div><div class="alert-meta">${parts.join('')}</div></div>
-          ${detalle}
+        return `<div class="medio-group collapsed" id="medio-group-${medioKey}" style="margin-bottom:6px">
+          <div class="alert-row medio-header" onclick="toggleMedioGroup('${medioKey}')">
+            <div class="alert-title">${MEDIO_PAGAR_LABELS[medioKey]}<span class="chevron">▾</span></div>
+            <div class="alert-meta" style="display:flex;gap:8px">${parts.join('')}</div>
+          </div>
+          <div class="medio-detail">${detalle}</div>
         </div>`;
       }).join('')
     : `<div class="empty-msg">Nada pendiente de pago.</div>`;
