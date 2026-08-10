@@ -1117,7 +1117,7 @@ function renderResumen(){
   document.getElementById('list-facturacion').innerHTML = mesKeys.length
     ? mesKeys.map(mes => {
         const g = facturacionMeses[mes];
-        const label = mes==='sin-fecha' ? 'Sin fecha de viaje' : fmtMesLabel(mes);
+        const label = mes==='sin-fecha' ? 'Sin fecha de pago' : fmtMesLabel(mes);
         const parts = [];
         if (g.ARS) parts.push(`<div class="alert-amount">${fmtMoney(g.ARS,'ARS')}</div>`);
         if (g.USD) parts.push(`<div class="alert-amount" style="color:var(--bronze)">${fmtMoney(g.USD,'USD')}</div>`);
@@ -1139,13 +1139,19 @@ function fmtMesLabel(mesKey){
 }
 // Reservas con comisión pendiente de facturar (total o parcial), agrupadas por mes
 // del inicio de viaje (o de cotización si todavía no tiene fecha de viaje).
+// Mes de pago del pasajero: la fecha del último pago recibido (no la fecha de
+// viaje) — es cuando en la práctica se termina de facturar la comisión.
+function reservaMesDePago(r){
+  const fechas = objToArr(r.pagos).map(p => p.fecha).filter(Boolean).sort();
+  return fechas.length ? fechas[fechas.length-1] : '';
+}
 function computeFacturacionPorMes(){
   const meses = {};
   STATE.reservas.forEach(r => {
     if (r.estado==='cancelado' || r.estado==='perdida') return;
     const falta = reservaFaltaFacturar(r);
     if (Math.abs(falta) < 0.01) return;
-    const fechaRef = r.fechaInicio || r.fechaCotizacion || '';
+    const fechaRef = reservaMesDePago(r) || r.fechaCotizacion || '';
     const mesKey = fechaRef ? fechaRef.slice(0,7) : 'sin-fecha';
     if (!meses[mesKey]) meses[mesKey] = { ARS:0, USD:0, items:[] };
     meses[mesKey][r.moneda==='USD'?'USD':'ARS'] += falta;
@@ -1381,26 +1387,29 @@ function syncBspRecordatorios(){
     });
   });
 
+  // Un mismo período BSP puede tener costos en ARS y en USD a la vez: se
+  // genera un recordatorio por cada moneda que tenga monto, para no perder
+  // ninguna de las dos (antes se guardaba solo una y la otra se perdía).
   const updates = {};
   Object.keys(sums).forEach(periodo => {
     const { ARS: arsSum, USD: usdSum, fecha } = sums[periodo];
-    const autoLine = buildAutoNote(arsSum, usdSum);
-    if (!autoLine) return;
-    const monto = arsSum>0 ? arsSum : usdSum;
-    const moneda = arsSum>0 ? 'ARS' : 'USD';
-    const rec = STATE.recordatorios.find(x => x.tipo==='BSP' && x.fecha===fecha);
-    if (rec){
-      const newNotas = mergeAutoNote(rec.notas, autoLine);
-      if (Number(rec.monto)!==monto || rec.moneda!==moneda || rec.notas!==newNotas){
-        REFS.recordatorios.child(rec.id).update({ monto, moneda, notas:newNotas });
+    [['ARS', arsSum], ['USD', usdSum]].forEach(([moneda, monto]) => {
+      if (!(monto > 0)) return;
+      const autoLine = buildAutoNote(moneda==='ARS' ? monto : 0, moneda==='USD' ? monto : 0);
+      const rec = STATE.recordatorios.find(x => x.tipo==='BSP' && x.fecha===fecha && (x.moneda||'ARS')===moneda);
+      if (rec){
+        const newNotas = mergeAutoNote(rec.notas, autoLine);
+        if (Number(rec.monto)!==monto || rec.notas!==newNotas){
+          REFS.recordatorios.child(rec.id).update({ monto, moneda, notas:newNotas });
+        }
+      } else {
+        const key = REFS.recordatorios.push().key;
+        updates[key] = {
+          tipo:'BSP', titulo:`Pago BSP aéreo — período ${periodo}${moneda==='USD'?' (USD)':''}`, fecha,
+          recurrencia:'semanal', monto, moneda, notas:autoLine, resuelto:false,
+        };
       }
-    } else {
-      const key = REFS.recordatorios.push().key;
-      updates[key] = {
-        tipo:'BSP', titulo:`Pago BSP aéreo — período ${periodo}`, fecha,
-        recurrencia:'semanal', monto, moneda, notas:autoLine, resuelto:false,
-      };
-    }
+    });
   });
   if (Object.keys(updates).length) REFS.recordatorios.update(updates);
 }
