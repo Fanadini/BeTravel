@@ -272,6 +272,9 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   <button class="tab-btn on" data-tab="resumen" onclick="switchTab('resumen')">Resumen</button>
   <button class="tab-btn" data-tab="reservas" onclick="switchTab('reservas')">Reservas</button>
   <button class="tab-btn" data-tab="pasajeros" onclick="switchTab('pasajeros')">Pasajeros</button>
+  <button class="tab-btn" data-tab="clientes" onclick="switchTab('clientes')">Clientes</button>
+  <button class="tab-btn" data-tab="cartera" onclick="switchTab('cartera')">Mi cartera</button>
+  <button class="tab-btn" data-tab="caja" onclick="switchTab('caja')">Caja</button>
   <button class="tab-btn" data-tab="calendario" onclick="switchTab('calendario')">Calendario</button>
   <button class="tab-btn" id="tab-facturas" data-tab="facturas" onclick="switchTab('facturas')">Facturas de proveedores</button>
   <button class="tab-btn" data-tab="recordatorios" onclick="switchTab('recordatorios')">Recordatorios</button>
@@ -340,6 +343,53 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
     </div>
   </div>
 
+  <!-- CLIENTES -->
+  <div id="view-clientes" style="display:none">
+    <div class="section-head">
+      <h2>Clientes</h2>
+    </div>
+    <div class="upload-hint" style="margin-bottom:10px">Se arma solo a partir del campo "Cliente" de cada reserva. Hacé clic en una fila para ver todas sus reservas y sus documentos.</div>
+    <div class="table-wrap">
+      <table class="data-table" id="tabla-clientes">
+        <thead id="thead-clientes"></thead>
+        <tbody id="tbody-clientes"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MI CARTERA -->
+  <div id="view-cartera" style="display:none">
+    <div class="section-head">
+      <h2>Mi cartera</h2>
+      <div id="cartera-selector-wrap" style="display:none">
+        <select class="col-filter" id="cartera-ejecutivo-select" onchange="setCarteraEjecutivo(this.value)"></select>
+      </div>
+    </div>
+    <div id="cartera-body"></div>
+  </div>
+
+  <!-- CAJA -->
+  <div id="view-caja" style="display:none">
+    <div class="section-head">
+      <h2>Caja</h2>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="new-btn outline" onclick="cajaMonthShift(-1)">‹</button>
+        <div id="caja-mes-label" style="font-weight:600;color:var(--teal);min-width:140px;text-align:center"></div>
+        <button class="new-btn outline" onclick="cajaMonthShift(1)">›</button>
+      </div>
+    </div>
+    <div class="cards-row" id="caja-stat-cards"></div>
+    <div class="upload-hint" style="margin:10px 0">Solo se cuentan movimientos con fecha de pago cargada — pagos recibidos, y costos/facturas/reparto marcados como pagados con su fecha de pago.</div>
+    <div class="alert-col" id="col-caja-ingresos">
+      <h3><span class="alert-dot" style="background:var(--teal)"></span>Ingresos</h3>
+      <div id="list-caja-ingresos"></div>
+    </div>
+    <div class="alert-col" id="col-caja-egresos" style="margin-top:14px">
+      <h3><span class="alert-dot" style="background:var(--red)"></span>Egresos</h3>
+      <div id="list-caja-egresos"></div>
+    </div>
+  </div>
+
   <!-- CALENDARIO -->
   <div id="view-calendario" style="display:none">
     <div class="section-head">
@@ -387,6 +437,16 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 
 </div>
 
+<!-- CLIENTE PANEL -->
+<div class="panel-overlay" id="cliente-panel-overlay" onclick="closeClientePanel()"></div>
+<div class="panel" id="cliente-panel">
+  <div class="panel-header">
+    <h3 id="cliente-panel-title">Cliente</h3>
+    <button class="panel-close" onclick="closeClientePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="cliente-panel-body"></div>
+</div>
+
 <!-- MODAL (formulario simple: facturas / recordatorios) -->
 <div class="modal-overlay" id="modal" onclick="if(event.target===this)closeForm()">
   <div class="modal" id="modal-box"></div>
@@ -430,6 +490,7 @@ const REFS = {
   recordatorios: db.ref('finanzas/recordatorios'),
   pasajeros:     db.ref('finanzas/pasajeros'),
 };
+const CLIENTES_DOC_REF = db.ref('finanzas/clientesDocumentos');
 const META_PROV_REF = db.ref('finanzas/meta/proveedores');
 const META_EJEC_REF = db.ref('finanzas/meta/ejecutivos');
 const META_CODIGO_REF = db.ref('finanzas/meta/reservaCodigoCounter');
@@ -527,6 +588,8 @@ function setSyncStatus(status, label) {
 // ── ESTADO LOCAL ───────────────────────────────────────────────────────────
 const STATE = { reservas:[], facturas:[], recordatorios:[], pasajeros:[] };
 let META = { proveedores: [...DEFAULT_PROVEEDORES], ejecutivos: [], codigoCounter: 0 };
+let CLIENTES_DOCS = {}; // { [clienteKey]: { [docId]: {nombre, url} } }
+let clienteCtx = { nombre: null };
 const loadedOnce = { reservas:false, recordatorios:false, pasajeros:false };
 let migrationRan = false;
 let migrationPasajerosRan = false;
@@ -576,6 +639,10 @@ function attachListeners() {
   });
   META_EJEC_REF.on('value', snap => { META.ejecutivos = snap.val() ? Object.values(snap.val()) : []; });
   META_CODIGO_REF.on('value', snap => { META.codigoCounter = snap.val() || 0; });
+  // No re-renderiza el panel de cliente si está abierto (mismo motivo que
+  // saveReserva(): pisaría lo que el usuario esté tocando en ese momento).
+  // Solo se usa para tener CLIENTES_DOCS al día para la próxima vez que se abra.
+  CLIENTES_DOC_REF.on('value', snap => { CLIENTES_DOCS = snap.val() || {}; });
   document.getElementById('lo').classList.add('hidden');
 }
 
@@ -764,10 +831,12 @@ function initStatCardDrag(){
 // ── TABS ───────────────────────────────────────────────────────────────────
 function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('on', b.dataset.tab===tab));
-  ['resumen','reservas','pasajeros','calendario','facturas','recordatorios'].forEach(t => {
+  ['resumen','reservas','pasajeros','clientes','cartera','caja','calendario','facturas','recordatorios'].forEach(t => {
     document.getElementById('view-'+t).style.display = (t===tab ? '' : 'none');
   });
   if (tab==='calendario') renderCalendario();
+  if (tab==='cartera') renderCartera();
+  if (tab==='caja') renderCaja();
 }
 
 // ── RENDER ───────────────────────────────────────────────────────────────
@@ -778,6 +847,11 @@ function renderAll(){
   renderResumen();
   renderCalendario();
   renderPasajerosTable();
+  renderClientesTable();
+  // No re-renderiza el panel de cliente si está abierto — mismo motivo que
+  // el listener de CLIENTES_DOC_REF (evita pisar lo que se está tipeando).
+  if (document.getElementById('view-cartera') && document.getElementById('view-cartera').style.display!=='none') renderCartera();
+  if (document.getElementById('view-caja') && document.getElementById('view-caja').style.display!=='none') renderCaja();
 }
 
 // ── CALENDARIO ───────────────────────────────────────────────────────────
@@ -845,6 +919,132 @@ function openCalendarDay(dateStr){
     <div class="calendario-dia-lista">${items.join('')}</div>
   `;
   document.getElementById('modal').classList.add('open');
+}
+
+// ── CAJA / FLUJO DE FONDOS ───────────────────────────────────────────────
+// Solo cuenta movimientos con una fecha de pago real cargada — pagos
+// recibidos (siempre la tuvieron), y costos/facturas/reparto marcados como
+// pagados con su "fecha de pago" (campo nuevo, opcional, agregado para esto).
+let cajaMes = todayISO().slice(0,7);
+function cajaMonthShift(delta){
+  const [y,m] = cajaMes.split('-').map(Number);
+  const d = new Date(y, m-1+delta, 1);
+  cajaMes = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  renderCaja();
+}
+function computeCajaMovimientos(mesKey){
+  const ingresos = [];
+  const egresos = [];
+  STATE.reservas.forEach(r => {
+    objToArr(r.pagos).forEach(p => {
+      if (!p.fecha || p.fecha.slice(0,7)!==mesKey) return;
+      ingresos.push({ fecha:p.fecha, monto:Number(p.monto)||0, moneda:p.moneda||r.moneda||'ARS', label:`Pago recibido — ${r.codigo||r.cliente||'reserva'}`, reservaId:r.id });
+    });
+    objToArr(r.costos).forEach(c => {
+      if (!c.fechaPago || c.fechaPago.slice(0,7)!==mesKey) return;
+      egresos.push({ fecha:c.fechaPago, monto:Number(c.monto)||0, moneda:c.moneda||r.moneda||'ARS', label:`${c.proveedor||c.concepto||c.tipo||'Costo'} — ${r.codigo||r.cliente||'reserva'}`, reservaId:r.id });
+    });
+    objToArr(r.reparto).forEach(rep => {
+      if (!rep.pagado || !rep.fechaPago || rep.fechaPago.slice(0,7)!==mesKey) return;
+      const conv = repartoMontoEnSuMoneda(r, rep);
+      if (conv.note==='falta-tc') return;
+      egresos.push({ fecha:rep.fechaPago, monto:conv.value, moneda:rep.moneda||r.moneda||'ARS', label:`Reparto ${rep.ejecutivo||'ejecutivo'} — ${r.codigo||r.cliente||'reserva'}`, reservaId:r.id });
+    });
+  });
+  STATE.facturas.forEach(f => {
+    if (f.estado!=='pagada' || !f.fechaPago || f.fechaPago.slice(0,7)!==mesKey) return;
+    egresos.push({ fecha:f.fechaPago, monto:Number(f.monto)||0, moneda:f.moneda||'ARS', label:`Factura — ${f.proveedor||'proveedor'}`, facturaId:f.id });
+  });
+  ingresos.sort((a,b) => a.fecha.localeCompare(b.fecha));
+  egresos.sort((a,b) => a.fecha.localeCompare(b.fecha));
+  return { ingresos, egresos };
+}
+function sumPorMoneda(arr){
+  return arr.reduce((acc,x) => { acc[x.moneda==='USD'?'USD':'ARS'] += x.monto; return acc; }, { ARS:0, USD:0 });
+}
+function statAmountsHtml(t){
+  const parts = [];
+  if (t.ARS) parts.push(amountHtml(t.ARS,'ARS','stat-amount'));
+  if (t.USD) parts.push(amountHtml(t.USD,'USD','stat-amount'));
+  if (!parts.length) parts.push(`<div class="stat-amount empty">Sin movimientos</div>`);
+  return parts.join('');
+}
+function renderCaja(){
+  const label = document.getElementById('caja-mes-label');
+  const [y,m] = cajaMes.split('-').map(Number);
+  if (label) label.textContent = `${MESES_LABELS[m-1]} ${y}`;
+  const { ingresos, egresos } = computeCajaMovimientos(cajaMes);
+  const totalIn = sumPorMoneda(ingresos);
+  const totalOut = sumPorMoneda(egresos);
+  const neto = { ARS: totalIn.ARS-totalOut.ARS, USD: totalIn.USD-totalOut.USD };
+  const cardsEl = document.getElementById('caja-stat-cards');
+  if (cardsEl) cardsEl.innerHTML = `
+    <div class="stat-card"><h4>Ingresos del mes</h4><div class="stat-amounts">${statAmountsHtml(totalIn)}</div></div>
+    <div class="stat-card"><h4>Egresos del mes</h4><div class="stat-amounts">${statAmountsHtml(totalOut)}</div></div>
+    <div class="stat-card${(neto.ARS<0||neto.USD<0)?' alert':''}"><h4>Saldo neto</h4><div class="stat-amounts">${statAmountsHtml(neto)}</div></div>
+  `;
+  const movRowHtml = (x) => `<div class="alert-row"${x.reservaId?` onclick="jumpTo('reservas','${x.reservaId}')"`:''}>
+    <div><div class="alert-title">${escHtml(x.label)}</div><div class="alert-sub">${fmtDate(x.fecha)}</div></div>
+    <div class="alert-meta">${amountHtml(x.monto, x.moneda, 'alert-amount')}</div>
+  </div>`;
+  const inEl = document.getElementById('list-caja-ingresos');
+  if (inEl) inEl.innerHTML = ingresos.length ? ingresos.map(movRowHtml).join('') : `<div class="empty-msg">Sin ingresos este mes.</div>`;
+  const outEl = document.getElementById('list-caja-egresos');
+  if (outEl) outEl.innerHTML = egresos.length ? egresos.map(movRowHtml).join('') : `<div class="empty-msg">Sin egresos este mes.</div>`;
+}
+
+// ── MI CARTERA (vista personal por ejecutivo) ───────────────────────────────
+// Para rol agente, queda fija en su propio nombre (CURRENT_USER.nombre debe
+// coincidir tal cual con el "ejecutivo" cargado en el reparto de sus
+// reservas — es texto libre, misma limitación que el resto de la app). Para
+// admin, hay un selector para revisar la cartera de cualquier ejecutivo.
+let carteraEjecutivoSel = null;
+function setCarteraEjecutivo(nombre){
+  carteraEjecutivoSel = nombre || null;
+  renderCartera();
+}
+function carteraEjecutivoActual(){
+  return CURRENT_USER.rol==='agente' ? CURRENT_USER.nombre : carteraEjecutivoSel;
+}
+function renderCartera(){
+  const esAgente = CURRENT_USER.rol==='agente';
+  const selectorWrap = document.getElementById('cartera-selector-wrap');
+  if (selectorWrap) selectorWrap.style.display = esAgente ? 'none' : '';
+  if (!esAgente){
+    const sel = document.getElementById('cartera-ejecutivo-select');
+    if (sel){
+      const opts = `<option value="">Elegí un ejecutivo…</option>` + META.ejecutivos.map(e => `<option value="${escHtml(e)}">${escHtml(e)}</option>`).join('');
+      if (sel.innerHTML !== opts) sel.innerHTML = opts;
+      sel.value = carteraEjecutivoSel || '';
+    }
+  }
+  const nombre = carteraEjecutivoActual();
+  const body = document.getElementById('cartera-body');
+  if (!body) return;
+  if (!nombre){
+    body.innerHTML = `<div class="empty-msg">Elegí un ejecutivo para ver su cartera.</div>`;
+    return;
+  }
+  const reservasDelEjec = STATE.reservas.filter(r => objToArr(r.reparto).some(rep => rep.ejecutivo===nombre));
+  const pendiente = computeRepartoPorEjecutivo(true)[nombre] || { ARS:0, USD:0, items:[] };
+  const total = computeRepartoPorEjecutivo(false)[nombre] || { ARS:0, USD:0, items:[] };
+  const reservasHtml = reservasDelEjec.length ? reservasDelEjec
+    .sort((a,b) => (b.fechaInicio||b.fechaCotizacion||'').localeCompare(a.fechaInicio||a.fechaCotizacion||''))
+    .map(r => `<div class="alert-row" onclick="jumpTo('reservas','${r.id}')">
+      <div><div class="alert-title">${escHtml(r.codigo||'—')} — ${escHtml(r.cliente||'Sin cliente')}</div><div class="alert-sub">${estadoReservaBadgeHtml(r.estado)}</div></div>
+      <div class="alert-meta"><div class="alert-days">${fmtDate(r.fechaInicio||r.fechaCotizacion)}</div></div>
+    </div>`).join('') : `<div class="empty-msg">Sin reservas.</div>`;
+  body.innerHTML = `
+    <div class="cards-row">
+      <div class="stat-card"><h4>Reparto pendiente</h4><div class="stat-amounts">${statAmountsHtml(pendiente)}</div></div>
+      <div class="stat-card"><h4>Ganancia total (a la fecha)</h4><div class="stat-amounts">${statAmountsHtml(total)}</div></div>
+      <div class="stat-card"><h4>Reservas</h4><div class="stat-amounts"><div class="stat-amount">${reservasDelEjec.length}</div></div></div>
+    </div>
+    <div class="alert-col" style="margin-top:14px">
+      <h3><span class="alert-dot" style="background:var(--teal)"></span>${escHtml(nombre)} — reservas</h3>
+      <div>${reservasHtml}</div>
+    </div>
+  `;
 }
 
 const TABLE_CONFIG = {
@@ -1080,6 +1280,177 @@ function renderPasajerosTable(){
   tbody.innerHTML = items.map(pasajeroTableRowHtml).join('');
 }
 initPasajerosThead();
+
+// ── CLIENTES (derivado del campo "Cliente" de cada reserva) ────────────────
+// No hay una colección propia de clientes: se arma agrupando r.cliente de
+// todas las reservas. Los documentos sí se guardan aparte, en
+// finanzas/clientesDocumentos, con una key sanitizada del nombre.
+function clienteKey(nombre){
+  return (nombre||'').trim().toLowerCase()
+    .replace(/[.#$\[\]\/]/g, '_')
+    .replace(/\s+/g, ' ');
+}
+function computeClientesList(){
+  const map = {};
+  STATE.reservas.forEach(r => {
+    const nombre = (r.cliente||'').trim();
+    if (!nombre) return;
+    const key = clienteKey(nombre);
+    if (!map[key]) map[key] = { key, nombre, reservas: [] };
+    map[key].reservas.push(r);
+  });
+  return Object.values(map);
+}
+function clienteUltimaFecha(c){
+  const fechas = c.reservas.map(r => r.fechaInicio || r.fechaCotizacion || '').filter(Boolean).sort();
+  return fechas.length ? fechas[fechas.length-1] : '';
+}
+function clienteReservasActivas(c){
+  return c.reservas.filter(r => r.estado!=='cancelado' && r.estado!=='perdida').length;
+}
+
+const CLIENTES_COLS = [
+  { key:'nombre', label:'Cliente', type:'text', get:c => c.nombre },
+  { key:'cantidad', label:'Reservas', type:'number', get:c => c.reservas.length },
+  { key:'activas', label:'Reservas activas', type:'number', get:c => clienteReservasActivas(c) },
+  { key:'ultima', label:'Última reserva', type:'date', get:c => clienteUltimaFecha(c) },
+];
+let clientesSort = { key:'nombre', dir:1 };
+let clientesFilters = {};
+
+function buildClientesThead(){
+  const headCells = CLIENTES_COLS.map(c => {
+    const active = clientesSort.key===c.key;
+    const arrow = active ? (clientesSort.dir===1 ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable-th${active?' active':''}" onclick="setClientesSort('${c.key}')">${c.label}${arrow}</th>`;
+  }).join('');
+  const filterCells = CLIENTES_COLS.map(c => `<th><input class="col-filter" type="text" placeholder="Filtrar…" value="${escHtml(clientesFilters[c.key]||'')}" onclick="event.stopPropagation()" oninput="setClientesFilter('${c.key}',this.value)"></th>`).join('');
+  return `<tr>${headCells}</tr><tr class="filter-row">${filterCells}</tr>`;
+}
+function initClientesThead(){
+  const el = document.getElementById('thead-clientes');
+  if (el) el.innerHTML = buildClientesThead();
+}
+function setClientesSort(key){
+  if (clientesSort.key===key) clientesSort.dir *= -1;
+  else clientesSort = { key, dir:1 };
+  initClientesThead();
+  renderClientesTable();
+}
+function setClientesFilter(key, value){
+  clientesFilters[key] = value;
+  renderClientesTable();
+}
+function clienteTableRowHtml(c){
+  return `<tr onclick="openClientePanel('${escHtml(c.key)}')">
+    <td>${escHtml(c.nombre)}</td>
+    <td>${c.reservas.length}</td>
+    <td>${clienteReservasActivas(c)}</td>
+    <td>${fmtDate(clienteUltimaFecha(c))}</td>
+  </tr>`;
+}
+function renderClientesTable(){
+  const tbody = document.getElementById('tbody-clientes');
+  if (!tbody) return;
+  let items = computeClientesList();
+  CLIENTES_COLS.forEach(c => {
+    const fv = clientesFilters[c.key];
+    if (!fv) return;
+    items = items.filter(item => String(c.get(item)).toLowerCase().includes(fv.toLowerCase()));
+  });
+  const sortCol = CLIENTES_COLS.find(c => c.key===clientesSort.key) || CLIENTES_COLS[0];
+  items.sort((a,b) => {
+    const av = sortCol.get(a), bv = sortCol.get(b);
+    if (sortCol.type==='number') return (Number(av)-Number(bv)) * clientesSort.dir;
+    return String(av||'').localeCompare(String(bv||'')) * clientesSort.dir;
+  });
+  if (!items.length){
+    const msg = STATE.reservas.length ? 'Ningún resultado con estos filtros.' : 'Todavía no hay reservas cargadas.';
+    tbody.innerHTML = `<tr><td colspan="${CLIENTES_COLS.length}" class="table-empty">${msg}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = items.map(clienteTableRowHtml).join('');
+}
+initClientesThead();
+
+function openClientePanel(key){
+  const c = computeClientesList().find(x => x.key===key);
+  if (!c) return;
+  clienteCtx = { nombre: c.nombre, key };
+  renderClientePanel();
+  document.getElementById('cliente-panel-overlay').classList.add('open');
+  document.getElementById('cliente-panel').classList.add('open');
+}
+function closeClientePanel(){
+  clienteCtx = { nombre: null };
+  document.getElementById('cliente-panel-overlay').classList.remove('open');
+  document.getElementById('cliente-panel').classList.remove('open');
+}
+function jumpToReservaFromCliente(reservaId){
+  closeClientePanel();
+  switchTab('reservas');
+  openReserva(reservaId);
+}
+function clienteDocRowHtml(id, doc){
+  return `<div class="item-card cliente-doc-row" data-row-id="${id}">
+    <div class="item-card-header"><span class="item-card-label">Documento</span><button type="button" class="item-delete-btn" onclick="this.closest('.cliente-doc-row').remove();saveClienteDocumentos()">✕</button></div>
+    <div class="item-fields cols2">
+      <div class="item-field"><span class="item-field-label">Nombre</span><input class="cliente-doc-nombre" value="${escHtml(doc.nombre)}" placeholder="Ej: Contrato marco"></div>
+      <div class="item-field"><span class="item-field-label">Link</span><input class="cliente-doc-url" type="url" value="${escHtml(doc.url)}" placeholder="https://drive.google.com/…"></div>
+    </div>
+  </div>`;
+}
+function addClienteDocumento(){
+  document.getElementById('cliente-docs-list').insertAdjacentHTML('beforeend', clienteDocRowHtml('new_'+uid(), { nombre:'', url:'' }));
+}
+function saveClienteDocumentos(){
+  if (!clienteCtx.key) return;
+  const docs = {};
+  document.querySelectorAll('#cliente-docs-list .cliente-doc-row').forEach(row => {
+    const nombre = row.querySelector('.cliente-doc-nombre').value.trim();
+    const url = row.querySelector('.cliente-doc-url').value.trim();
+    if (!nombre && !url) return;
+    let id = row.dataset.rowId;
+    if (id.startsWith('new_')) { id = CLIENTES_DOC_REF.child(clienteCtx.key).push().key; row.dataset.rowId = id; }
+    docs[id] = { nombre, url };
+  });
+  CLIENTES_DOC_REF.child(clienteCtx.key).set(docs)
+    .catch(err => { console.error(err); alert('Error al guardar. Revisá tu conexión o los permisos de la base.'); });
+}
+function initClientePanelAutosave(){
+  const body = document.getElementById('cliente-panel-body');
+  if (!body || body.dataset.autosaveBound) return;
+  body.dataset.autosaveBound = '1';
+  body.addEventListener('focusout', (e) => {
+    if (e.target.closest('.cliente-doc-row')) saveClienteDocumentos();
+  });
+}
+initClientePanelAutosave();
+function renderClientePanel(){
+  if (!clienteCtx.nombre) return;
+  const c = computeClientesList().find(x => x.key===clienteCtx.key);
+  document.getElementById('cliente-panel-title').textContent = clienteCtx.nombre;
+  const reservas = c ? [...c.reservas].sort((a,b) => (b.fechaInicio||b.fechaCotizacion||'').localeCompare(a.fechaInicio||a.fechaCotizacion||'')) : [];
+  const reservasHtml = reservas.length ? reservas.map(r => `
+    <div class="alert-row" onclick="jumpToReservaFromCliente('${r.id}')">
+      <div><div class="alert-title">${escHtml(r.codigo||'—')} — ${escHtml(r.concepto||'Sin concepto')}</div><div class="alert-sub">${estadoReservaBadgeHtml(r.estado)}</div></div>
+      <div class="alert-meta"><div class="alert-days">${fmtDate(r.fechaInicio||r.fechaCotizacion)}</div></div>
+    </div>`).join('') : `<div class="empty-msg">Sin reservas.</div>`;
+  const docs = (clienteCtx.key && CLIENTES_DOCS[clienteCtx.key]) || {};
+  const docsHtml = Object.keys(docs).map(id => clienteDocRowHtml(id, docs[id])).join('');
+  document.getElementById('cliente-panel-body').innerHTML = `
+    <div class="psec">
+      <div class="psec-title">Reservas</div>
+      ${reservasHtml}
+    </div>
+    <div class="psec">
+      <div class="psec-title">Documentos</div>
+      <div id="cliente-docs-list">${docsHtml}</div>
+      <button type="button" class="add-item-btn" onclick="addClienteDocumento()">+ Agregar documento (link)</button>
+      <div class="upload-hint">Subí el archivo a Drive u otro servicio y pegá acá el link para compartir.</div>
+    </div>
+  `;
+}
 
 // ── FORMULARIO DE PASAJERO (modal): alta/edición + asociación a reservas ────
 let pasajeroFormCtx = { id:null };
@@ -1550,9 +1921,12 @@ const FORM_BUILDERS = {
       <div><label class="fl">Emisión</label><input class="fi" id="f-emision" type="date" value="${item?.emision||''}"></div>
       <div><label class="fl">Vencimiento</label><input class="fi" id="f-fecha" type="date" value="${item?.fecha||''}"></div>
     </div>
-    <div class="frow"><label class="fl">Estado</label><select class="fsel" id="f-estado">
-      ${selOpts(['pendiente','pagada'],['Pendiente','Pagada'],item?.estado||'pendiente')}
-    </select></div>
+    <div class="frow2">
+      <div><label class="fl">Estado</label><select class="fsel" id="f-estado">
+        ${selOpts(['pendiente','pagada'],['Pendiente','Pagada'],item?.estado||'pendiente')}
+      </select></div>
+      <div><label class="fl">Fecha de pago (para la Caja, si ya se pagó)</label><input class="fi" id="f-fechaPago" type="date" value="${item?.fechaPago||''}"></div>
+    </div>
     <div class="frow"><label class="fl">Notas</label><textarea class="fta" id="f-notas" placeholder="Nº de factura, referencia…">${escHtml(item?.notas)}</textarea></div>
   `,
   recordatorios: (item) => `
@@ -1599,7 +1973,7 @@ function closeForm(){
 }
 
 const FIELD_MAP = {
-  facturas: ['proveedor','concepto','monto','moneda','emision','fecha','estado','notas'],
+  facturas: ['proveedor','concepto','monto','moneda','emision','fecha','estado','fechaPago','notas'],
   recordatorios: ['tipo','titulo','fecha','recurrencia','monto','moneda','notas'],
 };
 
@@ -2012,6 +2386,7 @@ function costoRowHtml(c, monedaReserva){
     </div>
     <div class="item-field costo-fechaemision-wrap" style="margin-top:6px;${showFechaEmision?'':'display:none'}"><span class="item-field-label">Fecha de emisión del billete (para BSP)</span><input type="date" class="costo-fecha-emision" value="${c.fechaEmision||''}"></div>
     <div class="item-field costo-vencimiento-tarjeta-wrap" style="margin-top:6px;${showVencimientoTarjeta?'':'display:none'}"><span class="item-field-label">Fecha de vencimiento de la tarjeta</span><input type="date" class="costo-vencimiento-tarjeta" value="${c.fechaVencimiento||''}"></div>
+    <div class="item-field" style="margin-top:6px"><span class="item-field-label">Fecha de pago (para la Caja, si ya se pagó)</span><input type="date" class="costo-fecha-pago" value="${c.fechaPago||''}"></div>
     <div class="costo-equiv" style="font-size:11px;margin-top:6px"></div>
   </div>`;
 }
@@ -2099,7 +2474,10 @@ function repartoRowHtml(r, monedaReserva){
       <div class="item-field"><span class="item-field-label">Ya cobró directo del pasajero</span><input type="number" step="0.01" class="reparto-cobrado-directo" value="${r.montoCobradoDirecto??''}" oninput="recalcDerived()" placeholder="0"></div>
     </div>
     <div class="upload-hint" style="margin-top:2px">Si el pasajero le pagó una parte directo al ejecutivo (no a la agencia), cargá ese monto acá: se resta tanto del saldo pendiente de la reserva como de lo que le queda por liquidar al ejecutivo. No hace falta cargarlo de nuevo en "Pagos recibidos".</div>
-    <div class="item-field" style="margin-top:6px"><span class="item-field-label">Link al comprobante de liquidación</span><input class="reparto-link" type="url" value="${escHtml(r.link)}" placeholder="https://drive.google.com/…"></div>
+    <div class="item-fields" style="margin-top:6px">
+      <div class="item-field"><span class="item-field-label">Link al comprobante de liquidación</span><input class="reparto-link" type="url" value="${escHtml(r.link)}" placeholder="https://drive.google.com/…"></div>
+      <div class="item-field"><span class="item-field-label">Fecha de pago (para la Caja, si ya se liquidó)</span><input type="date" class="reparto-fecha-pago" value="${r.fechaPago||''}"></div>
+    </div>
     <div class="reparto-foot">
       <label class="reparto-check"><input type="checkbox" class="reparto-pagado" ${r.pagado?'checked':''}> Liquidado</label>
       <span class="reparto-monto-display"></span>
@@ -2430,6 +2808,7 @@ function saveReserva(){
       montoCobradoDirecto: parseFloat(row.querySelector('.reparto-cobrado-directo').value)||'',
       pagado: row.querySelector('.reparto-pagado').checked,
       link: row.querySelector('.reparto-link').value.trim(),
+      fechaPago: row.querySelector('.reparto-fecha-pago').value,
     };
     if (ejecutivo && !META.ejecutivos.includes(ejecutivo)) META_EJEC_REF.set([...META.ejecutivos, ejecutivo]);
   });
@@ -2445,6 +2824,7 @@ function saveReserva(){
       medio: row.querySelector('.costo-medio').value,
       fechaEmision: row.querySelector('.costo-fecha-emision').value,
       fechaVencimiento: row.querySelector('.costo-vencimiento-tarjeta').value,
+      fechaPago: row.querySelector('.costo-fecha-pago').value,
       pagado: row.dataset.pagado === 'true',
     };
     if (proveedor && !META.proveedores.includes(proveedor)) META_PROV_REF.set([...META.proveedores, proveedor]);

@@ -26,7 +26,8 @@
       },
 
       "recordatorios": { ".write": "auth != null" },
-      "pasajeros": { ".write": "auth != null" }
+      "pasajeros": { ".write": "auth != null" },
+      "clientesDocumentos": { ".write": "auth != null" }
     },
 
     "kanban": {
