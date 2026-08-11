@@ -1474,6 +1474,9 @@ function computeRepartoPorEjecutivo(soloPendiente){
       map[rep.ejecutivo].items.push({ reservaId: r.id, reservaCodigo: r.codigo, reservaCliente: r.cliente, monto: conv.value, moneda: repMoneda });
     });
   });
+  Object.values(map).forEach(ejec => {
+    ejec.items.sort((a,b) => extractCodigoNum(b.reservaCodigo) - extractCodigoNum(a.reservaCodigo));
+  });
   return map;
 }
 const TITLE_FIELD = {
