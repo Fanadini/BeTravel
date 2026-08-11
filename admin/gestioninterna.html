@@ -692,7 +692,9 @@ function estadoReservaBadgeHtml(estado){
   return `<span class="badge estado-${e}">${ESTADO_RESERVA_LABELS[e] || e}</span>`;
 }
 function facturacionBadgeHtml(facturacionRaw, estado){
-  const facturada = objToArr(facturacionRaw).length > 0;
+  // No alcanza con que exista una fila de factura — puede haber quedado una
+  // fila vacía (agregada y nunca completada) que no representa una factura real.
+  const facturada = objToArr(facturacionRaw).some(f => Number(f.monto) > 0);
   if (!facturada && (estado==='cancelado' || estado==='perdida')) return `<span class="badge">N/A</span>`;
   return `<span class="badge ${facturada?'fact-facturada':'fact-pendiente'}">${facturada?'Facturada':'Pendiente'}</span>`;
 }
@@ -879,7 +881,7 @@ const RESERVAS_COLS = [
   { key:'saldo', label:'Saldo pendiente', type:'number', get:r => reservaSaldo(r) },
   { key:'margen', label:'Margen', type:'number', get:r => reservaMargen(r) },
   { key:'estado', label:'Estado', type:'select', options: ESTADO_RESERVA_LABELS, get:r => r.estado||'cotizado' },
-  { key:'facturacion', label:'Facturación', type:'select', options: { si:'Facturada', no:'Pendiente' }, get:r => objToArr(r.facturacion).length>0 ? 'si' : 'no' },
+  { key:'facturacion', label:'Facturación', type:'select', options: { si:'Facturada', no:'Pendiente' }, get:r => objToArr(r.facturacion).some(f => Number(f.monto) > 0) ? 'si' : 'no' },
 ];
 let reservasSort = { key:'fechaInicio', dir:1 };
 let reservasFilters = {};
@@ -1378,7 +1380,7 @@ function renderResumen(){
         if (g.ARS) parts.push(amountHtml(g.ARS,'ARS','alert-amount'));
         if (g.USD) parts.push(amountHtml(g.USD,'USD','alert-amount'));
         const detalle = g.items.map(({r,falta}) => `<div class="alert-row" onclick="jumpTo('reservas','${r.id}')" style="padding-left:18px">
-          <div><div class="alert-title">${escHtml(r.codigo||'—')} — ${escHtml(r.cliente||'Sin cliente')}</div><div class="alert-sub">${objToArr(r.facturacion).length>0?'Facturado parcial':'Sin facturar'}</div></div>
+          <div><div class="alert-title">${escHtml(r.codigo||'—')} — ${escHtml(r.cliente||'Sin cliente')}</div><div class="alert-sub">${objToArr(r.facturacion).some(f => Number(f.monto) > 0)?'Facturado parcial':'Sin facturar'}</div></div>
           <div class="alert-meta">${amountHtml(falta, 'ARS', 'alert-amount')}</div>
         </div>`).join('');
         return `<div style="margin-bottom:6px">
