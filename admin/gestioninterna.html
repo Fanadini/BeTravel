@@ -594,6 +594,11 @@ function fmtMoney(monto, moneda){
   const s = n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
   return (moneda==='USD' ? 'US$ ' : '$ ') + s;
 }
+// Convención de color en toda la app: USD siempre en bronce, ARS en el color por defecto.
+function amountHtml(monto, moneda, cls){
+  const style = moneda==='USD' ? ' style="color:var(--bronze)"' : '';
+  return `<div class="${cls}"${style}>${fmtMoney(monto, moneda)}</div>`;
+}
 function fmtDate(d){
   if (!d) return '—';
   const [y,m,day] = d.split('-');
@@ -642,12 +647,14 @@ function reservaSaldo(r){
 }
 function reservaMargen(r){ return reservaValorCotizadoEnRef(r) - reservaCostoTotalEnRef(r); }
 // Monto objetivo a facturar: casi siempre es la comisión (margen); si se eligió
-// "total del paquete" u "otro" concepto, se usa ese criterio en su lugar.
+// "total del paquete" u "otro" concepto, se usa ese criterio en su lugar. En
+// cualquier caso, se descuenta lo que un ejecutivo ya cobró directo del
+// pasajero (esa plata nunca pasa por la agencia, así que no hay que facturarla).
 function reservaMontoAFacturar(r){
   const items = objToArr(r.facturacion);
   const concepto = (items[0] && items[0].concepto) || 'comision';
-  if (concepto==='total') return reservaValorCotizadoEnRef(r);
-  return reservaMargen(r);
+  const base = concepto==='total' ? reservaValorCotizadoEnRef(r) : reservaMargen(r);
+  return base - reservaMontoCobradoDirectoTotal(r);
 }
 // Puede haber más de una factura emitida por reserva (parcial, en cuotas, etc.);
 // se suman todas, cada una convertida a la moneda de referencia con su propio TC.
@@ -1322,7 +1329,7 @@ function renderResumen(){
 
   const rowHtml = (x, isOverdue) => {
     const title = TITLE_FIELD[x.kind](x.item);
-    const money = x.item.monto ? `<div class="alert-amount">${fmtMoney(x.item.monto, x.item.moneda)}</div>` : '';
+    const money = x.item.monto ? amountHtml(x.item.monto, x.item.moneda, 'alert-amount') : '';
     const daysLabel = isOverdue ? `Hace ${Math.abs(x.days)}d` : (x.days===0?'Hoy':`En ${x.days}d`);
     return `<div class="alert-row" onclick="jumpTo('${x.kind}','${x.item.id}')">
       <div><div class="alert-title">${escHtml(title)}</div><div class="alert-sub">${KIND_LABEL[x.kind]}</div></div>
@@ -1343,11 +1350,11 @@ function renderResumen(){
     return nombres.map((nombre, i) => {
       const t = porEjecutivo[nombre];
       const parts = [];
-      if (t.ARS) parts.push(`<div class="alert-amount">${fmtMoney(t.ARS,'ARS')}</div>`);
-      if (t.USD) parts.push(`<div class="alert-amount" style="color:var(--bronze)">${fmtMoney(t.USD,'USD')}</div>`);
+      if (t.ARS) parts.push(amountHtml(t.ARS,'ARS','alert-amount'));
+      if (t.USD) parts.push(amountHtml(t.USD,'USD','alert-amount'));
       const detalle = t.items.map(it => `<div class="alert-row" onclick="jumpTo('reservas','${it.reservaId}')" style="padding-left:18px">
         <div class="alert-title">${escHtml(it.reservaCodigo||'—')} — ${escHtml(it.reservaCliente||'Sin cliente')}</div>
-        <div class="alert-meta"><div class="alert-amount">${fmtMoney(it.monto, it.moneda)}</div></div>
+        <div class="alert-meta">${amountHtml(it.monto, it.moneda, 'alert-amount')}</div>
       </div>`).join('');
       const groupKey = `${keyPrefix}${i}`;
       return `<div class="medio-group collapsed" id="medio-group-${groupKey}">
@@ -1368,11 +1375,11 @@ function renderResumen(){
         const g = facturacionMeses[mes];
         const label = mes==='sin-fecha' ? 'Sin fecha de pago' : fmtMesLabel(mes);
         const parts = [];
-        if (g.ARS) parts.push(`<div class="alert-amount">${fmtMoney(g.ARS,'ARS')}</div>`);
-        if (g.USD) parts.push(`<div class="alert-amount" style="color:var(--bronze)">${fmtMoney(g.USD,'USD')}</div>`);
+        if (g.ARS) parts.push(amountHtml(g.ARS,'ARS','alert-amount'));
+        if (g.USD) parts.push(amountHtml(g.USD,'USD','alert-amount'));
         const detalle = g.items.map(({r,falta}) => `<div class="alert-row" onclick="jumpTo('reservas','${r.id}')" style="padding-left:18px">
           <div><div class="alert-title">${escHtml(r.codigo||'—')} — ${escHtml(r.cliente||'Sin cliente')}</div><div class="alert-sub">${objToArr(r.facturacion).length>0?'Facturado parcial':'Sin facturar'}</div></div>
-          <div class="alert-meta"><div class="alert-amount">${fmtMoney(falta, r.moneda)}</div></div>
+          <div class="alert-meta">${amountHtml(falta, r.moneda, 'alert-amount')}</div>
         </div>`).join('');
         return `<div style="margin-bottom:6px">
           <div class="alert-row"><div class="alert-title">${label}</div><div class="alert-meta">${parts.join('')}</div></div>
@@ -1387,8 +1394,8 @@ function renderResumen(){
     ? medioKeysConDatos.map(medioKey => {
         const g = porMedio[medioKey];
         const parts = [];
-        if (g.ARS) parts.push(`<div class="alert-amount">${fmtMoney(g.ARS,'ARS')}</div>`);
-        if (g.USD) parts.push(`<div class="alert-amount" style="color:var(--bronze)">${fmtMoney(g.USD,'USD')}</div>`);
+        if (g.ARS) parts.push(amountHtml(g.ARS,'ARS','alert-amount'));
+        if (g.USD) parts.push(amountHtml(g.USD,'USD','alert-amount'));
         const porProveedor = {};
         g.items.forEach(it => {
           const key = it.proveedor || 'Sin proveedor especificado';
@@ -1409,13 +1416,13 @@ function renderResumen(){
                   <input type="checkbox" onclick="event.stopPropagation()" onchange="toggleCostoPagado('${it.reservaId}','${it.costoId}',this.checked)" style="accent-color:var(--teal)">
                   <div class="alert-title">${escHtml(it.label)}</div>
                 </div>
-                <div class="alert-meta">${fechaHtml}<div class="alert-amount">${fmtMoney(it.monto, it.moneda)}</div></div>
+                <div class="alert-meta">${fechaHtml}${amountHtml(it.monto, it.moneda, 'alert-amount')}</div>
               </div>`;
             }
             const jumpKind = it.kind==='factura' ? 'facturas' : 'recordatorios';
             return `<div class="alert-row" onclick="jumpTo('${jumpKind}','${it.id}')" style="padding-left:32px">
               <div class="alert-title">${escHtml(it.label)}</div>
-              <div class="alert-meta"><div class="alert-amount">${fmtMoney(it.monto, it.moneda)}</div></div>
+              <div class="alert-meta">${amountHtml(it.monto, it.moneda, 'alert-amount')}</div>
             </div>`;
           }).join('');
           return `<div class="alert-row" style="padding-left:18px;cursor:default"><div class="alert-title">${escHtml(prov)}</div></div>${itemsHtml}`;
