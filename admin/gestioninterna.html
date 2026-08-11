@@ -664,13 +664,15 @@ function reservaMontoFacturado(r){
 function reservaFaltaFacturar(r){
   return reservaMontoAFacturar(r) - reservaMontoFacturado(r);
 }
-// No hay un campo de "tipo de cambio de la reserva" — se reutiliza el TC de
-// una fila de reparto en ARS (común: el ejecutivo cobra en pesos de un margen
-// en USD), que es el mejor tipo de cambio disponible para esa reserva. Si no
-// hay ninguno cargado, devuelve null (no se inventa un número).
+// No hay un campo de "tipo de cambio de la reserva" — se reutiliza el TC
+// cargado en cualquier fila de reparto de esa reserva (no importa en qué
+// moneda liquide esa fila: el TC ahí suele ser simplemente el de referencia
+// para el negocio, se haya usado o no para convertir el reparto en sí), que
+// es el mejor tipo de cambio disponible hoy. Si no hay ninguno cargado,
+// devuelve null (no se inventa un número).
 function reservaTipoCambioRef(r){
   if (r.moneda !== 'USD') return null;
-  const conTC = objToArr(r.reparto).find(rep => rep.moneda==='ARS' && Number(rep.tipoCambio)>0);
+  const conTC = objToArr(r.reparto).find(rep => Number(rep.tipoCambio)>0);
   return conTC ? Number(conTC.tipoCambio) : null;
 }
 
