@@ -664,6 +664,15 @@ function reservaMontoFacturado(r){
 function reservaFaltaFacturar(r){
   return reservaMontoAFacturar(r) - reservaMontoFacturado(r);
 }
+// No hay un campo de "tipo de cambio de la reserva" — se reutiliza el TC de
+// una fila de reparto en ARS (común: el ejecutivo cobra en pesos de un margen
+// en USD), que es el mejor tipo de cambio disponible para esa reserva. Si no
+// hay ninguno cargado, devuelve null (no se inventa un número).
+function reservaTipoCambioRef(r){
+  if (r.moneda !== 'USD') return null;
+  const conTC = objToArr(r.reparto).find(rep => rep.moneda==='ARS' && Number(rep.tipoCambio)>0);
+  return conTC ? Number(conTC.tipoCambio) : null;
+}
 
 const DONE_STATES = { facturas:'pagada' };
 function isDone(kind, item){
@@ -1379,9 +1388,9 @@ function renderResumen(){
         const parts = [];
         if (g.ARS) parts.push(amountHtml(g.ARS,'ARS','alert-amount'));
         if (g.USD) parts.push(amountHtml(g.USD,'USD','alert-amount'));
-        const detalle = g.items.map(({r,falta}) => `<div class="alert-row" onclick="jumpTo('reservas','${r.id}')" style="padding-left:18px">
-          <div><div class="alert-title">${escHtml(r.codigo||'—')} — ${escHtml(r.cliente||'Sin cliente')}</div><div class="alert-sub">${objToArr(r.facturacion).some(f => Number(f.monto) > 0)?'Facturado parcial':'Sin facturar'}</div></div>
-          <div class="alert-meta">${amountHtml(falta, 'ARS', 'alert-amount')}</div>
+        const detalle = g.items.map(({r,falta,sinTC}) => `<div class="alert-row" onclick="jumpTo('reservas','${r.id}')" style="padding-left:18px">
+          <div><div class="alert-title">${escHtml(r.codigo||'—')} — ${escHtml(r.cliente||'Sin cliente')}</div><div class="alert-sub">${sinTC ? '⚠ Falta el tipo de cambio (cargalo en el reparto)' : (objToArr(r.facturacion).some(f => Number(f.monto) > 0)?'Facturado parcial':'Sin facturar')}</div></div>
+          <div class="alert-meta">${sinTC ? '' : amountHtml(falta, 'ARS', 'alert-amount')}</div>
         </div>`).join('');
         return `<div style="margin-bottom:6px">
           <div class="alert-row"><div class="alert-title">${label}</div><div class="alert-meta">${parts.join('')}</div></div>
@@ -1453,7 +1462,8 @@ function reservaMesDePago(r){
   return fechas.length ? fechas[fechas.length-1] : '';
 }
 // La facturación real (AFIP) siempre es en pesos, sin importar en qué moneda
-// se haya cotizado/costeado la reserva — por eso acá todo se expresa en ARS.
+// se haya cotizado/costeado la reserva — por eso acá todo se convierte y se
+// expresa en ARS (ver reservaTipoCambioRef para de dónde sale el TC).
 function computeFacturacionPorMes(){
   const meses = {};
   STATE.reservas.forEach(r => {
@@ -1463,8 +1473,15 @@ function computeFacturacionPorMes(){
     const fechaRef = reservaMesDePago(r) || r.fechaCotizacion || '';
     const mesKey = fechaRef ? fechaRef.slice(0,7) : 'sin-fecha';
     if (!meses[mesKey]) meses[mesKey] = { ARS:0, USD:0, items:[] };
-    meses[mesKey].ARS += falta;
-    meses[mesKey].items.push({ r, falta });
+    let faltaARS = falta;
+    let sinTC = false;
+    if (r.moneda === 'USD') {
+      const tc = reservaTipoCambioRef(r);
+      if (tc) faltaARS = falta * tc;
+      else sinTC = true;
+    }
+    if (!sinTC) meses[mesKey].ARS += faltaARS;
+    meses[mesKey].items.push({ r, falta: faltaARS, sinTC });
   });
   return meses;
 }
