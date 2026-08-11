@@ -1469,7 +1469,13 @@ function computeFacturacionPorMes(){
 function computeRepartoPorEjecutivo(soloPendiente){
   const map = {};
   STATE.reservas.forEach(r => {
-    if (r.estado==='cancelado' || r.estado==='perdida') return;
+    // Una reserva cancelada no tiene economía real que contar. Una perdida sí
+    // puede tener costos/reparto ya generados antes de perderse — esa plata ya
+    // se ganó o se gastó, así que cuenta en "ganancia total a la fecha"
+    // (soloPendiente=false); pero no hay nada más que esperar cobrar/liquidar
+    // de un negocio perdido, así que no entra en "pendiente" (soloPendiente=true).
+    if (r.estado==='cancelado') return;
+    if (r.estado==='perdida' && soloPendiente) return;
     objToArr(r.reparto).forEach(rep => {
       if (!rep.ejecutivo) return;
       if (soloPendiente && rep.pagado) return;
