@@ -1471,7 +1471,10 @@ function computeFacturacionPorMes(){
   STATE.reservas.forEach(r => {
     if (r.estado==='cancelado' || r.estado==='perdida') return;
     const falta = reservaFaltaFacturar(r);
-    if (Math.abs(falta) < 0.01) return;
+    // Si da negativo (ej. un ejecutivo cobró directo del pasajero más de lo
+    // que era la comisión completa) no hay nada pendiente de facturar — al
+    // revés, se facturó/cobró de más. No tiene sentido mostrarlo como pendiente.
+    if (falta <= 0.01) return;
     const fechaRef = reservaMesDePago(r) || r.fechaCotizacion || '';
     const mesKey = fechaRef ? fechaRef.slice(0,7) : 'sin-fecha';
     if (!meses[mesKey]) meses[mesKey] = { ARS:0, USD:0, items:[] };
