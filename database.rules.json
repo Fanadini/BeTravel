@@ -17,13 +17,7 @@
 
       "reservas": {
         "$rid": {
-          ".write": "auth != null",
-          "reparto": {
-            ".validate": "root.child('finanzas/meta/usuarios').child(auth.token.email.replace('.', ',')).child('rol').val() === 'admin' || newData.val() === data.val()"
-          },
-          "facturacion": {
-            ".validate": "root.child('finanzas/meta/usuarios').child(auth.token.email.replace('.', ',')).child('rol').val() === 'admin' || newData.val() === data.val()"
-          }
+          ".write": "auth != null"
         }
       },
 

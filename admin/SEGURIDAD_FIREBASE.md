@@ -24,10 +24,11 @@ El código ya tiene una salvaguarda: si `finanzas/meta/usuarios` está completam
 1. Copiá el contenido completo de `/database.rules.json` (raíz del repo).
 2. En Firebase Console → Realtime Database → pestaña **Reglas**, pegalo reemplazando lo que haya.
 3. **Antes de publicar, probá con el simulador de reglas** (botón "Rules Playground" en la misma pantalla). Puntos concretos a probar:
-   - Login con una cuenta sin entrada en `meta/usuarios` → debería poder leer `finanzas/*` pero **no** escribir en `finanzas/facturas` ni en `finanzas/reservas/{id}/reparto` o `/facturacion`.
-   - Login con la cuenta admin sembrada en el paso 1 → debería poder escribir en todo.
-   - **Caso a vigilar especialmente**: guardar (autosave) una reserva *existente y vieja* logueado como agente. El sistema reescribe el objeto completo de la reserva en cada guardado, incluyendo `reparto`/`facturacion` con los mismos valores que ya tenía (esos campos quedan ocultos pero no se borran del formulario). La regla de `reparto`/`facturacion` solo permite el guardado si ese sub-árbol **no cambió** respecto al valor anterior (`newData.val() === data.val()`). Si una reserva vieja tiene campos legacy faltantes en `reparto` (de antes de alguna migración), la comparación podría no dar exactamente igual y bloquear el autosave del agente en esa reserva puntual. Si ves ese caso en el simulador, avisame para ajustar la regla (probablemente haciendo el campo por campo en vez de comparar el sub-árbol entero) antes de publicar en producción.
+   - Login con una cuenta sin entrada en `meta/usuarios` → debería poder leer `finanzas/*` pero **no** escribir en `finanzas/facturas`.
+   - Login con la cuenta admin sembrada en el paso 1 → debería poder escribir en todo, incluida `finanzas/facturas`.
 4. Publicá.
+
+> **Nota sobre una versión anterior de estas reglas:** en la primera versión, `finanzas/reservas/{id}/reparto` y `/facturacion` tenían una regla `.validate` que solo dejaba guardar a un agente si ese sub-árbol quedaba exactamente igual al valor anterior. En la práctica esto rompió el guardado normal de reservas (el sistema reescribe el objeto completo en cada guardado, y la comparación de igualdad de un sub-árbol completo no es confiable en el lenguaje de reglas de Firebase) — se sacó esa restricción. Ahora reparto/facturación de una reserva se protegen únicamente del lado del cliente (el panel las oculta para el rol `agente`), no del lado del servidor. Es una limitación conocida: un agente con herramientas de desarrollador podría en teoría escribir ahí directo vía la API. Si en el futuro se quiere cerrar ese hueco, la forma correcta es que el guardado de una reserva deje de reescribir el objeto completo y pase a `update()` por campo — recién ahí una regla de escritura admin-only sobre esos dos campos puntuales funciona bien.
 
 ## 3. Habilitar backups automáticos
 

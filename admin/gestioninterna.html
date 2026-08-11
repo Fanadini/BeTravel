@@ -217,7 +217,9 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .cal-item{background:var(--teal-l);color:var(--teal);border-radius:4px;padding:2px 5px;margin-bottom:2px;font-size:10px;font-weight:500;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cal-item-bsp{background:rgba(201,122,26,.14);color:var(--amber)}
 .cal-item-tarjeta{background:rgba(184,50,50,.12);color:var(--red)}
-.cal-more{font-size:9.5px;color:rgba(43,43,43,.4)}
+.cal-more{font-size:9.5px;color:rgba(43,43,43,.4);cursor:pointer;text-decoration:underline}
+.calendario-dia-lista{max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.calendario-dia-lista .cal-item{white-space:normal}
 
 @media (max-width:640px){
   .nav-user{display:none}
@@ -556,6 +558,7 @@ function attachListeners() {
       if (key==='reservas') openReservaFromQueryParam();
       if (loadedOnce.reservas && loadedOnce.recordatorios) {
         syncBspRecordatorios();
+        syncTarjetaRecordatorios();
         migrateReservasLegacy();
       }
       if (loadedOnce.reservas && loadedOnce.pasajeros) migratePasajerosEmbebidos();
@@ -806,11 +809,22 @@ function renderCalendario(){
     tarjetaDia.forEach(c => {
       pointTags.push(`<div class="cal-item cal-item-tarjeta" onclick="jumpTo('costo-tarjeta','${c.reservaId}')" title="Vencimiento de tarjeta — ${escHtml(c.proveedor)}">Vence tarjeta · ${escHtml(c.proveedor)}</div>`);
     });
+    CALENDARIO_DIA_ITEMS[dateStr] = pointTags;
     const tags = pointTags.slice(0,3).join('');
-    const more = pointTags.length>3 ? `<div class="cal-more">+${pointTags.length-3} más</div>` : '';
+    const more = pointTags.length>3 ? `<div class="cal-more" onclick="openCalendarDay('${dateStr}')">+${pointTags.length-3} más</div>` : '';
     cells.push(`<div class="cal-cell${dateStr===hoy?' cal-today':''}"><div class="cal-daynum">${day}</div>${tags}${more}</div>`);
   }
   wrap.innerHTML = cells.join('');
+}
+const CALENDARIO_DIA_ITEMS = {};
+function openCalendarDay(dateStr){
+  const items = CALENDARIO_DIA_ITEMS[dateStr] || [];
+  document.getElementById('modal-box').innerHTML = `
+    <button class="modal-close-x" onclick="closeForm()">✕</button>
+    <h3>${escHtml(fmtDate(dateStr))}</h3>
+    <div class="calendario-dia-lista">${items.join('')}</div>
+  `;
+  document.getElementById('modal').classList.add('open');
 }
 
 const TABLE_CONFIG = {
@@ -1261,6 +1275,9 @@ function renderResumen(){
   const allItems = [];
   ['reservas','facturas','recordatorios'].forEach(kind => {
     STATE[kind].forEach(item => {
+      // Los de tipo "Tarjeta" ya se representan más abajo vía computeCostosTarjetaPendientes()
+      // (con checkbox de pagado y agrupación por proveedor) — evita duplicarlos acá.
+      if (kind==='recordatorios' && item.tipo==='Tarjeta') return;
       if (isDone(kind, item)) return;
       const days = diffDays(kind==='reservas' ? item.fechaInicio : item.fecha);
       if (days==null) return;
@@ -1320,19 +1337,30 @@ function renderResumen(){
     ? proximos.map(x => rowHtml(x,false)).join('')
     : `<div class="empty-msg">Nada en los próximos 15 días.</div>`;
 
-  const ejecutivoRowsHtml = (porEjecutivo, emptyMsg) => {
+  const ejecutivoRowsHtml = (porEjecutivo, emptyMsg, keyPrefix) => {
     const nombres = Object.keys(porEjecutivo).sort((a,b) => (porEjecutivo[b].ARS+porEjecutivo[b].USD) - (porEjecutivo[a].ARS+porEjecutivo[a].USD));
     if (!nombres.length) return `<div class="empty-msg">${emptyMsg}</div>`;
-    return nombres.map(nombre => {
+    return nombres.map((nombre, i) => {
       const t = porEjecutivo[nombre];
       const parts = [];
       if (t.ARS) parts.push(`<div class="alert-amount">${fmtMoney(t.ARS,'ARS')}</div>`);
       if (t.USD) parts.push(`<div class="alert-amount" style="color:var(--bronze)">${fmtMoney(t.USD,'USD')}</div>`);
-      return `<div class="alert-row"><div class="alert-title">${escHtml(nombre)}</div><div class="alert-meta">${parts.join('')}</div></div>`;
+      const detalle = t.items.map(it => `<div class="alert-row" onclick="jumpTo('reservas','${it.reservaId}')" style="padding-left:18px">
+        <div class="alert-title">${escHtml(it.reservaCodigo||'—')} — ${escHtml(it.reservaCliente||'Sin cliente')}</div>
+        <div class="alert-meta"><div class="alert-amount">${fmtMoney(it.monto, it.moneda)}</div></div>
+      </div>`).join('');
+      const groupKey = `${keyPrefix}${i}`;
+      return `<div class="medio-group collapsed" id="medio-group-${groupKey}">
+        <div class="alert-row medio-header" onclick="toggleMedioGroup('${groupKey}')">
+          <div class="alert-title">${escHtml(nombre)}<span class="chevron">▾</span></div>
+          <div class="alert-meta" style="display:flex;gap:8px">${parts.join('')}</div>
+        </div>
+        <div class="medio-detail">${detalle}</div>
+      </div>`;
     }).join('');
   };
-  document.getElementById('list-reparto-ejecutivos').innerHTML = ejecutivoRowsHtml(computeRepartoPorEjecutivo(true), 'Sin reparto pendiente.');
-  document.getElementById('list-ganancia-ejecutivos').innerHTML = ejecutivoRowsHtml(computeRepartoPorEjecutivo(false), 'Todavía no hay reparto cargado.');
+  document.getElementById('list-reparto-ejecutivos').innerHTML = ejecutivoRowsHtml(computeRepartoPorEjecutivo(true), 'Sin reparto pendiente.', 'ejecP');
+  document.getElementById('list-ganancia-ejecutivos').innerHTML = ejecutivoRowsHtml(computeRepartoPorEjecutivo(false), 'Todavía no hay reparto cargado.', 'ejecT');
 
   const mesKeys = Object.keys(facturacionMeses).sort();
   document.getElementById('list-facturacion').innerHTML = mesKeys.length
@@ -1441,8 +1469,9 @@ function computeRepartoPorEjecutivo(soloPendiente){
       const conv = repartoMontoEnSuMoneda(r, rep);
       if (conv.note==='falta-tc') return;
       const repMoneda = rep.moneda==='USD' ? 'USD' : 'ARS';
-      if (!map[rep.ejecutivo]) map[rep.ejecutivo] = { ARS:0, USD:0 };
+      if (!map[rep.ejecutivo]) map[rep.ejecutivo] = { ARS:0, USD:0, items:[] };
       map[rep.ejecutivo][repMoneda] += conv.value;
+      map[rep.ejecutivo].items.push({ reservaId: r.id, reservaCodigo: r.codigo, reservaCliente: r.cliente, monto: conv.value, moneda: repMoneda });
     });
   });
   return map;
@@ -1687,6 +1716,51 @@ function syncBspRecordatorios(){
         };
       }
     });
+  });
+  if (Object.keys(updates).length) REFS.recordatorios.update(updates);
+}
+
+// Un recordatorio por cada costo pagado con tarjeta que tenga fecha de
+// vencimiento cargada (key determinística tarjeta_{reservaId}_{costoId}, así
+// se actualiza en lugar de duplicarse en cada sync). A diferencia del de BSP,
+// este sí reconcilia: si el costo se borra o deja de ser tarjeta/pierde la
+// fecha, el recordatorio huérfano se borra.
+function syncTarjetaRecordatorios(){
+  const deseados = {};
+  STATE.reservas.forEach(r => {
+    if (r.estado==='cancelado' || r.estado==='perdida') return;
+    objToArr(r.costos).forEach(c => {
+      if (c.medio!=='tarjeta' || !c.fechaVencimiento) return;
+      const key = `tarjeta_${r.id}_${c.id}`;
+      deseados[key] = {
+        tipo:'Tarjeta',
+        titulo: `Vencimiento tarjeta — ${c.concepto || c.tipo || 'Costo'} (${r.codigo || r.cliente || 'reserva'})`,
+        fecha: c.fechaVencimiento,
+        monto: Number(c.monto)||0,
+        moneda: c.moneda || r.moneda || 'ARS',
+        pagado: c.pagado === true,
+      };
+    });
+  });
+
+  const updates = {};
+  Object.keys(deseados).forEach(key => {
+    const nuevo = deseados[key];
+    const actual = STATE.recordatorios.find(x => x.id===key);
+    if (!actual){
+      // Nuevo: arranca resuelto según si el costo ya estaba pagado.
+      updates[key] = { tipo:nuevo.tipo, titulo:nuevo.titulo, fecha:nuevo.fecha, monto:nuevo.monto, moneda:nuevo.moneda, resuelto:nuevo.pagado };
+      return;
+    }
+    // Nunca se "des-resuelve" solo (si alguien lo marcó resuelto a mano, se respeta);
+    // pero si el costo se marca pagado, se auto-resuelve aunque no se haya tocado a mano.
+    const resueltoFinal = actual.resuelto || nuevo.pagado;
+    if (actual.fecha!==nuevo.fecha || Number(actual.monto)!==nuevo.monto || actual.moneda!==nuevo.moneda || actual.resuelto!==resueltoFinal || actual.titulo!==nuevo.titulo){
+      updates[key] = { tipo:nuevo.tipo, titulo:nuevo.titulo, fecha:nuevo.fecha, monto:nuevo.monto, moneda:nuevo.moneda, resuelto:resueltoFinal };
+    }
+  });
+  STATE.recordatorios.forEach(rec => {
+    if (rec.tipo==='Tarjeta' && !deseados[rec.id]) updates[rec.id] = null;
   });
   if (Object.keys(updates).length) REFS.recordatorios.update(updates);
 }
