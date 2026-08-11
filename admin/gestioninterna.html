@@ -1379,7 +1379,7 @@ function renderResumen(){
         if (g.USD) parts.push(amountHtml(g.USD,'USD','alert-amount'));
         const detalle = g.items.map(({r,falta}) => `<div class="alert-row" onclick="jumpTo('reservas','${r.id}')" style="padding-left:18px">
           <div><div class="alert-title">${escHtml(r.codigo||'—')} — ${escHtml(r.cliente||'Sin cliente')}</div><div class="alert-sub">${objToArr(r.facturacion).length>0?'Facturado parcial':'Sin facturar'}</div></div>
-          <div class="alert-meta">${amountHtml(falta, r.moneda, 'alert-amount')}</div>
+          <div class="alert-meta">${amountHtml(falta, 'ARS', 'alert-amount')}</div>
         </div>`).join('');
         return `<div style="margin-bottom:6px">
           <div class="alert-row"><div class="alert-title">${label}</div><div class="alert-meta">${parts.join('')}</div></div>
@@ -1450,6 +1450,8 @@ function reservaMesDePago(r){
   const fechas = objToArr(r.pagos).map(p => p.fecha).filter(Boolean).sort();
   return fechas.length ? fechas[fechas.length-1] : '';
 }
+// La facturación real (AFIP) siempre es en pesos, sin importar en qué moneda
+// se haya cotizado/costeado la reserva — por eso acá todo se expresa en ARS.
 function computeFacturacionPorMes(){
   const meses = {};
   STATE.reservas.forEach(r => {
@@ -1459,7 +1461,7 @@ function computeFacturacionPorMes(){
     const fechaRef = reservaMesDePago(r) || r.fechaCotizacion || '';
     const mesKey = fechaRef ? fechaRef.slice(0,7) : 'sin-fecha';
     if (!meses[mesKey]) meses[mesKey] = { ARS:0, USD:0, items:[] };
-    meses[mesKey][r.moneda==='USD'?'USD':'ARS'] += falta;
+    meses[mesKey].ARS += falta;
     meses[mesKey].items.push({ r, falta });
   });
   return meses;
