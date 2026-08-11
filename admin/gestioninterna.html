@@ -165,6 +165,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .panel-header h3{font-size:15px;font-weight:600;color:var(--beige)}
 .panel-close{width:28px;height:28px;border-radius:6px;border:1px solid rgba(230,225,216,.2);background:transparent;cursor:pointer;font-size:15px;color:rgba(230,225,216,.7);flex-shrink:0}
 .panel-close:hover{background:rgba(255,255,255,.12);color:var(--beige)}
+.panel-last-edit{padding:6px 20px;font-size:10.5px;color:rgba(43,43,43,.45);flex-shrink:0;border-bottom:1px solid var(--beige-d)}
 .panel-body{flex:1;overflow-y:auto;padding:20px}
 .panel-body::-webkit-scrollbar{width:4px}
 .panel-body::-webkit-scrollbar-thumb{background:var(--beige-d);border-radius:2px}
@@ -270,7 +271,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   <button class="tab-btn" data-tab="reservas" onclick="switchTab('reservas')">Reservas</button>
   <button class="tab-btn" data-tab="pasajeros" onclick="switchTab('pasajeros')">Pasajeros</button>
   <button class="tab-btn" data-tab="calendario" onclick="switchTab('calendario')">Calendario</button>
-  <button class="tab-btn" data-tab="facturas" onclick="switchTab('facturas')">Facturas de proveedores</button>
+  <button class="tab-btn" id="tab-facturas" data-tab="facturas" onclick="switchTab('facturas')">Facturas de proveedores</button>
   <button class="tab-btn" data-tab="recordatorios" onclick="switchTab('recordatorios')">Recordatorios</button>
 </div>
 
@@ -396,6 +397,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
     <h3 id="panel-title">Nueva reserva</h3>
     <button class="panel-close" onclick="closeReserva()">✕</button>
   </div>
+  <div class="panel-last-edit" id="panel-last-edit"></div>
   <div class="panel-body" id="reserva-panel-body"></div>
   <div class="panel-footer">
     <button class="save-btn" onclick="saveReserva()">Guardar</button>
@@ -429,6 +431,7 @@ const REFS = {
 const META_PROV_REF = db.ref('finanzas/meta/proveedores');
 const META_EJEC_REF = db.ref('finanzas/meta/ejecutivos');
 const META_CODIGO_REF = db.ref('finanzas/meta/reservaCodigoCounter');
+const META_USUARIOS_REF = db.ref('finanzas/meta/usuarios');
 
 const DEFAULT_PROVEEDORES = ['Tucano Tours','Carnival Tours','RateHawk','MyBeds','Hotelbeds','Bedsonline','Freeway','Top Dest','Grupo Ocho','TicketYa','Chasma'];
 const SERVICIO_TIPOS = ['Aéreo','Hotel','Traslados','Autos','Tren','Actividades','Crucero','Atracciones','Otro'];
@@ -436,6 +439,9 @@ const MEDIO_PAGO_TIPOS = ['bsp','tarjeta','transferencia','efectivo','otro'];
 const MEDIO_PAGO_LABELS = { bsp:'BSP', tarjeta:'Tarjeta de crédito', transferencia:'Transferencia', efectivo:'Efectivo', otro:'Otro' };
 
 // ── AUTH ───────────────────────────────────────────────────────────────────
+let CURRENT_USER = { email:'', nombre:'', rol:'agente' };
+function emailKey(email){ return (email||'').toLowerCase().replace(/\./g, ','); }
+
 function loginWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
   document.getElementById('login-error').textContent = '';
@@ -452,12 +458,63 @@ auth.onAuthStateChanged(user => {
   if (user) {
     loginScreen.classList.add('hidden');
     document.getElementById('nav-user-name').textContent = user.displayName ? user.displayName.split(' ')[0] : user.email;
-    if (!listenersAttached) { attachListeners(); listenersAttached = true; }
+    META_USUARIOS_REF.once('value').then(snap => {
+      const todos = snap.val() || {};
+      const perfil = todos[emailKey(user.email)];
+      // Bootstrap: si todavía no se cargó ningún usuario (nodo vacío), no hay
+      // roles configurados aún — se trata a todos como admin para no bloquear
+      // el primer uso. En cuanto exista al menos un registro, cualquiera que
+      // no esté explícitamente listado cae a "agente" (restrictivo).
+      const sinConfigurar = Object.keys(todos).length === 0;
+      CURRENT_USER = {
+        email: user.email,
+        nombre: (perfil && perfil.nombre) || (user.displayName ? user.displayName.split(' ')[0] : user.email),
+        rol: sinConfigurar ? 'admin' : ((perfil && perfil.rol) === 'admin' ? 'admin' : 'agente'),
+      };
+      applyRoleUI();
+      if (!listenersAttached) { attachListeners(); listenersAttached = true; }
+    }).catch(err => {
+      console.error(err);
+      // Sin poder confirmar el rol, se asume el más restrictivo.
+      CURRENT_USER = { email: user.email, nombre: user.displayName || user.email, rol:'agente' };
+      applyRoleUI();
+      if (!listenersAttached) { attachListeners(); listenersAttached = true; }
+    });
   } else {
     loginScreen.classList.remove('hidden');
     document.getElementById('lo').classList.add('hidden');
   }
 });
+
+// ── ROLES: admin ve todo; agente no ve reparto/ganancia de ejecutivos ──────
+function applyRoleUI(){
+  const esAdmin = CURRENT_USER.rol === 'admin';
+  const tabFacturas = document.getElementById('tab-facturas');
+  if (tabFacturas) tabFacturas.style.display = esAdmin ? '' : 'none';
+  ['col-reparto-ejecutivos','col-ganancia-ejecutivos','col-por-pagar'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = esAdmin ? '' : 'none';
+  });
+}
+function applyRolePanelUI(){
+  const esAdmin = CURRENT_USER.rol === 'admin';
+  ['psec-reparto','psec-facturacion'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = esAdmin ? '' : 'none';
+  });
+}
+function renderLastEdit(){
+  const el = document.getElementById('panel-last-edit');
+  if (!el) return;
+  const d = reservaCtx.data;
+  if (!d || !d.updatedAt) { el.textContent = ''; return; }
+  el.textContent = `Última edición: ${d.updatedBy || '—'} · ${fmtDateHora(d.updatedAt)}`;
+}
+function fmtDateHora(ts){
+  const dt = new Date(ts);
+  if (isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString('es-AR') + ' ' + dt.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+}
 
 function setSyncStatus(status, label) {
   const dot = document.getElementById('sync-dot');
@@ -471,6 +528,21 @@ let META = { proveedores: [...DEFAULT_PROVEEDORES], ejecutivos: [], codigoCounte
 const loadedOnce = { reservas:false, recordatorios:false, pasajeros:false };
 let migrationRan = false;
 let migrationPasajerosRan = false;
+let openedFromQueryParam = false;
+
+// Si se llega con ?reserva=<id> (ej. desde "Convertir a reserva" en el kanban),
+// abrir directamente el panel de esa reserva la primera vez que esté disponible.
+function openReservaFromQueryParam(){
+  if (openedFromQueryParam) return;
+  const params = new URLSearchParams(location.search);
+  const id = params.get('reserva');
+  if (!id) { openedFromQueryParam = true; return; }
+  const existe = STATE.reservas.some(r => r.id === id);
+  if (!existe) return; // puede llegar antes de que sincronice; se reintenta en el próximo render
+  openedFromQueryParam = true;
+  switchTab('reservas');
+  openReserva(id);
+}
 
 function attachListeners() {
   setSyncStatus('loading','Cargando…');
@@ -481,6 +553,7 @@ function attachListeners() {
       if (key==='reservas' || key==='recordatorios' || key==='pasajeros') loadedOnce[key] = true;
       renderAll();
       setSyncStatus('ok','Sincronizado');
+      if (key==='reservas') openReservaFromQueryParam();
       if (loadedOnce.reservas && loadedOnce.recordatorios) {
         syncBspRecordatorios();
         migrateReservasLegacy();
@@ -1044,9 +1117,13 @@ function savePasajeroForm(){
     fechaNacimiento: document.getElementById('f-pas-fechaNacimiento').value,
     vencimiento: document.getElementById('f-pas-vencimiento').value,
     nacionalidad: document.getElementById('f-pas-nacionalidad').value.trim(),
+    updatedAt: Date.now(), updatedBy: CURRENT_USER.email,
   };
   const targetReservaIds = [...document.querySelectorAll('#pasajero-reservas-chips .reserva-assoc-chip')].map(el => el.dataset.reservaId);
   const id = pasajeroFormCtx.id;
+  const prevPasajero = id ? STATE.pasajeros.find(x => x.id===id) : null;
+  val.historial = [...(Array.isArray(prevPasajero && prevPasajero.historial) ? prevPasajero.historial : []),
+    { fecha: Date.now(), usuario: CURRENT_USER.email }].slice(-20);
   const ref = id ? REFS.pasajeros.child(id) : REFS.pasajeros.push();
   ref.set(val).then(() => {
     const pasajeroId = id || ref.key;
@@ -1466,6 +1543,11 @@ function saveForm(){
   if (kind==='recordatorios'){
     val.resuelto = document.getElementById('f-resuelto').checked;
   }
+  val.updatedAt = Date.now();
+  val.updatedBy = CURRENT_USER.email;
+  const prev = id ? STATE[kind].find(x => x.id===id) : null;
+  val.historial = [...(Array.isArray(prev && prev.historial) ? prev.historial : []),
+    { fecha: Date.now(), usuario: CURRENT_USER.email }].slice(-20);
   const ref = id ? REFS[kind].child(id) : REFS[kind].push();
   ref.set(val).then(() => {
     if (kind==='facturas' && val.proveedor && !META.proveedores.includes(val.proveedor)){
@@ -2119,7 +2201,7 @@ function renderReservaPanel(){
       <button type="button" class="add-item-btn" onclick="addPago()">+ Agregar pago</button>
     </div>
 
-    <div class="psec">
+    <div class="psec" id="psec-reparto">
       <div class="psec-title">Reparto de ganancia</div>
       <datalist id="dl-ejecutivos">${META.ejecutivos.map(e=>`<option value="${escHtml(e)}">`).join('')}</datalist>
       <div id="reparto-list">${(d.reparto||[]).map(rep => repartoRowHtml(rep, d.moneda)).join('')}</div>
@@ -2127,7 +2209,7 @@ function renderReservaPanel(){
       <div class="pct-warning" id="pct-warning"></div>
     </div>
 
-    <div class="psec">
+    <div class="psec" id="psec-facturacion">
       <div class="psec-title">Facturación</div>
       <div class="upload-hint" style="margin-bottom:8px">Puede haber más de una factura por reserva (parcial, en cuotas, etc.). La mayoría de las veces se factura solo la comisión, no el total del paquete.</div>
       <div id="facturacion-list">${(d.facturacion||[]).map(f => facturaRowHtml(f, d.moneda)).join('')}</div>
@@ -2154,6 +2236,8 @@ function renderReservaPanel(){
     </div>
   `;
   recalcDerived();
+  applyRolePanelUI();
+  renderLastEdit();
 }
 function reservaMargenLocal(d){ return objToArr(d.cotizado).reduce((s,c) => s + (Number(c.monto)||0), 0) - objToArr(d.costos).reduce((s,c) => s + (Number(c.monto)||0), 0); }
 
@@ -2193,7 +2277,10 @@ function saveReserva(){
     estado: gv('r-estado'), fechaCotizacion: gv('r-fecha-cotizacion'),
     fechaInicio: gv('r-fecha-inicio'), fechaFin: gv('r-fecha-fin'),
     pasajeros: parseInt(gv('r-pasajeros'),10)||'', notas: gv('r-notas'),
-    pagos: {}, reparto: {}, comprobantes: {}, costos: {}, cotizado: {}, facturacion: {}, pasajeroIds: {}
+    pagos: {}, reparto: {}, comprobantes: {}, costos: {}, cotizado: {}, facturacion: {}, pasajeroIds: {},
+    updatedAt: Date.now(), updatedBy: CURRENT_USER.email,
+    historial: [...(Array.isArray(reservaCtx.data && reservaCtx.data.historial) ? reservaCtx.data.historial : []),
+      { fecha: Date.now(), usuario: CURRENT_USER.email }].slice(-20),
   };
   // Filas nuevas (todavía sin key de Firebase): se les asigna una key ahora, pero
   // el dataset del DOM recién se actualiza si el guardado sale bien, así que un
@@ -2291,6 +2378,7 @@ function saveReserva(){
       }
       const msg = document.getElementById('panel-save-msg');
       if (msg){ msg.textContent = 'Guardado ✓'; setTimeout(()=>{ if (msg) msg.textContent=''; }, 2000); }
+      renderLastEdit();
     }).catch(err => { console.error(err); alert('Error al guardar. Revisá tu conexión o los permisos de la base.'); });
   };
 

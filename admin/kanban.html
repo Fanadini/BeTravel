@@ -436,6 +436,10 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
       <div class="psec-title">Etapa</div>
       <div class="etapa-grid" id="p-etapa"></div>
     </div>
+    <div class="psec" id="p-reserva-sec" style="display:none">
+      <div class="psec-title">Reserva</div>
+      <div id="p-reserva-body"></div>
+    </div>
     <div class="psec">
       <div class="psec-title">Contactos</div>
       <div id="p-contactos-list"></div>
@@ -513,6 +517,7 @@ const auth     = firebase.auth();
 const PREF     = db.ref('kanban/prospectos');
 const SEGS_REF = db.ref('kanban/segmentos');
 const PRIS_REF = db.ref('kanban/prioridades');
+const FINANZAS_RESERVAS_REF = db.ref('finanzas/reservas');
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 function loginWithGoogle() {
@@ -528,11 +533,13 @@ function logout() {
   auth.signOut();
 }
 
+let CURRENT_USER_EMAIL = '';
 auth.onAuthStateChanged(user => {
   const loginScreen = document.getElementById('login-screen');
   if (user) {
     // Usuario autenticado → ocultar login, mostrar app
     loginScreen.classList.add('hidden');
+    CURRENT_USER_EMAIL = user.email || '';
     // Mostrar nombre en nav
     const nameEl = document.getElementById('nav-user-name');
     if (nameEl) nameEl.textContent = user.displayName ? user.displayName.split(' ')[0] : user.email;
@@ -756,6 +763,13 @@ function persist(ref, val) {
   setSyncStatus('loading','Guardando…');
   ref.set(val).then(()=>setSyncStatus('ok','Sincronizado')).catch(()=>setSyncStatus('err','Error'));
 }
+// Deja rastro de quién tocó un prospecto por última vez (últimas 20 entradas).
+function stampAudit(p){
+  p.updatedAt = Date.now();
+  p.updatedBy = CURRENT_USER_EMAIL;
+  p.historial = [...(Array.isArray(p.historial) ? p.historial : []),
+    { fecha: Date.now(), usuario: CURRENT_USER_EMAIL }].slice(-20);
+}
 function genId() { return 'custom_' + Date.now(); }
 
 // ── CONTACTOS MÚLTIPLES ───────────────────────────────────────────────────────
@@ -888,6 +902,7 @@ function autoSave() {
   let card = document.getElementById('card'+active);
   if (card) updateCardDOM(card, p);
 
+  stampAudit(p);
   persist(PREF.child(String(active)), p);
   renderListView(); renderSummaryView();
   updateStats(); applyFilters();
@@ -955,6 +970,7 @@ function buildBoard() {
       const ph   = body.querySelector('.drop-ph');
       body.insertBefore(document.getElementById('card'+dragging), ph);
       S[dragging].col = c.id;
+      stampAudit(S[dragging]);
       persist(PREF.child(String(dragging)), S[dragging]);
       if (active === dragging) refreshEtapaPanel(c.id);
       dragging = null;
@@ -983,6 +999,11 @@ function makeCard(p) {
   return d;
 }
 
+function webBadge(p) {
+  return p.origen === 'sitio-web'
+    ? `<span class="tag" style="background:rgba(15,61,62,.1);color:var(--teal,#0F3D3E);border:1px solid rgba(15,61,62,.25)" title="Vino del formulario del sitio web">Web</span>`
+    : '';
+}
 function updateCardDOM(d, p) {
   const seg = getSegObj(p.seg);
   const pri = getPriObj(p.pri);
@@ -1003,7 +1024,7 @@ function updateCardDOM(d, p) {
     // Actualización quirúrgica — no toca el drag-handle ni rompe listeners
     nameEl.textContent = p.name || 'Sin nombre';
     subEl.textContent  = p.sub  || '';
-    tagsEl.innerHTML   = tagBadge(seg) + tagBadge(pri);
+    tagsEl.innerHTML   = tagBadge(seg) + tagBadge(pri) + webBadge(p);
     if (noteEl) {
       noteEl.textContent    = noteText;
       noteEl.style.display  = noteText ? 'block' : 'none';
@@ -1019,7 +1040,7 @@ function updateCardDOM(d, p) {
       <div class="drag-handle"><span></span><span></span><span></span></div>
       <div class="card-name">${p.name||'Sin nombre'}</div>
       <div class="card-sub">${p.sub||''}</div>
-      <div class="card-tags">${tagBadge(seg)}${tagBadge(pri)}</div>
+      <div class="card-tags">${tagBadge(seg)}${tagBadge(pri)}${webBadge(p)}</div>
       <div class="card-footer">
         <div class="card-note-prev" style="display:${noteText?'block':'none'}">${noteText}</div>
         <div class="card-icons">
@@ -1300,6 +1321,7 @@ function refreshPanel() {
   renderContactos(p.contactos);
 
   refreshEtapaPanel(p.col || 0);
+  refreshConvertirReservaUI(p);
 
   // Segmentos
   const segEl = document.getElementById('p-seg');
@@ -1372,8 +1394,51 @@ function refreshEtapaPanel(currentCol) {
       }
       autoSave();
       updateStats();
+      refreshConvertirReservaUI(S[active]);
     };
     etEl.appendChild(btn);
+  });
+}
+
+// ── PUENTE A FINANZAS: convertir un prospecto Cerrado en una reserva ───────
+function refreshConvertirReservaUI(p){
+  const sec = document.getElementById('p-reserva-sec');
+  const body = document.getElementById('p-reserva-body');
+  if (!sec || !body || !p) return;
+  if (p.reservaId){
+    sec.style.display = '';
+    body.innerHTML = `<a class="add-tag-btn" href="gestioninterna.html?reserva=${encodeURIComponent(p.reservaId)}" style="display:inline-block;text-decoration:none">Ver reserva en Finanzas →</a>`;
+  } else if (p.col === 5){
+    sec.style.display = '';
+    body.innerHTML = `<button type="button" class="add-tag-btn" onclick="convertirAReserva()">+ Convertir a reserva</button>`;
+  } else {
+    sec.style.display = 'none';
+    body.innerHTML = '';
+  }
+}
+function convertirAReserva(){
+  if (!active || !S[active]) return;
+  const p = S[active];
+  if (p.reservaId){ window.location.href = 'gestioninterna.html?reserva=' + encodeURIComponent(p.reservaId); return; }
+  const notas = [p.notas, `Convertido desde el prospecto del kanban (${p.name||'sin nombre'}).`].filter(Boolean).join('\n\n');
+  const nueva = {
+    codigo:'', cliente: p.name||'', concepto: p.sub||'', servicios:[], servicioOtroTexto:'', moneda:'ARS',
+    estado:'cotizado', fechaCotizacion: new Date().toISOString().slice(0,10), fechaInicio:'', fechaFin:'',
+    pasajeros:'', notas,
+    pagos:{}, reparto:{}, comprobantes:{}, costos:{}, cotizado:{}, facturacion:{}, pasajeroIds:{},
+    prospectoId: String(active),
+    updatedAt: Date.now(), updatedBy: CURRENT_USER_EMAIL,
+  };
+  const ref = FINANZAS_RESERVAS_REF.push();
+  ref.set(nueva).then(() => {
+    p.reservaId = ref.key;
+    stampAudit(p);
+    persist(PREF.child(String(active)), p);
+    refreshConvertirReservaUI(p);
+    window.location.href = 'gestioninterna.html?reserva=' + encodeURIComponent(ref.key);
+  }).catch(err => {
+    console.error(err);
+    alert('Error al crear la reserva. Intentá de nuevo.');
   });
 }
 
@@ -1427,6 +1492,7 @@ function savePanel() {
     card.onclick = (e) => { if (e.target.closest('.drag-handle')) return; openPanel(p.id); };
   }
 
+  stampAudit(p);
   persist(PREF.child(String(active)), p);
   renderListView(); renderSummaryView();
   updateStats(); applyFilters();
@@ -1715,6 +1781,7 @@ function resetBoard() {
         colBody.insertBefore(touchCard, ph);
         if (S[touchId]) {
           S[touchId].col = colId;
+          stampAudit(S[touchId]);
           persist(PREF.child(String(touchId)), S[touchId]);
           if (active === touchId) refreshEtapaPanel(colId);
         }

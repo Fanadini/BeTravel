@@ -193,6 +193,7 @@
         </div>
         <div class="form-group"><label class="form-label">Destino o idea de destino</label><input type="text" name="destino" class="form-input" placeholder="Ej: Europa, Brasil, o aún sin definir"></div>
         <div class="form-group"><label class="form-label">Objetivo del viaje</label><textarea name="objetivo" class="form-textarea" placeholder="Contanos brevemente qué querés lograr con este viaje. Esa información nos ayuda a diseñar una propuesta correcta."></textarea></div>
+        <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off">
         <button type="submit" class="form-submit">Enviar consulta</button>
         <p class="form-note">Te respondemos dentro de las 24 horas hábiles. Sin catálogos, sin presión.</p>
         <div id="form-status"></div>
@@ -231,7 +232,53 @@
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
+  // Firebase se usa acá solo para volcar los leads del formulario directo al
+  // pipeline del kanban (kanban/prospectos) — no hay login en esta página.
+  firebase.initializeApp({
+    apiKey:"AIzaSyARJ-zVCszUxJ_Fs1UBBtMiQvjuDF98IYI",
+    authDomain:"betravel-kanban.firebaseapp.com",
+    databaseURL:"https://betravel-kanban-default-rtdb.firebaseio.com",
+    projectId:"betravel-kanban",
+    storageBucket:"betravel-kanban.firebasestorage.app",
+    messagingSenderId:"644328296494",
+    appId:"1:644328296494:web:aec3842de80021159f8fbf",
+  });
+  const kanbanProspectosRef = firebase.database().ref('kanban/prospectos');
+
+  // Best-effort: si esto falla (sin conexión, reglas, etc.) no debe romper el
+  // envío principal a Formspree, que es el canal garantizado.
+  function pushLeadToKanban(form) {
+    try {
+      if (form._gotcha && form._gotcha.value) return; // honeypot: probable bot
+      const nombre = form.nombre.value.trim();
+      const empresa = form.empresa.value.trim();
+      const email = form.email.value.trim();
+      const telefono = form.telefono.value.trim();
+      const programa = form.programa.value;
+      const notas = [
+        `Origen: formulario del sitio web.`,
+        form.cantidad.value ? `Personas: ${form.cantidad.value}.` : '',
+        form.fecha.value ? `Fecha estimada: ${form.fecha.value}.` : '',
+        form.destino.value ? `Destino: ${form.destino.value}.` : '',
+        form.objetivo.value ? `Objetivo: ${form.objetivo.value}` : '',
+      ].filter(Boolean).join(' ');
+      kanbanProspectosRef.push({
+        name: empresa || nombre,
+        sub: programa || '',
+        contactos: [{ nombre, cargo:'', email, linkedin:'' }],
+        contacto: nombre,
+        notas,
+        col: 0, seg: null, pri: null,
+        origen: 'sitio-web',
+      }).catch(err => console.error('No se pudo cargar el lead al kanban:', err));
+    } catch (err) {
+      console.error('No se pudo cargar el lead al kanban:', err);
+    }
+  }
+
   const toggle = document.querySelector('.nav-toggle');
   const links = document.querySelector('.nav-links');
   toggle.addEventListener('click', () => {
@@ -269,6 +316,7 @@
         });
 
         if (res.ok) {
+          pushLeadToKanban(form);
           document.getElementById("modal-nombre").textContent = nombre;
           document.getElementById("modal-overlay").classList.add("active");
           form.reset();

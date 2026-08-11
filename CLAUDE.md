@@ -48,9 +48,11 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 ├── *.jpg                    ← imágenes (hero, editorial, etc.)
 ├── guia_interna/
 │   └── index.html           ← Guía de formación interna
+├── database.rules.json      ← Security Rules de Firebase RTDB (versionadas; publicar manualmente en la consola)
 └── admin/
     ├── kanban.html           ← CRM interno (Firebase)
-    └── gestioninterna.html    ← Finanzas / Reservas / Facturas de proveedores (Firebase)
+    ├── gestioninterna.html    ← Finanzas / Reservas / Facturas de proveedores (Firebase)
+    └── SEGURIDAD_FIREBASE.md  ← Pasos manuales: sembrar admin, publicar reglas, backups
 ```
 
 ---
@@ -97,7 +99,8 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 - 60 prospects cargados, segmentados por sector corporativo
 - Columnas con counter, drag-and-drop con listeners preservados
 - **Crítico:** al modificar HTML complejo, reconstruir el archivo completo es más confiable que chained string replacements
-- **Crítico:** las Firebase security rules deben mantenerse activas
+- **Crítico:** las Firebase security rules deben mantenerse activas — versión de referencia en `database.rules.json`, pasos de publicación en `admin/SEGURIDAD_FIREBASE.md`
+- Roles: `finanzas/meta/usuarios/{email con "." reemplazado por ","}` define `rol: admin|agente`. Sin entrada ahí, cualquier cuenta entra como `agente` (acceso restringido a reparto/facturación/ganancia)
 
 ---
 

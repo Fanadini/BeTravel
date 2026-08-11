@@ -1,0 +1,50 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "finanzas": {
+      ".read": "auth != null",
+
+      "meta": {
+        "usuarios": {
+          ".write": "root.child('finanzas/meta/usuarios').child(auth.token.email.replace('.', ',')).child('rol').val() === 'admin'"
+        },
+        "proveedores": { ".write": "auth != null" },
+        "ejecutivos": { ".write": "auth != null" },
+        "reservaCodigoCounter": { ".write": "auth != null" }
+      },
+
+      "reservas": {
+        "$rid": {
+          ".write": "auth != null",
+          "reparto": {
+            ".validate": "root.child('finanzas/meta/usuarios').child(auth.token.email.replace('.', ',')).child('rol').val() === 'admin' || newData.val() === data.val()"
+          },
+          "facturacion": {
+            ".validate": "root.child('finanzas/meta/usuarios').child(auth.token.email.replace('.', ',')).child('rol').val() === 'admin' || newData.val() === data.val()"
+          }
+        }
+      },
+
+      "facturas": {
+        ".write": "root.child('finanzas/meta/usuarios').child(auth.token.email.replace('.', ',')).child('rol').val() === 'admin'"
+      },
+
+      "recordatorios": { ".write": "auth != null" },
+      "pasajeros": { ".write": "auth != null" }
+    },
+
+    "kanban": {
+      ".read": "auth != null",
+
+      "prospectos": {
+        "$id": {
+          ".write": "auth != null || !data.exists()"
+        }
+      },
+      "segmentos": { ".write": "auth != null" },
+      "prioridades": { ".write": "auth != null" }
+    }
+  }
+}
