@@ -948,6 +948,10 @@ function computeCajaMovimientos(mesKey){
       if (!rep.pagado || !rep.fechaPago || rep.fechaPago.slice(0,7)!==mesKey) return;
       const conv = repartoMontoEnSuMoneda(r, rep);
       if (conv.note==='falta-tc') return;
+      // Si el ejecutivo cobró directo al pasajero un monto igual o mayor a su
+      // parte del reparto, el valor da 0 o negativo — no salió plata de la
+      // agencia, así que no cuenta como egreso de caja.
+      if (conv.value <= 0.01) return;
       egresos.push({ fecha:rep.fechaPago, monto:conv.value, moneda:rep.moneda||r.moneda||'ARS', label:`Reparto ${rep.ejecutivo||'ejecutivo'} — ${r.codigo||r.cliente||'reserva'}`, reservaId:r.id });
     });
   });
