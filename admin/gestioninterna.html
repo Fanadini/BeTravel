@@ -932,17 +932,32 @@ function cajaMonthShift(delta){
   cajaMes = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   renderCaja();
 }
+// Cada movimiento lleva, además de su monto en su propia moneda, el
+// equivalente en pesos (montoARS) usando el T.C. cargado en esa misma línea
+// (pago/costo/reparto/factura) — así ARS y USD dejan de ser dos cajas
+// separadas: en la realidad, lo que entra en pesos se convierte a dólares al
+// momento de pagar, así que el Saldo neto tiene que verse en un solo número.
+// Si un movimiento está en USD y no tiene T.C. cargado, no se puede convertir
+// (sinTC:true) y queda afuera del Saldo neto unificado, con aviso.
+function cajaMontoARS(monto, moneda, tc){
+  const conv = convertMonto(monto, moneda||'ARS', 'ARS', tc);
+  return conv.note==='falta-tc' ? { montoARS:null, sinTC:true } : { montoARS:conv.value, sinTC:false };
+}
 function computeCajaMovimientos(mesKey){
   const ingresos = [];
   const egresos = [];
   STATE.reservas.forEach(r => {
     objToArr(r.pagos).forEach(p => {
       if (!p.fecha || p.fecha.slice(0,7)!==mesKey) return;
-      ingresos.push({ fecha:p.fecha, monto:Number(p.monto)||0, moneda:p.moneda||r.moneda||'ARS', label:`Pago recibido — ${r.codigo||r.cliente||'reserva'}`, reservaId:r.id });
+      const moneda = p.moneda||r.moneda||'ARS';
+      const monto = Number(p.monto)||0;
+      ingresos.push({ fecha:p.fecha, monto, moneda, ...cajaMontoARS(monto, moneda, p.tipoCambio), label:`Pago recibido — ${r.codigo||r.cliente||'reserva'}`, reservaId:r.id });
     });
     objToArr(r.costos).forEach(c => {
       if (!c.fechaPago || c.fechaPago.slice(0,7)!==mesKey) return;
-      egresos.push({ fecha:c.fechaPago, monto:Number(c.monto)||0, moneda:c.moneda||r.moneda||'ARS', label:`${c.proveedor||c.concepto||c.tipo||'Costo'} — ${r.codigo||r.cliente||'reserva'}`, reservaId:r.id });
+      const moneda = c.moneda||r.moneda||'ARS';
+      const monto = Number(c.monto)||0;
+      egresos.push({ fecha:c.fechaPago, monto, moneda, ...cajaMontoARS(monto, moneda, c.tipoCambio), label:`${c.proveedor||c.concepto||c.tipo||'Costo'} — ${r.codigo||r.cliente||'reserva'}`, reservaId:r.id });
     });
     objToArr(r.reparto).forEach(rep => {
       if (!rep.pagado || !rep.fechaPago || rep.fechaPago.slice(0,7)!==mesKey) return;
@@ -952,12 +967,15 @@ function computeCajaMovimientos(mesKey){
       // parte del reparto, el valor da 0 o negativo — no salió plata de la
       // agencia, así que no cuenta como egreso de caja.
       if (conv.value <= 0.01) return;
-      egresos.push({ fecha:rep.fechaPago, monto:conv.value, moneda:rep.moneda||r.moneda||'ARS', label:`Reparto ${rep.ejecutivo||'ejecutivo'} — ${r.codigo||r.cliente||'reserva'}`, reservaId:r.id });
+      const moneda = rep.moneda||r.moneda||'ARS';
+      egresos.push({ fecha:rep.fechaPago, monto:conv.value, moneda, ...cajaMontoARS(conv.value, moneda, rep.tipoCambio), label:`Reparto ${rep.ejecutivo||'ejecutivo'} — ${r.codigo||r.cliente||'reserva'}`, reservaId:r.id });
     });
   });
   STATE.facturas.forEach(f => {
     if (f.estado!=='pagada' || !f.fechaPago || f.fechaPago.slice(0,7)!==mesKey) return;
-    egresos.push({ fecha:f.fechaPago, monto:Number(f.monto)||0, moneda:f.moneda||'ARS', label:`Factura — ${f.proveedor||'proveedor'}`, facturaId:f.id });
+    const moneda = f.moneda||'ARS';
+    const monto = Number(f.monto)||0;
+    egresos.push({ fecha:f.fechaPago, monto, moneda, ...cajaMontoARS(monto, moneda, f.tipoCambio), label:`Factura — ${f.proveedor||'proveedor'}`, facturaId:f.id });
   });
   ingresos.sort((a,b) => a.fecha.localeCompare(b.fecha));
   egresos.sort((a,b) => a.fecha.localeCompare(b.fecha));
@@ -965,6 +983,9 @@ function computeCajaMovimientos(mesKey){
 }
 function sumPorMoneda(arr){
   return arr.reduce((acc,x) => { acc[x.moneda==='USD'?'USD':'ARS'] += x.monto; return acc; }, { ARS:0, USD:0 });
+}
+function sumARSConvertido(arr){
+  return arr.reduce((acc,x) => { if (x.sinTC) acc.sinTC++; else acc.ars += x.montoARS; return acc; }, { ars:0, sinTC:0 });
 }
 function statAmountsHtml(t){
   const parts = [];
@@ -980,17 +1001,25 @@ function renderCaja(){
   const { ingresos, egresos } = computeCajaMovimientos(cajaMes);
   const totalIn = sumPorMoneda(ingresos);
   const totalOut = sumPorMoneda(egresos);
-  const neto = { ARS: totalIn.ARS-totalOut.ARS, USD: totalIn.USD-totalOut.USD };
+  const inARS = sumARSConvertido(ingresos);
+  const outARS = sumARSConvertido(egresos);
+  const netoARS = inARS.ars - outARS.ars;
+  const sinTCTotal = inARS.sinTC + outARS.sinTC;
   const cardsEl = document.getElementById('caja-stat-cards');
   if (cardsEl) cardsEl.innerHTML = `
     <div class="stat-card"><h4>Ingresos del mes</h4><div class="stat-amounts">${statAmountsHtml(totalIn)}</div></div>
     <div class="stat-card"><h4>Egresos del mes</h4><div class="stat-amounts">${statAmountsHtml(totalOut)}</div></div>
-    <div class="stat-card${(neto.ARS<0||neto.USD<0)?' alert':''}"><h4>Saldo neto</h4><div class="stat-amounts">${statAmountsHtml(neto)}</div></div>
+    <div class="stat-card${netoARS<0?' alert':''}"><h4>Saldo neto (en pesos)</h4><div class="stat-amounts">${amountHtml(netoARS,'ARS','stat-amount')}</div>${sinTCTotal ? `<div style="font-size:10px;margin-top:4px;color:var(--red)">⚠ ${sinTCTotal} movimiento(s) en USD sin T.C. cargado, no incluido(s)</div>` : ''}</div>
   `;
-  const movRowHtml = (x) => `<div class="alert-row"${x.reservaId?` onclick="jumpTo('reservas','${x.reservaId}')"`:''}>
+  const movRowHtml = (x) => {
+    const equivHtml = x.moneda!=='USD' ? '' : (x.sinTC
+      ? `<div style="font-size:10px;color:var(--red)">⚠ Falta T.C.</div>`
+      : `<div style="font-size:10px;color:rgba(43,43,43,.5)">≈ ${fmtMoney(x.montoARS,'ARS')}</div>`);
+    return `<div class="alert-row"${x.reservaId?` onclick="jumpTo('reservas','${x.reservaId}')"`:''}>
     <div><div class="alert-title">${escHtml(x.label)}</div><div class="alert-sub">${fmtDate(x.fecha)}</div></div>
-    <div class="alert-meta">${amountHtml(x.monto, x.moneda, 'alert-amount')}</div>
+    <div class="alert-meta">${amountHtml(x.monto, x.moneda, 'alert-amount')}${equivHtml}</div>
   </div>`;
+  };
   const inEl = document.getElementById('list-caja-ingresos');
   if (inEl) inEl.innerHTML = ingresos.length ? ingresos.map(movRowHtml).join('') : `<div class="empty-msg">Sin ingresos este mes.</div>`;
   const outEl = document.getElementById('list-caja-egresos');
@@ -1921,6 +1950,7 @@ const FORM_BUILDERS = {
       <div><label class="fl">Monto</label><input class="fi" id="f-monto" type="number" step="0.01" value="${item?.monto??''}"></div>
       <div><label class="fl">Moneda</label>${monedaSelect(item?.moneda)}</div>
     </div>
+    <div class="frow"><label class="fl">T.C. (si es otra moneda, para la Caja)</label><input class="fi" id="f-tipoCambio" type="number" step="0.01" value="${item?.tipoCambio??''}" placeholder="Ej: 1050"></div>
     <div class="frow2">
       <div><label class="fl">Emisión</label><input class="fi" id="f-emision" type="date" value="${item?.emision||''}"></div>
       <div><label class="fl">Vencimiento</label><input class="fi" id="f-fecha" type="date" value="${item?.fecha||''}"></div>
@@ -1977,7 +2007,7 @@ function closeForm(){
 }
 
 const FIELD_MAP = {
-  facturas: ['proveedor','concepto','monto','moneda','emision','fecha','estado','fechaPago','notas'],
+  facturas: ['proveedor','concepto','monto','moneda','tipoCambio','emision','fecha','estado','fechaPago','notas'],
   recordatorios: ['tipo','titulo','fecha','recurrencia','monto','moneda','notas'],
 };
 
@@ -1987,7 +2017,7 @@ function saveForm(){
   FIELD_MAP[kind].forEach(f => {
     const el = document.getElementById('f-'+f);
     if (!el) return;
-    val[f] = f==='monto' ? (parseFloat(el.value)||0) : el.value.trim();
+    val[f] = f==='monto' ? (parseFloat(el.value)||0) : f==='tipoCambio' ? (parseFloat(el.value)||'') : el.value.trim();
   });
   if (kind==='recordatorios'){
     val.resuelto = document.getElementById('f-resuelto').checked;
