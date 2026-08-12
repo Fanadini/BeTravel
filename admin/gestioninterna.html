@@ -943,24 +943,27 @@ function cajaMontoARS(monto, moneda, tc){
   const conv = convertMonto(monto, moneda||'ARS', 'ARS', tc);
   return conv.note==='falta-tc' ? { montoARS:null, sinTC:true } : { montoARS:conv.value, sinTC:false };
 }
-function computeCajaMovimientos(mesKey){
+// matchFn recibe cada fecha de movimiento (string YYYY-MM-DD) y decide si
+// entra en el resultado — permite tanto "solo este mes" (computeCajaMovimientos)
+// como "todo hasta este mes inclusive" (computeCajaSaldoAcumulado).
+function collectCajaMovimientos(matchFn){
   const ingresos = [];
   const egresos = [];
   STATE.reservas.forEach(r => {
     objToArr(r.pagos).forEach(p => {
-      if (!p.fecha || p.fecha.slice(0,7)!==mesKey) return;
+      if (!p.fecha || !matchFn(p.fecha)) return;
       const moneda = p.moneda||r.moneda||'ARS';
       const monto = Number(p.monto)||0;
       ingresos.push({ fecha:p.fecha, monto, moneda, ...cajaMontoARS(monto, moneda, p.tipoCambio), label:`Pago recibido — ${r.codigo||r.cliente||'reserva'}`, reservaId:r.id });
     });
     objToArr(r.costos).forEach(c => {
-      if (!c.fechaPago || c.fechaPago.slice(0,7)!==mesKey) return;
+      if (!c.fechaPago || !matchFn(c.fechaPago)) return;
       const moneda = c.moneda||r.moneda||'ARS';
       const monto = Number(c.monto)||0;
       egresos.push({ fecha:c.fechaPago, monto, moneda, ...cajaMontoARS(monto, moneda, c.tipoCambio), label:`${c.proveedor||c.concepto||c.tipo||'Costo'} — ${r.codigo||r.cliente||'reserva'}`, reservaId:r.id });
     });
     objToArr(r.reparto).forEach(rep => {
-      if (!rep.pagado || !rep.fechaPago || rep.fechaPago.slice(0,7)!==mesKey) return;
+      if (!rep.pagado || !rep.fechaPago || !matchFn(rep.fechaPago)) return;
       const conv = repartoMontoEnSuMoneda(r, rep);
       if (conv.note==='falta-tc') return;
       // Si el ejecutivo cobró directo al pasajero un monto igual o mayor a su
@@ -972,7 +975,7 @@ function computeCajaMovimientos(mesKey){
     });
   });
   STATE.facturas.forEach(f => {
-    if (f.estado!=='pagada' || !f.fechaPago || f.fechaPago.slice(0,7)!==mesKey) return;
+    if (f.estado!=='pagada' || !f.fechaPago || !matchFn(f.fechaPago)) return;
     const moneda = f.moneda||'ARS';
     const monto = Number(f.monto)||0;
     egresos.push({ fecha:f.fechaPago, monto, moneda, ...cajaMontoARS(monto, moneda, f.tipoCambio), label:`Factura — ${f.proveedor||'proveedor'}`, facturaId:f.id });
@@ -980,6 +983,19 @@ function computeCajaMovimientos(mesKey){
   ingresos.sort((a,b) => a.fecha.localeCompare(b.fecha));
   egresos.sort((a,b) => a.fecha.localeCompare(b.fecha));
   return { ingresos, egresos };
+}
+function computeCajaMovimientos(mesKey){
+  return collectCajaMovimientos(fecha => fecha.slice(0,7)===mesKey);
+}
+// Saldo real disponible: no se resetea cada mes. Si cobrás en julio y pagás
+// en agosto, el saldo de agosto tiene que arrastrar lo que quedó de julio —
+// por eso suma todos los movimientos desde siempre hasta el mes elegido
+// inclusive, no solo los de ese mes.
+function computeCajaSaldoAcumulado(mesKey){
+  const { ingresos, egresos } = collectCajaMovimientos(fecha => fecha.slice(0,7)<=mesKey);
+  const inARS = sumARSConvertido(ingresos);
+  const outARS = sumARSConvertido(egresos);
+  return { neto: inARS.ars - outARS.ars, sinTC: inARS.sinTC + outARS.sinTC };
 }
 function sumPorMoneda(arr){
   return arr.reduce((acc,x) => { acc[x.moneda==='USD'?'USD':'ARS'] += x.monto; return acc; }, { ARS:0, USD:0 });
@@ -1005,11 +1021,13 @@ function renderCaja(){
   const outARS = sumARSConvertido(egresos);
   const netoARS = inARS.ars - outARS.ars;
   const sinTCTotal = inARS.sinTC + outARS.sinTC;
+  const acumulado = computeCajaSaldoAcumulado(cajaMes);
   const cardsEl = document.getElementById('caja-stat-cards');
   if (cardsEl) cardsEl.innerHTML = `
     <div class="stat-card"><h4>Ingresos del mes</h4><div class="stat-amounts">${statAmountsHtml(totalIn)}</div></div>
     <div class="stat-card"><h4>Egresos del mes</h4><div class="stat-amounts">${statAmountsHtml(totalOut)}</div></div>
-    <div class="stat-card${netoARS<0?' alert':''}"><h4>Saldo neto (en pesos)</h4><div class="stat-amounts">${amountHtml(netoARS,'ARS','stat-amount')}</div>${sinTCTotal ? `<div style="font-size:10px;margin-top:4px;color:var(--red)">⚠ ${sinTCTotal} movimiento(s) en USD sin T.C. cargado, no incluido(s)</div>` : ''}</div>
+    <div class="stat-card"><h4>Movimiento del mes (en pesos)</h4><div class="stat-amounts">${amountHtml(netoARS,'ARS','stat-amount')}</div>${sinTCTotal ? `<div style="font-size:10px;margin-top:4px;color:var(--red)">⚠ ${sinTCTotal} sin T.C., no incluido(s)</div>` : ''}</div>
+    <div class="stat-card${acumulado.neto<0?' alert':''}"><h4>Saldo acumulado (en pesos)</h4><div class="stat-amounts">${amountHtml(acumulado.neto,'ARS','stat-amount')}</div>${acumulado.sinTC ? `<div style="font-size:10px;margin-top:4px;color:var(--red)">⚠ ${acumulado.sinTC} sin T.C. en el histórico, no incluido(s)</div>` : ''}</div>
   `;
   const movRowHtml = (x) => {
     const equivHtml = x.moneda!=='USD' ? '' : (x.sinTC
