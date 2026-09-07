@@ -196,6 +196,13 @@ section { padding: 96px 48px; }
 
 [id] { scroll-margin-top: 72px; }
 
+/* ─── FAQ ─── */
+.faq-list { max-width: 760px; margin-top: 32px; }
+.faq-item { padding: 24px 0; border-bottom: 1px solid var(--teal-15); }
+.faq-item:first-child { border-top: 1px solid var(--teal-15); }
+.faq-question { font-size: 16px; font-weight: 600; color: var(--teal); margin-bottom: 10px; }
+.faq-answer { font-size: 14px; line-height: 1.75; color: var(--dark); opacity: 0.8; }
+
 /* ─── HERO (home) ─── */
 .hero {
   min-height: 100vh;
