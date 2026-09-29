@@ -53,7 +53,7 @@ El cotizador usa estos nodos, todos habilitados en `database.rules.json`:
 
 Hasta que se publiquen las reglas (paso 2), Firebase rechaza los guardados en esos nodos y el cotizador lo avisa con un mensaje en rojo. "Convertir en reserva" escribe en `finanzas/reservas`.
 
-La redacción con IA no pasa por Firebase: usa un Worker de Cloudflare con la API key de Claude (ver `infra/redactor/LEEME.md`).
+La redacción con IA no pasa por Firebase: usa un Worker de Cloudflare con Workers AI, sin costo en el plan gratuito (ver `infra/redactor/LEEME.md`).
 
 ## Notas
 
