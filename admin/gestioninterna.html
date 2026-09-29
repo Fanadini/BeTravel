@@ -262,6 +262,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   <div class="nav-right">
     <span class="nav-user" id="nav-user-name"></span>
     <div class="sync-pill"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Conectando…</span></div>
+    <a class="nav-btn" href="cotizador.html">Cotizador</a>
     <a class="nav-btn" href="kanban.html">Prospectos</a>
     <button class="nav-btn" onclick="logout()">Salir</button>
   </div>
@@ -571,8 +572,10 @@ function renderLastEdit(){
   const el = document.getElementById('panel-last-edit');
   if (!el) return;
   const d = reservaCtx.data;
-  if (!d || !d.updatedAt) { el.textContent = ''; return; }
-  el.textContent = `Última edición: ${d.updatedBy || '—'} · ${fmtDateHora(d.updatedAt)}`;
+  const partes = [];
+  if (d && d.updatedAt) partes.push(escHtml(`Última edición: ${d.updatedBy || '—'} · ${fmtDateHora(d.updatedAt)}`));
+  if (d && d.cotizacionId) partes.push(`<a href="cotizador.html?c=${encodeURIComponent(d.cotizacionId)}" style="color:var(--teal);font-weight:500">Cotización de origen${d.cotizacionCodigo ? ' ' + escHtml(d.cotizacionCodigo) : ''} →</a>`);
+  el.innerHTML = partes.join(' · ');
 }
 function fmtDateHora(ts){
   const dt = new Date(ts);
@@ -2825,6 +2828,10 @@ function saveReserva(){
     fechaInicio: gv('r-fecha-inicio'), fechaFin: gv('r-fecha-fin'),
     pasajeros: parseInt(gv('r-pasajeros'),10)||'', notas: gv('r-notas'),
     pagos: {}, reparto: {}, comprobantes: {}, costos: {}, cotizado: {}, facturacion: {}, pasajeroIds: {},
+    // Vínculos de origen (prospecto del kanban / cotización): no son campos del
+    // formulario, así que se copian para que el set() completo no los borre.
+    ...Object.fromEntries(['prospectoId','cotizacionId','cotizacionCodigo']
+      .filter(k => reservaCtx.data && reservaCtx.data[k]).map(k => [k, reservaCtx.data[k]])),
     updatedAt: Date.now(), updatedBy: CURRENT_USER.email,
     historial: [...(Array.isArray(reservaCtx.data && reservaCtx.data.historial) ? reservaCtx.data.historial : []),
       { fecha: Date.now(), usuario: CURRENT_USER.email }].slice(-20),

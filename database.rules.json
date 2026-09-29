@@ -12,7 +12,8 @@
         },
         "proveedores": { ".write": "auth != null" },
         "ejecutivos": { ".write": "auth != null" },
-        "reservaCodigoCounter": { ".write": "auth != null" }
+        "reservaCodigoCounter": { ".write": "auth != null" },
+        "cotizacionCodigoCounter": { ".write": "auth != null" }
       },
 
       "reservas": {
@@ -27,7 +28,8 @@
 
       "recordatorios": { ".write": "auth != null" },
       "pasajeros": { ".write": "auth != null" },
-      "clientesDocumentos": { ".write": "auth != null" }
+      "clientesDocumentos": { ".write": "auth != null" },
+      "cotizaciones": { ".write": "auth != null" }
     },
 
     "kanban": {

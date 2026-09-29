@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Be•Travel Admin — Cotizador</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --teal:#0F3D3E;--teal-h:#0c3233;--teal-l:rgba(15,61,62,.07);--teal-m:rgba(15,61,62,.14);
+  --beige:#E6E1D8;--beige-d:#D5CEC3;--bronze:#B08A5A;--dark:#2B2B2B;--white:#fff;
+  --board:#e8e3da;--red:#b83232;--amber:#c97a1a;--green:#2f8f4e;
+  --shadow-s:0 1px 3px rgba(0,0,0,.10),0 1px 2px rgba(0,0,0,.06);
+  --shadow-m:0 4px 12px rgba(0,0,0,.12),0 2px 4px rgba(0,0,0,.08);
+  --shadow-l:0 10px 30px rgba(0,0,0,.16),0 4px 8px rgba(0,0,0,.08);
+}
+body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;overflow:hidden}
+
+/* ── NAV (igual a gestioninterna.html) ── */
+.nav{background:var(--teal);height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:300;box-shadow:0 2px 8px rgba(0,0,0,.2);gap:10px;flex-shrink:0}
+.nav-brand{font-size:15px;font-weight:600;color:var(--beige);letter-spacing:-.3px;white-space:nowrap}
+.nav-brand span{color:var(--bronze)}
+.nav-right{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.nav-user{font-size:11px;color:rgba(230,225,216,.6);white-space:nowrap}
+.sync-pill{display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:99px;background:rgba(0,0,0,.2);font-size:10px;color:rgba(230,225,216,.55)}
+.sync-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;transition:background .4s}
+.sync-dot.ok{background:#4ade80;box-shadow:0 0 6px #4ade8088}
+.sync-dot.err{background:#f87171}
+.sync-dot.loading{background:var(--bronze);animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.nav-btn{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:6px 12px;border-radius:6px;border:1px solid rgba(230,225,216,.2);background:rgba(255,255,255,.08);color:rgba(230,225,216,.75);cursor:pointer;transition:all .18s;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center}
+.nav-btn:hover{background:rgba(255,255,255,.16);color:var(--beige);border-color:rgba(230,225,216,.4)}
+
+/* ── LOADING / LOGIN ── */
+.loading-overlay{position:fixed;inset:0;background:rgba(15,61,62,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:14px}
+.loading-overlay.hidden{display:none}
+.spinner{width:32px;height:32px;border-radius:50%;border:3px solid rgba(230,225,216,.15);border-top-color:var(--bronze);animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:12px;color:rgba(230,225,216,.5)}
+.login-screen{position:fixed;inset:0;background:var(--teal);display:flex;align-items:center;justify-content:center;z-index:1100;padding:20px}
+.login-screen.hidden{display:none}
+.login-box{background:var(--white);border-radius:16px;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center}
+.login-logo{font-size:22px;font-weight:600;color:var(--teal);letter-spacing:-.5px;margin-bottom:6px}
+.login-logo span{color:var(--bronze)}
+.login-subtitle{font-size:12px;color:rgba(43,43,43,.45);margin-bottom:32px}
+.google-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 16px;border-radius:9px;border:1.5px solid var(--beige-d);background:var(--white);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--dark);cursor:pointer;transition:all .18s;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.google-btn:hover{border-color:rgba(15,61,62,.3);background:var(--beige)}
+.login-error{font-size:11px;color:var(--red);margin-top:14px;min-height:16px}
+
+/* ── MAIN ── */
+.main{flex:1;overflow-y:auto;padding:18px}
+.banner{display:none;background:rgba(184,50,50,.1);border:1px solid rgba(184,50,50,.3);color:var(--red);font-size:12px;line-height:1.5;padding:10px 14px;border-radius:8px;margin-bottom:14px}
+.banner.show{display:block}
+
+/* Lista */
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.section-head h2{font-size:15px;font-weight:600;color:var(--teal)}
+.search{font-family:'Inter',sans-serif;font-size:12px;padding:7px 12px;border-radius:7px;border:1.5px solid var(--beige-d);background:var(--white);outline:none;width:260px;max-width:100%}
+.search:focus{border-color:var(--teal)}
+.new-btn{font-family:'Inter',sans-serif;font-size:12px;font-weight:600;padding:8px 14px;border-radius:7px;border:none;background:var(--bronze);color:#fff;cursor:pointer;transition:background .15s;display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap}
+.new-btn:hover{background:#9a7648}
+.new-btn.outline{background:transparent;color:var(--teal);border:1.5px solid var(--teal)}
+.new-btn.outline:hover{background:var(--teal-l)}
+.new-btn:disabled{opacity:.45;cursor:not-allowed}
+.data-table{width:100%;border-collapse:collapse;background:var(--white);border-radius:10px;overflow:hidden;box-shadow:var(--shadow-s)}
+.data-table th{padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:rgba(43,43,43,.45);letter-spacing:1px;text-transform:uppercase;background:var(--beige);border-bottom:1px solid var(--beige-d)}
+.data-table td{padding:11px 14px;font-size:12.5px;border-bottom:1px solid rgba(0,0,0,.05);vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tbody tr:hover td{background:rgba(15,61,62,.03);cursor:pointer}
+.table-empty{padding:40px 20px;text-align:center;color:rgba(43,43,43,.35);font-size:12.5px}
+.money{font-weight:600;white-space:nowrap}
+.money.usd{color:var(--bronze)}
+.muted{color:rgba(43,43,43,.45);font-size:11px}
+.badge{font-size:10px;font-weight:600;padding:3px 9px;border-radius:99px;white-space:nowrap;display:inline-block}
+.badge.estado-borrador{background:rgba(43,43,43,.08);color:rgba(43,43,43,.6)}
+.badge.estado-enviada{background:rgba(15,61,62,.14);color:var(--teal)}
+.badge.estado-aceptada{background:rgba(47,143,78,.13);color:var(--green)}
+.badge.estado-rechazada{background:rgba(184,50,50,.12);color:var(--red)}
+.badge.reserva{background:rgba(176,138,90,.18);color:var(--bronze);margin-left:4px}
+
+/* Editor */
+.editor{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;max-width:1240px;margin:0 auto;align-items:start}
+@media (max-width:980px){.editor{grid-template-columns:1fr}}
+.back-link{font-size:12px;color:var(--teal);text-decoration:none;font-weight:500;display:inline-flex;gap:6px;margin-bottom:12px;cursor:pointer;background:none;border:none;font-family:'Inter',sans-serif}
+.back-link:hover{text-decoration:underline}
+.card{background:var(--white);border-radius:10px;box-shadow:var(--shadow-s);padding:18px 20px;margin-bottom:14px}
+.card h3{font-size:10px;font-weight:600;color:rgba(43,43,43,.45);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card h3::after{content:'';flex:1;height:1px;background:var(--beige-d)}
+.card-hint{font-size:11px;color:rgba(43,43,43,.45);line-height:1.5;margin:-4px 0 12px}
+.fl{display:block;font-size:11px;font-weight:500;color:rgba(43,43,43,.5);margin-bottom:5px}
+.fi,.fsel,.fta{width:100%;font-family:'Inter',sans-serif;font-size:13px;color:var(--dark);background:var(--beige);border:1.5px solid var(--beige-d);border-radius:8px;padding:9px 12px;outline:none;transition:border-color .15s,background .15s}
+.fi:focus,.fsel:focus,.fta:focus{border-color:var(--teal);background:var(--white)}
+.fta{resize:vertical;min-height:70px;line-height:1.55}
+.grid{display:grid;gap:10px;margin-bottom:12px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:1fr 1fr 1fr}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media (max-width:640px){.g3,.g4{grid-template-columns:1fr 1fr}}
+.frow{margin-bottom:12px}
+.check-row{display:flex;align-items:center;gap:8px;font-size:12.5px;margin-bottom:8px;cursor:pointer}
+.check-row input{width:16px;height:16px;accent-color:var(--teal)}
+
+.item-card{background:var(--beige);border:1px solid var(--beige-d);border-radius:8px;padding:10px 12px;margin-bottom:8px}
+.item-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.item-label{font-size:10px;font-weight:600;color:var(--teal);letter-spacing:.5px;text-transform:uppercase}
+.item-actions{display:flex;gap:2px}
+.icon-btn{width:24px;height:24px;border-radius:4px;border:none;background:transparent;cursor:pointer;color:rgba(43,43,43,.4);font-size:12px;display:flex;align-items:center;justify-content:center}
+.icon-btn:hover{background:rgba(15,61,62,.08);color:var(--teal)}
+.icon-btn.danger:hover{background:rgba(184,50,50,.08);color:var(--red)}
+.icon-btn:disabled{opacity:.25;cursor:default;background:none}
+.item-card .fi,.item-card .fsel,.item-card .fta{background:var(--white);font-size:12px;padding:7px 9px;border-width:1px;border-radius:6px}
+.item-card .fta{min-height:52px}
+.item-card .fl{font-size:10px;margin-bottom:3px}
+.item-card .grid{margin-bottom:8px}
+.item-foot{font-size:11px;color:rgba(43,43,43,.55);display:flex;gap:14px;flex-wrap:wrap}
+.item-foot .warn{color:var(--amber)}
+.add-item-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border-radius:7px;border:1.5px dashed var(--beige-d);background:transparent;color:rgba(43,43,43,.5);font-family:'Inter',sans-serif;font-size:12px;font-weight:500;cursor:pointer;width:100%}
+.add-item-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-l)}
+.row-btns{display:flex;gap:8px;margin-top:4px}
+.row-btns .add-item-btn{flex:1}
+
+/* Resumen lateral */
+.side{position:sticky;top:0}
+.side .card{padding:16px 18px}
+.tot-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:12px;padding:5px 0;color:rgba(43,43,43,.65)}
+.tot-line b{font-size:13px;color:var(--dark);white-space:nowrap}
+.tot-line.big b{font-size:19px;color:var(--teal)}
+.tot-sep{height:1px;background:var(--beige-d);margin:6px 0}
+.tot-warn{font-size:11px;color:var(--amber);line-height:1.45;margin-top:8px}
+.side-btns{display:flex;flex-direction:column;gap:8px}
+.side-btns .new-btn{justify-content:center;width:100%}
+.save-status{font-size:11px;color:rgba(43,43,43,.45);text-align:center;margin-top:10px;min-height:14px}
+.link-danger{background:none;border:none;color:rgba(184,50,50,.75);font-family:'Inter',sans-serif;font-size:11.5px;cursor:pointer;margin-top:6px}
+.link-danger:hover{color:var(--red);text-decoration:underline}
+
+/* ── VISTA PREVIA / PDF ── */
+.deck-modal{position:fixed;inset:0;background:rgba(20,24,24,.88);z-index:900;display:none;flex-direction:column}
+.deck-modal.open{display:flex}
+.deck-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;background:var(--teal);flex-shrink:0}
+.deck-toolbar .t{color:var(--beige);font-size:13px;font-weight:600}
+.deck-toolbar .hint{color:rgba(230,225,216,.55);font-size:11px}
+.deck-scroll{flex:1;overflow:auto;padding:20px}
+.deck{display:flex;flex-direction:column;align-items:center;gap:18px;transform-origin:top center}
+
+/* Slides: A4 horizontal (297 × 210 mm). Todo en mm/pt para que la vista
+   previa y el PDF impreso coincidan. */
+.slide{width:297mm;height:210mm;position:relative;overflow:hidden;background:#E6E1D8;color:#2B2B2B;font-family:'Inter',sans-serif;display:flex;flex-direction:column;padding:14mm 18mm 11mm;box-shadow:0 6px 24px rgba(0,0,0,.35);flex-shrink:0}
+.s-head{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:5mm;border-bottom:.3mm solid rgba(15,61,62,.25);margin-bottom:8mm}
+.s-logo{font-size:12pt;font-weight:600;color:#0F3D3E;letter-spacing:-.2pt}
+.s-logo span{color:#B08A5A}
+.s-kicker{font-size:8pt;font-weight:600;letter-spacing:1.6pt;text-transform:uppercase;color:rgba(15,61,62,.7)}
+.s-title{font-size:24pt;font-weight:600;color:#0F3D3E;letter-spacing:-.4pt;margin-bottom:6mm;line-height:1.15}
+.s-body{flex:1;min-height:0;overflow:hidden}
+.s-foot{display:flex;justify-content:space-between;font-size:7.5pt;color:rgba(43,43,43,.5);padding-top:4mm;border-top:.3mm solid rgba(15,61,62,.15);margin-top:5mm}
+.s-text{font-size:11.5pt;line-height:1.6;white-space:pre-line;max-width:200mm}
+
+/* Portada */
+.slide-cover{padding:0;flex-direction:row;background:#0F3D3E}
+.cover-panel{flex:1;padding:16mm 18mm 13mm;display:flex;flex-direction:column;color:#E6E1D8}
+.cover-logo{font-size:15pt;font-weight:600;letter-spacing:-.3pt}
+.cover-logo span{color:#B08A5A}
+.cover-main{flex:1;display:flex;flex-direction:column;justify-content:center;max-width:150mm}
+.cover-kicker{font-size:8.5pt;font-weight:600;letter-spacing:2pt;text-transform:uppercase;color:rgba(230,225,216,.6);margin-bottom:6mm}
+.cover-title{font-size:32pt;font-weight:600;letter-spacing:-.6pt;line-height:1.1;margin-bottom:8mm;color:#fff}
+.cover-meta{font-size:12pt;line-height:1.7;color:rgba(230,225,216,.85)}
+.cover-foot{font-size:8pt;color:rgba(230,225,216,.5);letter-spacing:.3pt}
+.cover-img{width:46%;height:100%;object-fit:cover;display:block}
+
+/* Itinerario */
+.dias{display:grid;grid-template-columns:1fr 1fr;gap:7mm 12mm;align-content:start}
+.dia{break-inside:avoid;border-left:.8mm solid #0F3D3E;padding-left:4.5mm}
+.dia-label{font-size:7.5pt;font-weight:600;letter-spacing:1.2pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin-bottom:1.5mm}
+.dia-titulo{font-size:12.5pt;font-weight:600;color:#0F3D3E;margin-bottom:1.5mm;line-height:1.3}
+.dia-desc{font-size:9.5pt;line-height:1.55;white-space:pre-line;color:#2B2B2B}
+.dias.solo{grid-template-columns:1fr}
+.dias.solo .dia-desc{font-size:9pt}
+
+/* Servicios */
+.servicios{column-count:2;column-gap:12mm}
+.srv-tipo{font-size:7.5pt;font-weight:600;letter-spacing:1.4pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin:0 0 2mm;break-after:avoid}
+.srv{break-inside:avoid;margin-bottom:4.5mm}
+.srv-concepto{font-size:11pt;font-weight:600;color:#0F3D3E;line-height:1.35}
+.srv-detalle{font-size:9pt;line-height:1.5;white-space:pre-line;margin-top:1mm}
+.srv-group{break-inside:avoid-column;margin-bottom:3mm}
+
+/* Inversión */
+.inv-total{display:flex;flex-direction:column;justify-content:center;height:100%;max-width:200mm}
+.inv-label{font-size:8.5pt;font-weight:600;letter-spacing:1.6pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin-bottom:3mm}
+.inv-amount{font-size:40pt;font-weight:600;color:#0F3D3E;letter-spacing:-1pt;line-height:1.1}
+.inv-pp{font-size:14pt;color:#2B2B2B;margin-top:5mm}
+.inv-note{font-size:9pt;color:rgba(43,43,43,.6);margin-top:8mm;line-height:1.55;max-width:170mm}
+.inv-table{width:100%;border-collapse:collapse;font-size:10pt}
+.inv-table th{text-align:left;font-size:7.5pt;font-weight:600;letter-spacing:1.2pt;text-transform:uppercase;color:rgba(15,61,62,.7);padding:0 0 2.5mm;border-bottom:.3mm solid rgba(15,61,62,.35)}
+.inv-table td{padding:2.3mm 0;border-bottom:.2mm solid rgba(15,61,62,.15);vertical-align:top}
+.inv-table td.r,.inv-table th.r{text-align:right;white-space:nowrap}
+.inv-table tr.total td{border-bottom:none;border-top:.4mm solid #0F3D3E;font-weight:600;font-size:12pt;color:#0F3D3E;padding-top:3mm}
+.inv-table tr.pp td{border-bottom:none;font-size:10pt;color:rgba(43,43,43,.75);padding-top:1mm}
+
+/* Condiciones */
+.cond{display:grid;grid-template-columns:1fr 1fr;gap:14mm}
+.cond h4{font-size:8pt;font-weight:600;letter-spacing:1.4pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin-bottom:3mm}
+.cond ul{list-style:none}
+.cond li{font-size:10pt;line-height:1.5;padding:1.3mm 0 1.3mm 4.5mm;position:relative}
+.cond li::before{content:'';position:absolute;left:0;top:3.4mm;width:1.6mm;height:.3mm;background:#0F3D3E}
+.validez{margin-top:6mm;font-size:10pt;font-weight:600;color:#0F3D3E}
+
+/* Cierre */
+.slide-close{background:#0F3D3E;color:#E6E1D8;justify-content:center}
+.close-logo{font-size:30pt;font-weight:600;letter-spacing:-.6pt;margin-bottom:8mm}
+.close-logo span{color:#B08A5A}
+.close-text{font-size:13pt;line-height:1.6;max-width:170mm;color:rgba(230,225,216,.9);margin-bottom:12mm}
+.close-contact{font-size:10.5pt;line-height:1.9;color:rgba(230,225,216,.75)}
+.close-contact b{color:#fff;font-weight:600}
+
+@media print{
+  @page{size:A4 landscape;margin:0}
+  html,body{height:auto!important;overflow:visible!important;background:#fff!important;display:block!important}
+  body>*:not(#deck-modal){display:none!important}
+  #deck-modal{position:static!important;display:block!important;background:none!important}
+  .deck-toolbar{display:none!important}
+  .deck-scroll{overflow:visible!important;padding:0!important}
+  .deck{display:block!important;zoom:1!important;transform:none!important}
+  .slide{box-shadow:none!important;margin:0!important;break-after:page;page-break-after:always}
+  .slide:last-child{break-after:auto;page-break-after:auto}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">Be<span>•</span>Travel</div>
+    <div class="login-subtitle">Cotizador</div>
+    <button class="google-btn" onclick="loginWithGoogle()">
+      <svg width="18" height="18" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Continuar con Google
+    </button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<div class="loading-overlay" id="lo">
+  <div class="spinner"></div>
+  <div class="loading-text">Conectando con Firebase…</div>
+</div>
+
+<!-- NAV -->
+<div class="nav">
+  <div class="nav-brand">Be<span>•</span>Travel Admin — Cotizador</div>
+  <div class="nav-right">
+    <span class="nav-user" id="nav-user-name"></span>
+    <div class="sync-pill"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Conectando…</span></div>
+    <a class="nav-btn" href="gestioninterna.html">Gestión interna</a>
+    <a class="nav-btn" href="kanban.html">Prospectos</a>
+    <button class="nav-btn" onclick="logout()">Salir</button>
+  </div>
+</div>
+
+<div class="main" id="main">
+  <div class="banner" id="banner"></div>
+
+  <!-- LISTA -->
+  <div id="view-list">
+    <div class="section-head">
+      <h2>Cotizaciones</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input class="search" id="search" placeholder="Buscar por cliente, destino o código…" oninput="renderList()">
+        <button class="new-btn" onclick="nuevaCotizacion()">+ Nueva cotización</button>
+      </div>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Código</th><th>Cliente</th><th>Propuesta</th><th>Fechas</th><th>Pax</th><th>Total</th><th>Estado</th><th>Actualizada</th></tr></thead>
+      <tbody id="tbody-cot"></tbody>
+    </table>
+  </div>
+
+  <!-- EDITOR -->
+  <div id="view-editor" style="display:none"></div>
+</div>
+
+<!-- VISTA PREVIA / PDF -->
+<div class="deck-modal" id="deck-modal">
+  <div class="deck-toolbar">
+    <div>
+      <div class="t">Vista previa de la propuesta</div>
+      <div class="hint">En el diálogo de impresión elegí "Guardar como PDF". El formato ya queda en A4 horizontal.</div>
+      <div class="hint" id="deck-warn" style="color:#f0b35a"></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="nav-btn" onclick="imprimirDeck()">Descargar PDF</button>
+      <button class="nav-btn" onclick="cerrarDeck()">Cerrar</button>
+    </div>
+  </div>
+  <div class="deck-scroll" id="deck-scroll"><div class="deck" id="deck"></div></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script>
+// ── FIREBASE ────────────────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey:"AIzaSyARJ-zVCszUxJ_Fs1UBBtMiQvjuDF98IYI",
+  authDomain:"betravel-kanban.firebaseapp.com",
+  databaseURL:"https://betravel-kanban-default-rtdb.firebaseio.com",
+  projectId:"betravel-kanban",
+  storageBucket:"betravel-kanban.firebasestorage.app",
+  messagingSenderId:"644328296494",
+  appId:"1:644328296494:web:aec3842de80021159f8fbf",
+});
+const db = firebase.database();
+const auth = firebase.auth();
+const COT_REF = db.ref('finanzas/cotizaciones');
+const RESERVAS_REF = db.ref('finanzas/reservas');
+const META_COT_COUNTER_REF = db.ref('finanzas/meta/cotizacionCodigoCounter');
+const META_PROV_REF = db.ref('finanzas/meta/proveedores');
+const META_USUARIOS_REF = db.ref('finanzas/meta/usuarios');
+
+// Mismos tipos que gestioninterna.html, para que "Convertir en reserva" sea compatible.
+const SERVICIO_TIPOS = ['Aéreo','Hotel','Traslados','Autos','Tren','Actividades','Crucero','Atracciones','Otro'];
+const ESTADOS_COT = { borrador:'Borrador', enviada:'Enviada', aceptada:'Aceptada', rechazada:'Rechazada' };
+const PORTADAS = [
+  ['../betravel-editorial.jpg','Editorial'],
+  ['../becorporate-hero.jpg','Corporativo'],
+  ['../becommunity-hero.jpg','Community'],
+  ['../vacacional-paris.jpg','Vacacional'],
+  ['custom','Link propio'],
+  ['','Sin imagen'],
+];
+const MARKUP_DEFAULT = 10;
+// Borradores de texto para la propuesta: revisarlos antes de enviar la primera.
+const DEFAULT_NO_INCLUYE = 'Gastos personales.\nPropinas.\nServicios no mencionados como incluidos.';
+const DEFAULT_CONDICIONES = 'Tarifas sujetas a disponibilidad al momento de la confirmación.\nLa propuesta no constituye reserva hasta su confirmación y el pago de la seña acordada.\nCondiciones de cambio y cancelación según las políticas de cada proveedor.';
+
+// ── AUTH ───────────────────────────────────────────────────────────────────
+let CURRENT_USER = { email:'', nombre:'' };
+function emailKey(email){ return (email||'').toLowerCase().replace(/\./g, ','); }
+function loginWithGoogle(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  document.getElementById('login-error').textContent = '';
+  auth.signInWithPopup(provider).catch(err => {
+    document.getElementById('login-error').textContent = 'Error al iniciar sesión. Intentá de nuevo.';
+    console.error(err);
+  });
+}
+function logout(){ auth.signOut(); }
+
+let listenersAttached = false;
+auth.onAuthStateChanged(user => {
+  const loginScreen = document.getElementById('login-screen');
+  if (!user){
+    loginScreen.classList.remove('hidden');
+    document.getElementById('lo').classList.add('hidden');
+    return;
+  }
+  loginScreen.classList.add('hidden');
+  const nombreGoogle = user.displayName ? user.displayName.split(' ')[0] : user.email;
+  document.getElementById('nav-user-name').textContent = nombreGoogle;
+  CURRENT_USER = { email:user.email, nombre: user.displayName || nombreGoogle };
+  META_USUARIOS_REF.once('value').then(snap => {
+    const perfil = (snap.val()||{})[emailKey(user.email)];
+    if (perfil && perfil.nombre) CURRENT_USER.nombre = perfil.nombre;
+  }).catch(()=>{});
+  if (!listenersAttached){ attachListeners(); listenersAttached = true; }
+});
+
+function setSyncStatus(status, label){
+  document.getElementById('sync-dot').className = 'sync-dot ' + status;
+  document.getElementById('sync-label').textContent = label;
+}
+function showBanner(msg){
+  const b = document.getElementById('banner');
+  b.textContent = msg; b.classList.toggle('show', !!msg);
+}
+// Si las reglas de Firebase publicadas todavía no incluyen finanzas/cotizaciones,
+// toda escritura falla con PERMISSION_DENIED: se explica en vez de fallar en silencio.
+function handleWriteError(err){
+  console.error(err);
+  if (String(err && (err.code||err.message)).toUpperCase().includes('PERMISSION')){
+    showBanner('Firebase rechazó el guardado: faltan publicar las reglas actualizadas (database.rules.json) que habilitan finanzas/cotizaciones. Ver admin/SEGURIDAD_FIREBASE.md.');
+  } else {
+    showBanner('No se pudo guardar. Revisá la conexión e intentá de nuevo.');
+  }
+  setSaveStatus('Error al guardar');
+}
+
+// ── ESTADO ─────────────────────────────────────────────────────────────────
+let COTS = [];
+let PROVEEDORES = [];
+let CLIENTES = [];
+let editing = null; // { id, data }
+let saveTimer = null;
+let openedFromParam = false;
+
+function attachListeners(){
+  setSyncStatus('loading','Cargando…');
+  COT_REF.on('value', snap => {
+    const val = snap.val() || {};
+    COTS = Object.keys(val).map(id => ({ id, ...normalizar(val[id]) }));
+    renderList();
+    setSyncStatus('ok','Sincronizado');
+    document.getElementById('lo').classList.add('hidden');
+    openFromParam();
+  }, err => { setSyncStatus('err','Error de sync'); console.error(err); document.getElementById('lo').classList.add('hidden'); });
+  META_PROV_REF.on('value', snap => { PROVEEDORES = snap.val() ? Object.values(snap.val()) : []; refreshDatalists(); });
+  // Clientes: los que ya existen en reservas, solo para sugerir al tipear.
+  RESERVAS_REF.once('value').then(snap => {
+    const set = new Set();
+    Object.values(snap.val()||{}).forEach(r => { if (r && r.cliente) set.add(String(r.cliente).trim()); });
+    CLIENTES = [...set].sort((a,b) => a.localeCompare(b));
+    refreshDatalists();
+  }).catch(()=>{});
+}
+
+function openFromParam(){
+  if (openedFromParam) return;
+  const id = new URLSearchParams(location.search).get('c');
+  if (!id){ openedFromParam = true; return; }
+  if (!COTS.some(c => c.id === id)) return;
+  openedFromParam = true;
+  abrirCotizacion(id);
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function round2(n){ return Math.round((Number(n)||0)*100)/100; }
+function num(v){ const n = parseFloat(v); return isFinite(n) ? n : 0; }
+function fmtMoney(monto, moneda){
+  const s = (Number(monto)||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return (moneda==='USD' ? 'US$ ' : '$ ') + s;
+}
+function fmtNum(n){ return (Number(n)||0).toLocaleString('es-AR',{maximumFractionDigits:2}); }
+function parseISO(d){ if (!d) return null; const [y,m,dd] = d.split('-').map(Number); return new Date(y, m-1, dd); }
+function addDays(d, n){ const x = parseISO(d); if (!x) return null; x.setDate(x.getDate()+n); return x; }
+function fmtDateShort(d){ const x = typeof d==='string' ? parseISO(d) : d; return x ? x.toLocaleDateString('es-AR') : '—'; }
+function fmtDateLong(d){ const x = typeof d==='string' ? parseISO(d) : d; return x ? x.toLocaleDateString('es-AR',{day:'numeric',month:'long',year:'numeric'}) : ''; }
+function fmtDiaLabel(x){ return x.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'}); }
+function rangoFechas(ini, fin){
+  const a = parseISO(ini), b = parseISO(fin);
+  if (!a && !b) return '';
+  if (a && !b) return fmtDateLong(a);
+  if (!a && b) return fmtDateLong(b);
+  const mismoMes = a.getMonth()===b.getMonth() && a.getFullYear()===b.getFullYear();
+  if (mismoMes) return `${a.getDate()} al ${fmtDateLong(b)}`;
+  const mismoAnio = a.getFullYear()===b.getFullYear();
+  return mismoAnio
+    ? `${a.toLocaleDateString('es-AR',{day:'numeric',month:'long'})} al ${fmtDateLong(b)}`
+    : `${fmtDateLong(a)} al ${fmtDateLong(b)}`;
+}
+function setUrlCotizacion(id){
+  try { history.replaceState(null, '', id ? '?c=' + encodeURIComponent(id) : location.pathname); } catch(e) {}
+}
+function selOpts(values, labels, current){
+  return values.map((v,i) => `<option value="${escHtml(v)}" ${v===current?'selected':''}>${escHtml(labels[i])}</option>`).join('');
+}
+function lineas(txt){ return String(txt||'').split('\n').map(s => s.trim()).filter(Boolean); }
+
+// Convierte montos entre ARS y USD con el tipo de cambio de referencia (ARS por US$ 1).
+function convertir(monto, de, a, tc){
+  if (!de || de===a) return { value: monto, ok:true };
+  const t = Number(tc)||0;
+  if (t<=0) return { value:0, ok:false };
+  if (a==='USD' && de==='ARS') return { value: monto/t, ok:true };
+  if (a==='ARS' && de==='USD') return { value: monto*t, ok:true };
+  return { value: monto, ok:true };
+}
+
+// ── MODELO ─────────────────────────────────────────────────────────────────
+function blankCotizacion(){
+  return {
+    codigo:'', titulo:'', cliente:'', destino:'', fechaInicio:'', fechaFin:'', pasajeros:'',
+    moneda:'USD', tipoCambio:'', validezHasta:'', estado:'borrador',
+    portada:'../betravel-editorial.jpg', portadaUrl:'',
+    introduccion:'', dias:[], servicios:[], markupDefault: MARKUP_DEFAULT,
+    mostrarDesglose:false, mostrarPorPersona:true,
+    noIncluye: DEFAULT_NO_INCLUYE, condiciones: DEFAULT_CONDICIONES,
+    reservaId:'', fechaCreacion: todayISO(),
+    creadoPor: CURRENT_USER.email, creadoPorNombre: CURRENT_USER.nombre,
+    updatedAt: Date.now(), updatedBy: CURRENT_USER.email,
+  };
+}
+// Firebase no guarda arrays vacíos ni campos vacíos: al leer se completan los defaults.
+function normalizar(raw){
+  const base = blankCotizacion();
+  const c = { ...base, ...(raw||{}) };
+  c.dias = Array.isArray(c.dias) ? c.dias.filter(Boolean) : Object.values(c.dias||{});
+  c.servicios = Array.isArray(c.servicios) ? c.servicios.filter(Boolean) : Object.values(c.servicios||{});
+  c.dias = c.dias.map(d => ({ titulo:'', descripcion:'', ...d }));
+  c.servicios = c.servicios.map(s => ({ tipo:'Otro', concepto:'', detalle:'', proveedor:'', costo:0, moneda:c.moneda, markup:0, precio:0, ...s }));
+  if (raw && raw.noIncluye === undefined) c.noIncluye = '';
+  if (raw && raw.condiciones === undefined) c.condiciones = '';
+  return c;
+}
+function totales(c){
+  let costo = 0, precio = 0, faltaTC = false, huboConversion = false;
+  (c.servicios||[]).forEach(s => {
+    const m = s.moneda || c.moneda;
+    const cc = convertir(num(s.costo), m, c.moneda, c.tipoCambio);
+    const pc = convertir(num(s.precio), m, c.moneda, c.tipoCambio);
+    if (!cc.ok || !pc.ok){ faltaTC = true; return; }
+    if (m !== c.moneda) huboConversion = true;
+    costo += cc.value; precio += pc.value;
+  });
+  const margen = precio - costo;
+  const pax = parseInt(c.pasajeros,10) || 0;
+  return { costo, precio, margen, margenPct: precio>0 ? margen/precio*100 : 0, porPersona: pax>0 ? precio/pax : null, pax, faltaTC, huboConversion };
+}
+function precioDe(s){ return round2(num(s.costo) * (1 + num(s.markup)/100)); }
+
+// ── LISTA ──────────────────────────────────────────────────────────────────
+function renderList(){
+  const tbody = document.getElementById('tbody-cot');
+  const q = (document.getElementById('search').value||'').trim().toLowerCase();
+  const items = COTS
+    .filter(c => !q || [c.codigo,c.cliente,c.titulo,c.destino].join(' ').toLowerCase().includes(q))
+    .sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0));
+  if (!items.length){
+    tbody.innerHTML = `<tr><td colspan="8" class="table-empty">${COTS.length ? 'Ninguna cotización coincide con la búsqueda.' : 'Todavía no hay cotizaciones. Creá la primera con "+ Nueva cotización".'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = items.map(c => {
+    const t = totales(c);
+    const usd = c.moneda==='USD' ? 'usd' : '';
+    return `<tr onclick="abrirCotizacion('${c.id}')">
+      <td><b>${escHtml(c.codigo||'—')}</b></td>
+      <td>${escHtml(c.cliente||'—')}</td>
+      <td>${escHtml(c.titulo||c.destino||'—')}</td>
+      <td>${c.fechaInicio ? fmtDateShort(c.fechaInicio) : '—'}${c.fechaFin ? ' – '+fmtDateShort(c.fechaFin) : ''}</td>
+      <td>${t.pax ? fmtNum(t.pax) : '—'}</td>
+      <td><span class="money ${usd}">${fmtMoney(t.precio, c.moneda)}</span></td>
+      <td><span class="badge estado-${escHtml(c.estado)}">${escHtml(ESTADOS_COT[c.estado]||c.estado)}</span>${c.reservaId ? '<span class="badge reserva">En reserva</span>' : ''}</td>
+      <td class="muted">${c.updatedAt ? new Date(c.updatedAt).toLocaleDateString('es-AR') : ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function nuevaCotizacion(){
+  META_COT_COUNTER_REF.transaction(cur => (Number(cur)||0) + 1).then(res => {
+    if (!res.committed) throw new Error('No se pudo asignar el código');
+    const data = blankCotizacion();
+    data.codigo = 'COT-' + String(res.snapshot.val()).padStart(4,'0');
+    const ref = COT_REF.push();
+    return ref.set(data).then(() => {
+      COTS = COTS.filter(c => c.id !== ref.key).concat([{ id: ref.key, ...data }]);
+      abrirCotizacion(ref.key);
+    });
+  }).catch(handleWriteError);
+}
+
+function abrirCotizacion(id){
+  const c = COTS.find(x => x.id === id);
+  if (!c) return;
+  const { id:_, ...data } = c;
+  editing = { id, data: normalizar(JSON.parse(JSON.stringify(data))) };
+  document.getElementById('view-list').style.display = 'none';
+  document.getElementById('view-editor').style.display = '';
+  setUrlCotizacion(id);
+  renderEditor();
+  document.getElementById('main').scrollTop = 0;
+}
+function volverALista(){
+  flushSave().finally(() => {
+    editing = null;
+    document.getElementById('view-editor').style.display = 'none';
+    document.getElementById('view-list').style.display = '';
+    setUrlCotizacion(null);
+    renderList();
+  });
+}
+
+// ── EDITOR ─────────────────────────────────────────────────────────────────
+function refreshDatalists(){
+  const dlP = document.getElementById('dl-proveedores');
+  if (dlP) dlP.innerHTML = PROVEEDORES.map(p => `<option value="${escHtml(p)}">`).join('');
+  const dlC = document.getElementById('dl-clientes');
+  if (dlC) dlC.innerHTML = CLIENTES.map(p => `<option value="${escHtml(p)}">`).join('');
+}
+
+function renderEditor(){
+  const c = editing.data;
+  const portadaSel = PORTADAS.some(([v]) => v === c.portada) ? c.portada : 'custom';
+  document.getElementById('view-editor').innerHTML = `
+    <button class="back-link" onclick="volverALista()">← Volver a cotizaciones</button>
+    <div class="editor">
+      <div>
+        <div class="card">
+          <h3>Datos de la propuesta · ${escHtml(c.codigo)}</h3>
+          <div class="frow"><label class="fl">Título de la propuesta</label><input class="fi" value="${escHtml(c.titulo)}" placeholder="Ej: Bariloche · Encuentro anual de equipos" oninput="setCampo('titulo',this.value)"></div>
+          <div class="grid g2">
+            <div><label class="fl">Cliente</label><input class="fi" list="dl-clientes" value="${escHtml(c.cliente)}" placeholder="Empresa, sindicato o pasajero" oninput="setCampo('cliente',this.value)"></div>
+            <div><label class="fl">Destino</label><input class="fi" value="${escHtml(c.destino)}" placeholder="Ej: San Carlos de Bariloche" oninput="setCampo('destino',this.value)"></div>
+          </div>
+          <div class="grid g4">
+            <div><label class="fl">Fecha de inicio</label><input class="fi" type="date" value="${escHtml(c.fechaInicio)}" onchange="setCampo('fechaInicio',this.value);renderDias()"></div>
+            <div><label class="fl">Fecha de fin</label><input class="fi" type="date" value="${escHtml(c.fechaFin)}" onchange="setCampo('fechaFin',this.value)"></div>
+            <div><label class="fl">Pasajeros</label><input class="fi" type="number" min="0" step="1" value="${escHtml(c.pasajeros)}" placeholder="Ej: 40" oninput="setCampo('pasajeros',this.value);renderTotales()"></div>
+            <div><label class="fl">Válida hasta</label><input class="fi" type="date" value="${escHtml(c.validezHasta)}" onchange="setCampo('validezHasta',this.value)"></div>
+          </div>
+          <div class="grid g4" style="margin-bottom:0">
+            <div><label class="fl">Moneda de la propuesta</label><select class="fsel" onchange="setCampo('moneda',this.value);renderServicios();renderTotales()">${selOpts(['USD','ARS'],['USD','ARS'],c.moneda)}</select></div>
+            <div><label class="fl">T.C. de referencia (ARS por US$)</label><input class="fi" type="number" step="0.01" value="${escHtml(c.tipoCambio)}" placeholder="Ej: 1450" oninput="setCampo('tipoCambio',this.value);renderServiciosFoot();renderTotales()"></div>
+            <div><label class="fl">Imagen de portada</label><select class="fsel" onchange="setPortada(this.value)">${selOpts(PORTADAS.map(p=>p[0]),PORTADAS.map(p=>p[1]),portadaSel)}</select></div>
+            <div id="portada-url-wrap" style="${portadaSel==='custom'?'':'display:none'}"><label class="fl">Link de la imagen</label><input class="fi" value="${escHtml(c.portadaUrl)}" placeholder="https://…/foto.jpg" oninput="setCampo('portadaUrl',this.value)"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Presentación</h3>
+          <p class="card-hint">Texto opcional que abre la propuesta. Si queda vacío, esa página no se incluye.</p>
+          <textarea class="fta" rows="4" placeholder="Ej: Compartimos la propuesta para el encuentro anual de su equipo, pensada para…" oninput="setCampo('introduccion',this.value)">${escHtml(c.introduccion)}</textarea>
+        </div>
+
+        <div class="card">
+          <h3>Itinerario</h3>
+          <p class="card-hint">Un bloque por día. Con las fechas cargadas, cada día muestra su fecha automáticamente.</p>
+          <div id="dias-list"></div>
+          <div class="row-btns">
+            <button class="add-item-btn" onclick="generarDias()">Generar días según las fechas</button>
+            <button class="add-item-btn" onclick="agregarDia()">+ Agregar día</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Servicios</h3>
+          <div class="grid g4" style="align-items:end">
+            <div><label class="fl">Markup por defecto (%)</label><input class="fi" type="number" step="0.1" value="${escHtml(c.markupDefault)}" oninput="setCampo('markupDefault',num(this.value))"></div>
+            <div style="grid-column:span 3"><p class="card-hint" style="margin:0">Se aplica a cada servicio nuevo. En cada línea podés ajustar el markup o escribir directo el precio de venta: el otro valor se recalcula solo.</p></div>
+          </div>
+          <div id="servicios-list"></div>
+          <button class="add-item-btn" onclick="agregarServicio()">+ Agregar servicio</button>
+        </div>
+
+        <div class="card">
+          <h3>No incluye y condiciones</h3>
+          <p class="card-hint">Un ítem por línea. Son borradores editables: revisalos antes de enviar la propuesta.</p>
+          <div class="grid g2" style="margin-bottom:0">
+            <div><label class="fl">No incluye</label><textarea class="fta" rows="5" oninput="setCampo('noIncluye',this.value)">${escHtml(c.noIncluye)}</textarea></div>
+            <div><label class="fl">Condiciones</label><textarea class="fta" rows="5" oninput="setCampo('condiciones',this.value)">${escHtml(c.condiciones)}</textarea></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="card">
+          <h3>Estado</h3>
+          <select class="fsel" onchange="setCampo('estado',this.value);renderList()">${selOpts(Object.keys(ESTADOS_COT),Object.values(ESTADOS_COT),c.estado)}</select>
+          ${c.reservaId ? `<p class="card-hint" style="margin:10px 0 0">Ya convertida en reserva.</p>` : ''}
+        </div>
+        <div class="card">
+          <h3>Totales</h3>
+          <div id="totales"></div>
+        </div>
+        <div class="card">
+          <h3>En la propuesta</h3>
+          <label class="check-row"><input type="checkbox" ${c.mostrarDesglose?'checked':''} onchange="setCampo('mostrarDesglose',this.checked)"> Mostrar desglose por servicio</label>
+          <label class="check-row" style="margin-bottom:0"><input type="checkbox" ${c.mostrarPorPersona?'checked':''} onchange="setCampo('mostrarPorPersona',this.checked)"> Mostrar precio por persona</label>
+        </div>
+        <div class="card">
+          <div class="side-btns">
+            <button class="new-btn" onclick="abrirDeck(false)">Vista previa</button>
+            <button class="new-btn outline" onclick="abrirDeck(true)">Descargar PDF</button>
+            <button class="new-btn outline" onclick="convertirEnReserva()">${c.reservaId ? 'Ver reserva →' : 'Convertir en reserva'}</button>
+            <button class="new-btn outline" onclick="duplicarCotizacion()">Duplicar</button>
+          </div>
+          <div style="text-align:center"><button class="link-danger" onclick="eliminarCotizacion()">Eliminar cotización</button></div>
+          <div class="save-status" id="save-status"></div>
+        </div>
+      </div>
+    </div>
+    <datalist id="dl-proveedores"></datalist>
+    <datalist id="dl-clientes"></datalist>
+  `;
+  refreshDatalists();
+  renderDias();
+  renderServicios();
+  renderTotales();
+}
+
+// Guardado automático: cada cambio actualiza el objeto local y agenda un set()
+// del documento completo (mismo criterio que gestioninterna.html).
+function setCampo(campo, valor){ editing.data[campo] = valor; markDirty(); }
+function setPortada(v){
+  editing.data.portada = v;
+  document.getElementById('portada-url-wrap').style.display = v==='custom' ? '' : 'none';
+  markDirty();
+}
+function setSaveStatus(txt){ const el = document.getElementById('save-status'); if (el) el.textContent = txt; }
+function markDirty(){
+  if (!editing) return;
+  setSaveStatus('Guardando…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { saveTimer = null; saveNow(); }, 700);
+}
+function saveNow(){
+  if (!editing) return Promise.resolve();
+  const { id, data } = editing;
+  data.updatedAt = Date.now();
+  data.updatedBy = CURRENT_USER.email;
+  const limpio = JSON.parse(JSON.stringify(data));
+  return COT_REF.child(id).set(limpio).then(() => {
+    setSaveStatus('Guardado ✓');
+    showBanner('');
+    const i = COTS.findIndex(c => c.id === id);
+    if (i >= 0) COTS[i] = { id, ...normalizar(limpio) };
+  }).catch(err => { handleWriteError(err); throw err; });
+}
+function flushSave(){
+  if (saveTimer){ clearTimeout(saveTimer); saveTimer = null; return saveNow(); }
+  return Promise.resolve();
+}
+
+// ── ITINERARIO ─────────────────────────────────────────────────────────────
+function renderDias(){
+  const el = document.getElementById('dias-list');
+  if (!el) return;
+  const c = editing.data;
+  if (!c.dias.length){ el.innerHTML = `<p class="card-hint" style="margin:0 0 10px">Todavía no hay días cargados.</p>`; return; }
+  el.innerHTML = c.dias.map((d,i) => {
+    const f = c.fechaInicio ? addDays(c.fechaInicio, i) : null;
+    return `<div class="item-card">
+      <div class="item-head">
+        <span class="item-label">Día ${i+1}${f ? ' · ' + escHtml(fmtDiaLabel(f)) : ''}</span>
+        <div class="item-actions">
+          <button class="icon-btn" title="Subir" ${i===0?'disabled':''} onclick="moverDia(${i},-1)">▲</button>
+          <button class="icon-btn" title="Bajar" ${i===c.dias.length-1?'disabled':''} onclick="moverDia(${i},1)">▼</button>
+          <button class="icon-btn danger" title="Eliminar día" onclick="eliminarDia(${i})">✕</button>
+        </div>
+      </div>
+      <div class="frow" style="margin-bottom:8px"><input class="fi" value="${escHtml(d.titulo)}" placeholder="Título del día, ej: Llegada y check-in" oninput="setDia(${i},'titulo',this.value)"></div>
+      <textarea class="fta" rows="3" placeholder="Actividades, horarios, comidas incluidas…" oninput="setDia(${i},'descripcion',this.value)">${escHtml(d.descripcion)}</textarea>
+    </div>`;
+  }).join('');
+}
+function setDia(i, campo, v){ editing.data.dias[i][campo] = v; markDirty(); }
+function agregarDia(){ editing.data.dias.push({ titulo:'', descripcion:'' }); renderDias(); markDirty(); }
+function moverDia(i, dir){
+  const d = editing.data.dias, j = i + dir;
+  if (j < 0 || j >= d.length) return;
+  [d[i], d[j]] = [d[j], d[i]];
+  renderDias(); markDirty();
+}
+function eliminarDia(i){
+  const d = editing.data.dias[i];
+  if ((d.titulo||d.descripcion) && !confirm(`¿Eliminar el día ${i+1} con su contenido?`)) return;
+  editing.data.dias.splice(i,1); renderDias(); markDirty();
+}
+function generarDias(){
+  const c = editing.data;
+  const a = parseISO(c.fechaInicio), b = parseISO(c.fechaFin);
+  if (!a || !b){ alert('Cargá la fecha de inicio y la de fin primero.'); return; }
+  const n = Math.round((b - a) / 86400000) + 1;
+  if (n < 1){ alert('La fecha de fin es anterior a la de inicio.'); return; }
+  if (n > 60){ alert('El rango supera 60 días: revisá las fechas.'); return; }
+  if (c.dias.length > n){
+    const sobrantes = c.dias.slice(n).filter(d => d.titulo || d.descripcion).length;
+    if (sobrantes && !confirm(`Las fechas dan ${n} días y hay ${c.dias.length} cargados. ¿Eliminar los ${c.dias.length-n} últimos? (${sobrantes} tienen contenido)`)) return;
+    c.dias = c.dias.slice(0, n);
+  }
+  while (c.dias.length < n) c.dias.push({ titulo:'', descripcion:'' });
+  renderDias(); markDirty();
+}
+
+// ── SERVICIOS ──────────────────────────────────────────────────────────────
+function renderServicios(){
+  const el = document.getElementById('servicios-list');
+  if (!el) return;
+  const c = editing.data;
+  if (!c.servicios.length){ el.innerHTML = `<p class="card-hint" style="margin:0 0 10px">Todavía no hay servicios cargados.</p>`; return; }
+  el.innerHTML = c.servicios.map((s,i) => `<div class="item-card" data-srv="${i}">
+    <div class="item-head">
+      <span class="item-label">Servicio ${i+1}</span>
+      <div class="item-actions">
+        <button class="icon-btn" title="Subir" ${i===0?'disabled':''} onclick="moverServicio(${i},-1)">▲</button>
+        <button class="icon-btn" title="Bajar" ${i===c.servicios.length-1?'disabled':''} onclick="moverServicio(${i},1)">▼</button>
+        <button class="icon-btn danger" title="Eliminar servicio" onclick="eliminarServicio(${i})">✕</button>
+      </div>
+    </div>
+    <div class="grid" style="grid-template-columns:140px 1fr">
+      <div><label class="fl">Tipo</label><select class="fsel" onchange="setServicio(${i},'tipo',this.value)">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,s.tipo)}</select></div>
+      <div><label class="fl">Servicio (visible en la propuesta)</label><input class="fi" value="${escHtml(s.concepto)}" placeholder="Ej: Hotel Llao Llao · 3 noches · desayuno" oninput="setServicio(${i},'concepto',this.value)"></div>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 200px">
+      <div><label class="fl">Detalle (visible en la propuesta)</label><textarea class="fta" rows="2" placeholder="Horarios, categoría de habitación, equipaje…" oninput="setServicio(${i},'detalle',this.value)">${escHtml(s.detalle)}</textarea></div>
+      <div><label class="fl">Proveedor (interno)</label><input class="fi" list="dl-proveedores" value="${escHtml(s.proveedor)}" placeholder="Proveedor" oninput="setServicio(${i},'proveedor',this.value)"></div>
+    </div>
+    <div class="grid g4">
+      <div><label class="fl">Costo neto</label><input class="fi" type="number" step="0.01" value="${escHtml(s.costo)}" oninput="onCosto(${i},this.value)"></div>
+      <div><label class="fl">Moneda</label><select class="fsel" onchange="setServicio(${i},'moneda',this.value);renderServiciosFoot();renderTotales()">${selOpts(['USD','ARS'],['USD','ARS'],s.moneda||c.moneda)}</select></div>
+      <div><label class="fl">Markup %</label><input class="fi srv-markup" type="number" step="0.1" value="${escHtml(s.markup)}" oninput="onMarkup(${i},this.value)"></div>
+      <div><label class="fl">Precio de venta</label><input class="fi srv-precio" type="number" step="0.01" value="${escHtml(s.precio)}" oninput="onPrecio(${i},this.value)"></div>
+    </div>
+    <div class="item-foot srv-foot"></div>
+  </div>`).join('');
+  renderServiciosFoot();
+}
+function renderServiciosFoot(){
+  if (!editing) return;
+  const c = editing.data;
+  document.querySelectorAll('[data-srv]').forEach(card => {
+    const s = c.servicios[Number(card.dataset.srv)];
+    if (!s) return;
+    const m = s.moneda || c.moneda;
+    const ganancia = num(s.precio) - num(s.costo);
+    let html = `<span>Ganancia: <b>${fmtMoney(ganancia, m)}</b></span>`;
+    if (m !== c.moneda){
+      const conv = convertir(num(s.precio), m, c.moneda, c.tipoCambio);
+      html += conv.ok
+        ? `<span>≈ ${fmtMoney(conv.value, c.moneda)} en la moneda de la propuesta</span>`
+        : `<span class="warn">⚠ Falta el T.C. de referencia: este servicio no se suma al total.</span>`;
+    }
+    card.querySelector('.srv-foot').innerHTML = html;
+  });
+}
+function setServicio(i, campo, v){ editing.data.servicios[i][campo] = v; markDirty(); }
+function onCosto(i, v){
+  const s = editing.data.servicios[i];
+  s.costo = num(v);
+  s.precio = precioDe(s);
+  const card = document.querySelector(`[data-srv="${i}"]`);
+  if (card) card.querySelector('.srv-precio').value = s.precio;
+  renderServiciosFoot(); renderTotales(); markDirty();
+}
+function onMarkup(i, v){
+  const s = editing.data.servicios[i];
+  s.markup = num(v);
+  s.precio = precioDe(s);
+  const card = document.querySelector(`[data-srv="${i}"]`);
+  if (card) card.querySelector('.srv-precio').value = s.precio;
+  renderServiciosFoot(); renderTotales(); markDirty();
+}
+function onPrecio(i, v){
+  const s = editing.data.servicios[i];
+  s.precio = num(v);
+  if (num(s.costo) > 0){
+    s.markup = round2((s.precio / num(s.costo) - 1) * 100);
+    const card = document.querySelector(`[data-srv="${i}"]`);
+    if (card) card.querySelector('.srv-markup').value = s.markup;
+  }
+  renderServiciosFoot(); renderTotales(); markDirty();
+}
+function agregarServicio(){
+  const c = editing.data;
+  c.servicios.push({ tipo:'Hotel', concepto:'', detalle:'', proveedor:'', costo:0, moneda:c.moneda, markup: num(c.markupDefault), precio:0 });
+  renderServicios(); renderTotales(); markDirty();
+}
+function moverServicio(i, dir){
+  const s = editing.data.servicios, j = i + dir;
+  if (j < 0 || j >= s.length) return;
+  [s[i], s[j]] = [s[j], s[i]];
+  renderServicios(); markDirty();
+}
+function eliminarServicio(i){
+  const s = editing.data.servicios[i];
+  if ((s.concepto || num(s.costo)) && !confirm(`¿Eliminar el servicio ${i+1}${s.concepto ? ' ('+s.concepto+')' : ''}?`)) return;
+  editing.data.servicios.splice(i,1); renderServicios(); renderTotales(); markDirty();
+}
+
+function renderTotales(){
+  const el = document.getElementById('totales');
+  if (!el) return;
+  const c = editing.data, t = totales(c), m = c.moneda;
+  el.innerHTML = `
+    <div class="tot-line"><span>Costo neto</span><b>${fmtMoney(t.costo, m)}</b></div>
+    <div class="tot-line"><span>Ganancia</span><b>${fmtMoney(t.margen, m)}</b></div>
+    <div class="tot-line"><span>Margen sobre venta</span><b>${fmtNum(round2(t.margenPct))}%</b></div>
+    <div class="tot-sep"></div>
+    <div class="tot-line big"><span>Precio total</span><b>${fmtMoney(t.precio, m)}</b></div>
+    <div class="tot-line"><span>Por persona</span><b>${t.porPersona!=null ? fmtMoney(t.porPersona, m) : '—'}</b></div>
+    ${t.faltaTC ? `<div class="tot-warn">⚠ Hay servicios en otra moneda sin T.C. de referencia: no están sumados.</div>` : ''}
+  `;
+}
+
+// ── ACCIONES ───────────────────────────────────────────────────────────────
+function duplicarCotizacion(){
+  flushSave().then(() => META_COT_COUNTER_REF.transaction(cur => (Number(cur)||0) + 1)).then(res => {
+    if (!res.committed) throw new Error('No se pudo asignar el código');
+    const copia = JSON.parse(JSON.stringify(editing.data));
+    Object.assign(copia, {
+      codigo: 'COT-' + String(res.snapshot.val()).padStart(4,'0'),
+      titulo: (copia.titulo ? copia.titulo + ' ' : '') + '(copia)',
+      estado:'borrador', reservaId:'', fechaCreacion: todayISO(),
+      creadoPor: CURRENT_USER.email, creadoPorNombre: CURRENT_USER.nombre,
+      updatedAt: Date.now(), updatedBy: CURRENT_USER.email,
+    });
+    const ref = COT_REF.push();
+    return ref.set(copia).then(() => {
+      COTS = COTS.filter(c => c.id !== ref.key).concat([{ id: ref.key, ...normalizar(copia) }]);
+      abrirCotizacion(ref.key);
+    });
+  }).catch(handleWriteError);
+}
+function eliminarCotizacion(){
+  const c = editing.data;
+  const aviso = c.reservaId ? '\n\nLa reserva que se generó a partir de esta cotización no se elimina.' : '';
+  if (!confirm(`¿Eliminar la cotización ${c.codigo}? No se puede deshacer.${aviso}`)) return;
+  clearTimeout(saveTimer); saveTimer = null;
+  const id = editing.id;
+  COT_REF.child(id).remove().then(() => {
+    COTS = COTS.filter(x => x.id !== id);
+    editing = null;
+    document.getElementById('view-editor').style.display = 'none';
+    document.getElementById('view-list').style.display = '';
+    setUrlCotizacion(null);
+    renderList();
+  }).catch(handleWriteError);
+}
+
+// Crea la reserva en Gestión interna con el mismo formato que usa ese panel
+// (y que ya usa "Convertir a reserva" en el kanban): código vacío, que se
+// asigna al guardarla allá; ítems cotizados = precio de venta; costos = costo neto.
+function convertirEnReserva(){
+  const c = editing.data;
+  if (c.reservaId){
+    flushSave().finally(() => { location.href = 'gestioninterna.html?reserva=' + encodeURIComponent(c.reservaId); });
+    return;
+  }
+  if (!String(c.cliente).trim()){ alert('Cargá el cliente antes de convertir la cotización en reserva.'); return; }
+  if (!c.servicios.length){ alert('La cotización no tiene servicios cargados.'); return; }
+  const estadoReserva = c.estado === 'aceptada' ? 'aceptado' : 'cotizado';
+  if (!confirm(`Se va a crear una reserva en Gestión interna para ${c.cliente}, con ${c.servicios.length} servicio(s) como ítems cotizados y costos, en estado "${estadoReserva === 'aceptado' ? 'Aceptado' : 'Cotizado'}". ¿Continuar?`)) return;
+
+  const cotizado = {}, costos = {};
+  c.servicios.forEach(s => {
+    const m = s.moneda || c.moneda;
+    const tc = m !== c.moneda ? (num(c.tipoCambio) || '') : '';
+    const concepto = [s.concepto, s.detalle].filter(Boolean).join(' — ').slice(0, 300);
+    cotizado[RESERVAS_REF.push().key] = { tipo: s.tipo||'Otro', concepto, monto: num(s.precio), moneda: m, tipoCambio: tc };
+    costos[RESERVAS_REF.push().key] = {
+      tipo: s.tipo||'Otro', proveedor: s.proveedor||'', concepto, monto: num(s.costo), moneda: m, tipoCambio: tc,
+      medio:'otro', fechaEmision:'', fechaVencimiento:'', fechaPago:'', pagado:false,
+    };
+  });
+  const nueva = {
+    codigo:'', cliente: String(c.cliente).trim(), concepto: c.titulo || c.destino || '',
+    servicios: [...new Set(c.servicios.map(s => s.tipo).filter(Boolean))], servicioOtroTexto:'',
+    moneda: c.moneda, estado: estadoReserva,
+    fechaCotizacion: c.fechaCreacion || todayISO(), fechaInicio: c.fechaInicio||'', fechaFin: c.fechaFin||'',
+    pasajeros: c.pasajeros || '', notas: `Generada desde la cotización ${c.codigo}.`,
+    pagos:{}, reparto:{}, comprobantes:{}, costos, cotizado, facturacion:{}, pasajeroIds:{},
+    cotizacionId: editing.id, cotizacionCodigo: c.codigo,
+    updatedAt: Date.now(), updatedBy: CURRENT_USER.email,
+  };
+  const ref = RESERVAS_REF.push();
+  flushSave()
+    .then(() => ref.set(nueva))
+    .then(() => { c.reservaId = ref.key; return saveNow(); })
+    .then(() => { location.href = 'gestioninterna.html?reserva=' + encodeURIComponent(ref.key); })
+    .catch(handleWriteError);
+}
+
+// ── PROPUESTA (slides → PDF) ───────────────────────────────────────────────
+function portadaSrc(c){
+  if (c.portada === 'custom') return String(c.portadaUrl||'').trim();
+  return c.portada || '';
+}
+function slideInterior(kicker, inner){ return { kicker, html: inner }; }
+
+// Paginación medida: cada página se arma en una slide oculta con el mismo CSS
+// y se le agregan elementos mientras el contenido real entre. Así la cantidad
+// de días / servicios por página se adapta al largo de los textos.
+let _probeBody = null;
+function probeBody(){
+  if (_probeBody && document.body.contains(_probeBody)) return _probeBody;
+  const wrap = document.createElement('div');
+  wrap.id = 'deck-probe';
+  wrap.style.cssText = 'position:absolute;left:-20000px;top:0;visibility:hidden;pointer-events:none';
+  wrap.innerHTML = '<section class="slide"><header class="s-head"><div class="s-logo">Be<span>•</span>Travel</div><div class="s-kicker">·</div></header><div class="s-body"></div><footer class="s-foot"><span>·</span><span>·</span></footer></section>';
+  document.body.appendChild(wrap);
+  _probeBody = wrap.querySelector('.s-body');
+  return _probeBody;
+}
+function desborda(body){ return body.scrollHeight > body.clientHeight + 1; }
+// render(items, {n, total, ultima, solo}) devuelve el HTML del cuerpo de la página.
+// Se mide siempre en el peor caso (ultima:true) para que el cierre de tabla entre.
+function paginar(items, render){
+  const body = probeBody();
+  const pages = []; let cur = [];
+  items.forEach(it => {
+    const prueba = cur.concat([it]);
+    body.innerHTML = render(prueba, { n:1, total:9, ultima:true });
+    if (cur.length && desborda(body)){ pages.push(cur); cur = [it]; }
+    else cur = prueba;
+  });
+  if (cur.length) pages.push(cur);
+  return pages;
+}
+function tituloPaginado(txt, n, total){
+  return `<div class="s-title">${txt}${total>1 ? ` <span style="font-weight:400;font-size:14pt;color:rgba(15,61,62,.55)">${n}/${total}</span>` : ''}</div>`;
+}
+
+function buildSlides(c){
+  const t = totales(c);
+  const m = c.moneda;
+  const nombreProp = c.titulo || c.destino || 'Propuesta de viaje';
+  const pax = t.pax;
+  const slides = [];
+
+  // Portada
+  const img = portadaSrc(c);
+  const meta = [
+    c.cliente ? escHtml(c.cliente) : '',
+    [c.destino ? escHtml(c.destino) : '', rangoFechas(c.fechaInicio, c.fechaFin)].filter(Boolean).join(' · '),
+    pax ? `${fmtNum(pax)} pasajero${pax===1?'':'s'}` : '',
+  ].filter(Boolean).join('<br>');
+  slides.push({ cover:true, html: `
+    <section class="slide slide-cover">
+      <div class="cover-panel">
+        <div class="cover-logo">Be<span>•</span>Travel</div>
+        <div class="cover-main">
+          <div class="cover-kicker">Propuesta de viaje</div>
+          <h1 class="cover-title">${escHtml(nombreProp)}</h1>
+          <div class="cover-meta">${meta}</div>
+        </div>
+        <div class="cover-foot">Preparada por ${escHtml(c.creadoPorNombre || CURRENT_USER.nombre || 'Be•Travel')} · ${escHtml(fmtDateLong(c.fechaCreacion) || '')} · ${escHtml(c.codigo)}</div>
+      </div>
+      ${img ? `<img class="cover-img" src="${escHtml(img)}" alt="">` : ''}
+    </section>` });
+
+  // Presentación
+  if (String(c.introduccion).trim()){
+    slides.push(slideInterior('Presentación', `<div class="s-title">${escHtml(nombreProp)}</div><div class="s-text">${escHtml(c.introduccion.trim())}</div>`));
+  }
+
+  // Itinerario
+  const dias = c.dias.map((d,i) => ({ ...d, n: i+1, fecha: c.fechaInicio ? addDays(c.fechaInicio, i) : null }))
+    .filter(d => d.titulo || d.descripcion);
+  const renderDias = (chunk, p) => tituloPaginado('Itinerario', p.n, p.total) + `
+      <div class="dias ${p.solo?'solo':''}">${chunk.map(d => `
+        <div class="dia">
+          <div class="dia-label">Día ${d.n}${d.fecha ? ' · ' + escHtml(fmtDiaLabel(d.fecha)) : ''}</div>
+          ${d.titulo ? `<div class="dia-titulo">${escHtml(d.titulo)}</div>` : ''}
+          ${d.descripcion ? `<div class="dia-desc">${escHtml(d.descripcion.trim())}</div>` : ''}
+        </div>`).join('')}
+      </div>`;
+  const paginasDias = paginar(dias, renderDias);
+  paginasDias.forEach((chunk, idx) => {
+    // Un día que no entra ni solo en dos columnas pasa a ancho completo.
+    let solo = false;
+    if (chunk.length === 1){
+      const body = probeBody();
+      body.innerHTML = renderDias(chunk, { n:1, total:9 });
+      solo = desborda(body);
+    }
+    slides.push(slideInterior('Itinerario', renderDias(chunk, { n: idx+1, total: paginasDias.length, solo })));
+  });
+
+  // Servicios incluidos (agrupados por tipo, en dos columnas)
+  const srvs = c.servicios.filter(s => s.concepto || s.detalle)
+    .map((s,i) => ({ ...s, _i:i }))
+    .sort((a,b) => (SERVICIO_TIPOS.indexOf(a.tipo) - SERVICIO_TIPOS.indexOf(b.tipo)) || (a._i - b._i));
+  const renderSrv = (chunk, p) => {
+    const grupos = [];
+    chunk.forEach(s => {
+      const g = grupos[grupos.length-1];
+      if (g && g.tipo === s.tipo) g.items.push(s); else grupos.push({ tipo:s.tipo, items:[s] });
+    });
+    return tituloPaginado('Servicios incluidos', p.n, p.total) + `
+      <div class="servicios">${grupos.map(g => `
+        <div class="srv-group">
+          <div class="srv-tipo">${escHtml(g.tipo)}</div>
+          ${g.items.map(s => `<div class="srv">
+            ${s.concepto ? `<div class="srv-concepto">${escHtml(s.concepto)}</div>` : ''}
+            ${s.detalle ? `<div class="srv-detalle">${escHtml(s.detalle.trim())}</div>` : ''}
+          </div>`).join('')}
+        </div>`).join('')}
+      </div>`;
+  };
+  const paginasSrv = paginar(srvs, renderSrv);
+  paginasSrv.forEach((chunk, idx) => slides.push(slideInterior('Servicios incluidos', renderSrv(chunk, { n: idx+1, total: paginasSrv.length }))));
+
+  // Inversión
+  const notaMoneda = [
+    `Valores expresados en ${m === 'USD' ? 'dólares estadounidenses' : 'pesos argentinos'}.`,
+    t.huboConversion && num(c.tipoCambio) ? `Los servicios cotizados en otra moneda se convirtieron a un tipo de cambio de referencia de $ ${fmtNum(c.tipoCambio)} por US$ 1.` : '',
+  ].filter(Boolean).join(' ');
+  const ppLinea = c.mostrarPorPersona && t.porPersona != null
+    ? `${fmtMoney(t.porPersona, m)} por persona, en base a ${fmtNum(pax)} pasajero${pax===1?'':'s'}.` : '';
+  if (c.mostrarDesglose && c.servicios.length){
+    const filas = c.servicios.map(s => {
+      const conv = convertir(num(s.precio), s.moneda || m, m, c.tipoCambio);
+      return conv.ok ? { tipo:s.tipo, concepto: s.concepto || s.tipo, monto: conv.value } : null;
+    }).filter(Boolean);
+    const renderInv = (pag, p) => `${tituloPaginado('Inversión', p.n, p.total)}
+        <table class="inv-table">
+          <thead><tr><th style="width:22%">Tipo</th><th>Servicio</th><th class="r">Importe</th></tr></thead>
+          <tbody>
+            ${pag.map(f => `<tr><td>${escHtml(f.tipo)}</td><td>${escHtml(f.concepto)}</td><td class="r">${fmtMoney(f.monto, m)}</td></tr>`).join('')}
+            ${p.ultima ? `<tr class="total"><td></td><td>Total</td><td class="r">${fmtMoney(t.precio, m)}</td></tr>` : ''}
+            ${p.ultima && ppLinea ? `<tr class="pp"><td></td><td colspan="2">${escHtml(ppLinea)}</td></tr>` : ''}
+          </tbody>
+        </table>
+        ${p.ultima ? `<div class="inv-note">${escHtml(notaMoneda)}</div>` : ''}`;
+    const paginasInv = paginar(filas, renderInv);
+    paginasInv.forEach((pag, idx) => slides.push(slideInterior('Inversión', renderInv(pag, { n: idx+1, total: paginasInv.length, ultima: idx === paginasInv.length-1 }))));
+  } else {
+    slides.push(slideInterior('Inversión', `
+      <div class="inv-total">
+        <div class="inv-label">Inversión total</div>
+        <div class="inv-amount">${fmtMoney(t.precio, m)}</div>
+        ${ppLinea ? `<div class="inv-pp">${escHtml(ppLinea)}</div>` : ''}
+        <div class="inv-note">${escHtml(notaMoneda)}</div>
+      </div>`));
+  }
+
+  // No incluye / condiciones
+  const noInc = lineas(c.noIncluye), cond = lineas(c.condiciones);
+  if (noInc.length || cond.length || c.validezHasta){
+    slides.push(slideInterior('Condiciones', `
+      <div class="s-title">Condiciones de la propuesta</div>
+      <div class="cond">
+        <div>${noInc.length ? `<h4>No incluye</h4><ul>${noInc.map(l => `<li>${escHtml(l)}</li>`).join('')}</ul>` : ''}</div>
+        <div>${cond.length ? `<h4>Condiciones</h4><ul>${cond.map(l => `<li>${escHtml(l)}</li>`).join('')}</ul>` : ''}
+          ${c.validezHasta ? `<div class="validez">Propuesta válida hasta el ${escHtml(fmtDateLong(c.validezHasta))}.</div>` : ''}
+        </div>
+      </div>`));
+  }
+
+  // Cierre
+  slides.push({ cover:true, html: `
+    <section class="slide slide-close">
+      <div class="close-logo">Be<span>•</span>Travel</div>
+      <div class="close-text">Quedamos a su disposición para ajustar esta propuesta a sus necesidades.</div>
+      <div class="close-contact">
+        <b>${escHtml(c.creadoPorNombre || CURRENT_USER.nombre || '')}</b><br>
+        info@betravel.com.ar<br>
+        betravel.com.ar
+      </div>
+    </section>` });
+
+  // Header y footer con numeración en las páginas interiores
+  const total = slides.length;
+  return slides.map((s, i) => {
+    if (s.cover) return s.html;
+    return `<section class="slide">
+      <header class="s-head"><div class="s-logo">Be<span>•</span>Travel</div><div class="s-kicker">${escHtml(s.kicker)}</div></header>
+      <div class="s-body">${s.html}</div>
+      <footer class="s-foot"><span>${escHtml(nombreProp)}${c.cliente ? ' · ' + escHtml(c.cliente) : ''}</span><span>${escHtml(c.codigo)} · ${i+1}/${total}</span></footer>
+    </section>`;
+  }).join('');
+}
+
+function ajustarZoomDeck(){
+  const scroll = document.getElementById('deck-scroll');
+  const deck = document.getElementById('deck');
+  const slideW = 297 * 96 / 25.4; // 297 mm en px CSS
+  const z = Math.min(1, (scroll.clientWidth - 40) / slideW);
+  deck.style.zoom = z > 0 ? z : 1;
+}
+function esperarRecursos(){
+  const imgs = [...document.querySelectorAll('#deck img')];
+  const cargas = imgs.map(img => img.complete ? Promise.resolve() : new Promise(r => { img.onload = img.onerror = r; }));
+  const fuentes = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  return Promise.all([fuentes, ...cargas]);
+}
+// Páginas cuyo contenido no entra ni siquiera solo (ej: un día con muchísimo
+// texto): se avisa en vez de entregar un PDF con texto cortado sin saberlo.
+let DESBORDES = [];
+function detectarDesbordes(){
+  const out = [];
+  document.querySelectorAll('#deck .slide').forEach((s, i) => {
+    const b = s.querySelector('.s-body');
+    if (b && desborda(b)) out.push(i+1);
+  });
+  return out;
+}
+async function abrirDeck(imprimir){
+  const c = editing.data;
+  const t = totales(c);
+  if (t.faltaTC && !confirm('Hay servicios en otra moneda sin T.C. de referencia: quedan fuera del total de la propuesta. ¿Continuar igual?')) return;
+  flushSave().catch(()=>{});
+  // La paginación mide texto real: hay que esperar a que la tipografía esté cargada.
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  const deck = document.getElementById('deck');
+  document.getElementById('deck-modal').classList.add('open');
+  deck.style.zoom = 1;
+  deck.innerHTML = buildSlides(c);
+  DESBORDES = detectarDesbordes();
+  const uno = DESBORDES.length === 1;
+  document.getElementById('deck-warn').textContent = DESBORDES.length
+    ? `⚠ ${uno?'La página':'Las páginas'} ${DESBORDES.join(', ')} ${uno?'tiene':'tienen'} más texto del que entra y se ${uno?'va':'van'} a cortar: acortá ese contenido.`
+    : '';
+  ajustarZoomDeck();
+  if (imprimir) imprimirDeck();
+}
+function cerrarDeck(){ document.getElementById('deck-modal').classList.remove('open'); }
+function imprimirDeck(){
+  const c = editing.data;
+  if (DESBORDES.length && !confirm(`La propuesta tiene texto que se va a cortar (página ${DESBORDES.join(', ')}). ¿Descargar igual?`)) return;
+  const tituloOriginal = document.title;
+  // Chrome usa el título del documento como nombre sugerido del PDF.
+  document.title = ['Propuesta Be•Travel', c.codigo, c.cliente, c.destino].filter(Boolean).join(' - ');
+  const restaurar = () => { document.title = tituloOriginal; window.removeEventListener('afterprint', restaurar); };
+  window.addEventListener('afterprint', restaurar);
+  esperarRecursos().then(() => window.print());
+}
+window.addEventListener('resize', () => { if (document.getElementById('deck-modal').classList.contains('open')) ajustarZoomDeck(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarDeck(); });
+</script>
+</body>
+</html>
