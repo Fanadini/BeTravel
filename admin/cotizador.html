@@ -321,6 +321,7 @@ const auth = firebase.auth();
 const COT_REF = db.ref('finanzas/cotizaciones');
 const RESERVAS_REF = db.ref('finanzas/reservas');
 const META_COT_COUNTER_REF = db.ref('finanzas/meta/cotizacionCodigoCounter');
+const META_RES_COUNTER_REF = db.ref('finanzas/meta/reservaCodigoCounter');
 const META_PROV_REF = db.ref('finanzas/meta/proveedores');
 const META_USUARIOS_REF = db.ref('finanzas/meta/usuarios');
 
@@ -917,6 +918,18 @@ function eliminarCotizacion(){
 // Crea la reserva en Gestión interna con el mismo formato que usa ese panel
 // (y que ya usa "Convertir a reserva" en el kanban): código vacío, que se
 // asigna al guardarla allá; ítems cotizados = precio de venta; costos = costo neto.
+// Código interno BeT# de la reserva, con el mismo contador que Gestión interna.
+// Se asigna acá (y no después, en Gestión interna) para que la reserva ya abra
+// con su código y el primer guardado del panel no lo deje vacío.
+function asignarCodigoReserva(){
+  return RESERVAS_REF.once('value').then(snap => {
+    const maxExisting = Object.values(snap.val() || {}).reduce((m, r) => {
+      const x = /^BeT(\d+)$/.exec((r && r.codigo) || '');
+      return Math.max(m, x ? parseInt(x[1], 10) : 0);
+    }, 0);
+    return META_RES_COUNTER_REF.transaction(n => Math.max(Number(n) || 0, maxExisting) + 1);
+  }).then(res => 'BeT' + res.snapshot.val());
+}
 function convertirEnReserva(){
   const c = editing.data;
   if (c.reservaId){
@@ -951,7 +964,8 @@ function convertirEnReserva(){
   };
   const ref = RESERVAS_REF.push();
   flushSave()
-    .then(() => ref.set(nueva))
+    .then(() => asignarCodigoReserva())
+    .then(codigo => { nueva.codigo = codigo; return ref.set(nueva); })
     .then(() => { c.reservaId = ref.key; return saveNow(); })
     .then(() => { location.href = 'gestioninterna.html?reserva=' + encodeURIComponent(ref.key); })
     .catch(handleWriteError);

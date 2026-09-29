@@ -2938,6 +2938,16 @@ function saveReserva(){
     }).catch(err => { console.error(err); alert('Error al guardar. Revisá tu conexión o los permisos de la base.'); });
   };
 
+  // Reserva existente con el campo vacío: si la base ya le asignó código (p. ej.
+  // la migración BeT# corrió con el panel abierto), se conserva en vez de borrarlo.
+  if (id && !val.codigo){
+    const actual = STATE.reservas.find(r => r.id === id);
+    if (actual && actual.codigo){
+      val.codigo = actual.codigo;
+      const codigoEl = document.getElementById('r-codigo');
+      if (codigoEl) codigoEl.value = val.codigo;
+    }
+  }
   if (!id && !val.codigo){
     const maxExisting = STATE.reservas.reduce((m,r) => Math.max(m, extractCodigoNum(r.codigo)), 0);
     const nextNum = Math.max(META.codigoCounter||0, maxExisting) + 1;
