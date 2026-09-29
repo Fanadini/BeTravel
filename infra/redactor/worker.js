@@ -1,18 +1,26 @@
 // Be•Travel · Redactor de propuestas (Cloudflare Worker)
 //
 // Recibe los datos de una cotización desde admin/cotizador.html y devuelve la
-// presentación y/o los textos de cada día redactados por Claude.
+// presentación y/o los textos de cada día.
 //
-// Seguridad:
-// - La API key de Claude vive solo acá, como Secret (ANTHROPIC_API_KEY).
-// - Solo responde a betravel.com.ar (CORS) y a usuarios logueados en el admin:
-//   verifica el token de Firebase y que la cuenta esté en finanzas/meta/usuarios.
+// Motor de IA:
+// - Por defecto, Workers AI de Cloudflare (Llama 3.3 70B): sin costo dentro de
+//   las 10.000 neuronas diarias del plan gratuito (unas 30 redacciones por día;
+//   al superarlas la IA deja de responder hasta el día siguiente, no cobra).
+//   Requiere el enlace (binding) de Workers AI con el nombre AI.
+// - Opcional: Claude (mejor redacción, pago por uso). Variable IA_PROVEEDOR=claude
+//   y Secret ANTHROPIC_API_KEY con crédito cargado en console.anthropic.com.
+//
+// Seguridad: solo responde a betravel.com.ar (CORS) y a usuarios logueados en el
+// admin: verifica el token de Firebase y que la cuenta esté en finanzas/meta/usuarios.
 //
 // Se pega tal cual en el editor de Cloudflare (sin build). Pasos en LEEME.md.
 //
-// Variables opcionales (Settings → Variables): ALLOWED_ORIGINS (separados por coma),
-// FIREBASE_PROJECT_ID, FIREBASE_DB_URL. Los valores por defecto ya son los de Be•Travel.
+// Variables opcionales (Settings → Variables): IA_PROVEEDOR, ALLOWED_ORIGINS
+// (separados por coma), FIREBASE_PROJECT_ID, FIREBASE_DB_URL. Los valores por
+// defecto ya son los de Be•Travel.
 
+const MODELO_CF = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const MODEL = 'claude-opus-5-5';
 const ORIGENES = 'https://betravel.com.ar,https://www.betravel.com.ar';
 const PROYECTO = 'betravel-kanban';
@@ -23,7 +31,7 @@ const SYSTEM = `Sos redactor de Be•Travel, una agencia de Buenos Aires especia
 Redactás textos para propuestas comerciales que se envían a clientes: empresas, sindicatos, grupos de afinidad o pasajeros particulares.
 
 Reglas de estilo:
-- Español rioplatense formal, con ustedeo ("ustedes", "su equipo", "les proponemos"). Nunca voseo ni tuteo.
+- Español rioplatense formal, con ustedeo ("ustedes", "su equipo", "les proponemos"). Nunca voseo, tuteo ni "vosotros".
 - Tono sobrio, preciso y seguro. Afirmá lo que se coordina ("coordinamos", "incluye") en lugar de condicionales ("podríamos").
 - Sin emojis, sin signos de exclamación y sin mayúsculas enfáticas.
 - Sin superlativos vacíos ni lenguaje de folleto: evitá "único", "increíble", "el mejor", "soñado", "inolvidable", "mágico", "paraíso".
@@ -56,7 +64,9 @@ export default {
     }
     if (request.method !== 'POST') return json(405, { error: 'Método no permitido.' });
     if (!cors['Access-Control-Allow-Origin']) return json(403, { error: 'Origen no permitido.' });
-    if (!env.ANTHROPIC_API_KEY) return json(500, { error: 'Falta configurar la API key en Cloudflare (Secret ANTHROPIC_API_KEY).' });
+    const usarClaude = String(env.IA_PROVEEDOR || '').trim().toLowerCase() === 'claude';
+    if (usarClaude && !env.ANTHROPIC_API_KEY) return json(500, { error: 'Falta configurar la API key en Cloudflare (Secret ANTHROPIC_API_KEY).' });
+    if (!usarClaude && !env.AI) return json(500, { error: 'Falta vincular Workers AI al Worker: Configuración → Enlaces → Agregar → Workers AI, con el nombre AI.' });
 
     // 1) Usuario logueado y habilitado
     const token = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
@@ -80,7 +90,7 @@ export default {
     if (!tareas.introduccion && !tareas.dias) return json(400, { error: 'No hay nada para redactar.' });
     if (cot.dias.length > 60) return json(400, { error: 'El itinerario tiene demasiados días.' });
 
-    // 3) Claude
+    // 3) Redacción
     const schema = { type: 'object', additionalProperties: false, properties: {}, required: [] };
     if (tareas.introduccion) {
       schema.properties.introduccion = { type: 'string' };
@@ -98,54 +108,94 @@ export default {
     const contenido = `Redactá ${pedir} para esta propuesta.\n\n<cotizacion>\n${JSON.stringify(cot, null, 2)}\n</cotizacion>`
       + (indicaciones ? `\n\n<indicaciones_del_ejecutivo>\n${indicaciones}\n</indicaciones_del_ejecutivo>` : '');
 
-    const llamar = (conFallback) => fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        ...(conFallback ? { 'anthropic-beta': 'server-side-fallback-2026-07-01' } : {}),
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 16000,
-        ...(conFallback ? { fallbacks: 'default' } : {}),
-        output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
-        system: SYSTEM,
-        messages: [{ role: 'user', content: contenido }],
-      }),
-    });
-
-    let resp, detalle = '';
-    try {
-      resp = await llamar(true);
-      if (!resp.ok) {
-        detalle = await resp.text();
-        // Si la cuenta no acepta el reintento automático en otro modelo (beta), se pide sin él.
-        if (resp.status === 400 && /fallback|anthropic-beta|beta/i.test(detalle)) {
-          resp = await llamar(false);
-          detalle = resp.ok ? '' : await resp.text();
-        }
+    const r = usarClaude ? await redactarConClaude(env, schema, contenido) : await redactarConWorkersAI(env, schema, contenido);
+    if (r.error) return json(r.status, { error: r.error });
+    const out = r.out;
+    const res = {};
+    if (tareas.introduccion) {
+      if (typeof out.introduccion !== 'string' || !out.introduccion.trim()) return json(502, { error: 'La IA no devolvió la presentación. Probá de nuevo.' });
+      res.introduccion = out.introduccion.trim();
+    }
+    if (tareas.dias) {
+      // Un día de más se descarta; uno de menos es un error (no se inventa).
+      if (!Array.isArray(out.dias) || out.dias.length < cot.dias.length) {
+        return json(502, { error: 'La IA devolvió menos días que el itinerario. Probá de nuevo.' });
       }
-    } catch (e) {
-      return json(502, { error: 'No se pudo conectar con la IA. Probá de nuevo.' });
+      res.dias = out.dias.slice(0, cot.dias.length).map(d => ({ titulo: String((d && d.titulo) || '').trim(), descripcion: String((d && d.descripcion) || '').trim() }));
     }
-    if (!resp.ok) {
-      console.error('Anthropic', resp.status, detalle.slice(0, 800));
-      return json(502, { error: explicarError(resp.status, detalle) });
-    }
-    const msg = await resp.json();
-    if (msg.stop_reason === 'refusal') return json(422, { error: 'La IA no pudo redactar este contenido. Ajustá las indicaciones y probá de nuevo.' });
-    if (msg.stop_reason === 'max_tokens') return json(502, { error: 'La respuesta quedó incompleta. Probá con menos días por vez.' });
-    const texto = (msg.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-    let out;
-    try { out = JSON.parse(texto); } catch { return json(502, { error: 'La IA devolvió un formato inesperado. Probá de nuevo.' }); }
-    if (tareas.dias && (!Array.isArray(out.dias) || out.dias.length !== cot.dias.length)) {
-      return json(502, { error: 'La IA devolvió una cantidad distinta de días. Probá de nuevo.' });
-    }
-    return json(200, out);
+    return json(200, res);
   },
 };
+
+// Workers AI (Cloudflare): sin API key, cuenta contra las neuronas diarias gratuitas.
+async function redactarConWorkersAI(env, schema, contenido) {
+  let res;
+  try {
+    res = await env.AI.run(MODELO_CF, {
+      messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: contenido }],
+      response_format: { type: 'json_schema', json_schema: schema },
+      max_tokens: 4096,
+      temperature: 0.4,
+    });
+  } catch (e) {
+    const m = String((e && e.message) || e);
+    console.error('Workers AI', m);
+    if (/neuron|daily|quota|exceed|limit|4006|3036/i.test(m)) {
+      return { status: 429, error: 'Se alcanzó el límite gratuito diario de la IA. Se renueva todos los días a las 21 h (hora de Argentina).' };
+    }
+    return { status: 502, error: 'No se pudo generar el texto (Workers AI: ' + m.slice(0, 160) + ').' };
+  }
+  let out = res && res.response;
+  if (typeof out === 'string') {
+    try { out = JSON.parse(out); } catch (e) { out = null; }
+  }
+  if (!out || typeof out !== 'object') return { status: 502, error: 'La IA devolvió un formato inesperado. Probá de nuevo.' };
+  return { out };
+}
+
+// Claude (opcional, pago por uso).
+async function redactarConClaude(env, schema, contenido) {
+  const llamar = (conFallback) => fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      ...(conFallback ? { 'anthropic-beta': 'server-side-fallback-2026-07-01' } : {}),
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 16000,
+      ...(conFallback ? { fallbacks: 'default' } : {}),
+      output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
+      system: SYSTEM,
+      messages: [{ role: 'user', content: contenido }],
+    }),
+  });
+  let resp, detalle = '';
+  try {
+    resp = await llamar(true);
+    if (!resp.ok) {
+      detalle = await resp.text();
+      // Si la cuenta no acepta el reintento automático en otro modelo (beta), se pide sin él.
+      if (resp.status === 400 && /fallback|anthropic-beta|beta/i.test(detalle)) {
+        resp = await llamar(false);
+        detalle = resp.ok ? '' : await resp.text();
+      }
+    }
+  } catch (e) {
+    return { status: 502, error: 'No se pudo conectar con la IA. Probá de nuevo.' };
+  }
+  if (!resp.ok) {
+    console.error('Anthropic', resp.status, detalle.slice(0, 800));
+    return { status: 502, error: explicarError(resp.status, detalle) };
+  }
+  const msg = await resp.json();
+  if (msg.stop_reason === 'refusal') return { status: 422, error: 'La IA no pudo redactar este contenido. Ajustá las indicaciones y probá de nuevo.' };
+  if (msg.stop_reason === 'max_tokens') return { status: 502, error: 'La respuesta quedó incompleta. Probá con menos días por vez.' };
+  const texto = (msg.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  try { return { out: JSON.parse(texto) }; } catch (e) { return { status: 502, error: 'La IA devolvió un formato inesperado. Probá de nuevo.' }; }
+}
 
 // Traduce los errores más comunes de la API de Claude a qué hay que revisar.
 function explicarError(status, detalle) {

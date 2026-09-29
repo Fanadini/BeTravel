@@ -49,7 +49,7 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 ├── guia_interna/
 │   └── index.html           ← Guía de formación interna
 ├── database.rules.json      ← Security Rules de Firebase RTDB (versionadas; publicar manualmente en la consola)
-├── infra/redactor/          ← Worker de Cloudflare para "Redactar con IA" del cotizador (se pega en Cloudflare; ver LEEME.md)
+├── infra/redactor/          ← Worker de Cloudflare para "Redactar con IA" del cotizador (Workers AI gratis por defecto; se pega en Cloudflare; ver LEEME.md)
 └── admin/
     ├── kanban.html           ← CRM interno (Firebase)
     ├── gestioninterna.html    ← Finanzas / Reservas / Facturas de proveedores (Firebase)
