@@ -312,6 +312,16 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   </div>
 </div>
 
+<!-- ACCESO RESTRINGIDO: cuenta logueada que no está en finanzas/meta/usuarios -->
+<div class="login-screen hidden" id="noacceso-screen">
+  <div class="login-box">
+    <div class="login-logo">Be<span>•</span>Travel</div>
+    <div class="login-subtitle">Acceso restringido</div>
+    <p style="font-size:13px;line-height:1.55;color:#2B2B2B;margin-bottom:22px">La cuenta <strong id="noacceso-email"></strong> no está habilitada para el panel interno. Pedile a un administrador que la agregue a la lista de usuarios.</p>
+    <button class="google-btn" onclick="logout()">Salir y usar otra cuenta</button>
+  </div>
+</div>
+
 <div class="loading-overlay" id="lo">
   <div class="spinner"></div>
   <div class="loading-text">Conectando con Firebase…</div>
@@ -538,6 +548,25 @@ function logout() {
   auth.signOut();
 }
 
+// Acceso: solo las cuentas cargadas en finanzas/meta/usuarios. Las reglas de
+// Firebase lo exigen del lado del servidor; esto muestra un aviso claro en vez
+// de un tablero vacío. Si la lista está vacía (arranque inicial, reglas viejas)
+// se deja entrar para no bloquear a nadie.
+function emailKey(email){ return (email||'').toLowerCase().replace(/\./g, ','); }
+function verificarAcceso(email){
+  const ref = db.ref('finanzas/meta/usuarios');
+  return ref.child(emailKey(email)).once('value').then(s => {
+    if (s.exists()) return { perfil: s.val() || {}, sinConfigurar: false };
+    return ref.once('value').then(all => Object.keys(all.val() || {}).length ? null : { perfil: {}, sinConfigurar: true }, () => null);
+  }, () => null);
+}
+function mostrarSinAcceso(email){
+  document.getElementById('noacceso-email').textContent = email || '';
+  document.getElementById('noacceso-screen').classList.remove('hidden');
+  document.getElementById('lo').classList.add('hidden');
+}
+function ocultarSinAcceso(){ document.getElementById('noacceso-screen').classList.add('hidden'); }
+
 let CURRENT_USER_EMAIL = '';
 auth.onAuthStateChanged(user => {
   const loginScreen = document.getElementById('login-screen');
@@ -548,8 +577,10 @@ auth.onAuthStateChanged(user => {
     // Mostrar nombre en nav
     const nameEl = document.getElementById('nav-user-name');
     if (nameEl) nameEl.textContent = user.displayName ? user.displayName.split(' ')[0] : user.email;
+    verificarAcceso(user.email).then(acc => { if (!acc) mostrarSinAcceso(user.email); });
   } else {
     // Sin sesión → mostrar login, ocultar loading
+    ocultarSinAcceso();
     loginScreen.classList.remove('hidden');
     document.getElementById('lo').classList.add('hidden');
   }

@@ -249,6 +249,16 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   </div>
 </div>
 
+<!-- ACCESO RESTRINGIDO: cuenta logueada que no está en finanzas/meta/usuarios -->
+<div class="login-screen hidden" id="noacceso-screen">
+  <div class="login-box">
+    <div class="login-logo">Be<span>•</span>Travel</div>
+    <div class="login-subtitle">Acceso restringido</div>
+    <p style="font-size:13px;line-height:1.55;color:#2B2B2B;margin-bottom:22px">La cuenta <strong id="noacceso-email"></strong> no está habilitada para el panel interno. Pedile a un administrador que la agregue a la lista de usuarios.</p>
+    <button class="google-btn" onclick="logout()">Salir y usar otra cuenta</button>
+  </div>
+</div>
+
 <div class="loading-overlay" id="lo">
   <div class="spinner"></div>
   <div class="loading-text">Conectando con Firebase…</div>
@@ -517,35 +527,41 @@ function loginWithGoogle() {
 }
 function logout() { auth.signOut(); }
 
+// Acceso: solo las cuentas cargadas en finanzas/meta/usuarios. Las reglas de
+// Firebase lo exigen del lado del servidor; esto muestra un aviso claro en vez
+// de un panel vacío. Arranque inicial: si la lista está vacía (y siguen las
+// reglas viejas) se deja entrar como admin para no bloquear el primer uso.
+function verificarAcceso(email){
+  return META_USUARIOS_REF.child(emailKey(email)).once('value').then(s => {
+    if (s.exists()) return { perfil: s.val() || {}, sinConfigurar: false };
+    return META_USUARIOS_REF.once('value').then(all => Object.keys(all.val() || {}).length ? null : { perfil: {}, sinConfigurar: true }, () => null);
+  }, () => null);
+}
+function mostrarSinAcceso(email){
+  document.getElementById('noacceso-email').textContent = email || '';
+  document.getElementById('noacceso-screen').classList.remove('hidden');
+  document.getElementById('lo').classList.add('hidden');
+}
+function ocultarSinAcceso(){ document.getElementById('noacceso-screen').classList.add('hidden'); }
+
 let listenersAttached = false;
 auth.onAuthStateChanged(user => {
   const loginScreen = document.getElementById('login-screen');
   if (user) {
     loginScreen.classList.add('hidden');
     document.getElementById('nav-user-name').textContent = user.displayName ? user.displayName.split(' ')[0] : user.email;
-    META_USUARIOS_REF.once('value').then(snap => {
-      const todos = snap.val() || {};
-      const perfil = todos[emailKey(user.email)];
-      // Bootstrap: si todavía no se cargó ningún usuario (nodo vacío), no hay
-      // roles configurados aún — se trata a todos como admin para no bloquear
-      // el primer uso. En cuanto exista al menos un registro, cualquiera que
-      // no esté explícitamente listado cae a "agente" (restrictivo).
-      const sinConfigurar = Object.keys(todos).length === 0;
+    verificarAcceso(user.email).then(acc => {
+      if (!acc) { mostrarSinAcceso(user.email); return; }
       CURRENT_USER = {
         email: user.email,
-        nombre: (perfil && perfil.nombre) || (user.displayName ? user.displayName.split(' ')[0] : user.email),
-        rol: sinConfigurar ? 'admin' : ((perfil && perfil.rol) === 'admin' ? 'admin' : 'agente'),
+        nombre: acc.perfil.nombre || (user.displayName ? user.displayName.split(' ')[0] : user.email),
+        rol: acc.sinConfigurar || acc.perfil.rol === 'admin' ? 'admin' : 'agente',
       };
-      applyRoleUI();
-      if (!listenersAttached) { attachListeners(); listenersAttached = true; }
-    }).catch(err => {
-      console.error(err);
-      // Sin poder confirmar el rol, se asume el más restrictivo.
-      CURRENT_USER = { email: user.email, nombre: user.displayName || user.email, rol:'agente' };
       applyRoleUI();
       if (!listenersAttached) { attachListeners(); listenersAttached = true; }
     });
   } else {
+    ocultarSinAcceso();
     loginScreen.classList.remove('hidden');
     document.getElementById('lo').classList.add('hidden');
   }
