@@ -317,7 +317,8 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   <div class="login-box">
     <div class="login-logo">Be<span>•</span>Travel</div>
     <div class="login-subtitle">Acceso restringido</div>
-    <p style="font-size:13px;line-height:1.55;color:#2B2B2B;margin-bottom:22px">La cuenta <strong id="noacceso-email"></strong> no está habilitada para el panel interno. Pedile a un administrador que la agregue a la lista de usuarios.</p>
+    <p id="noacceso-texto" style="font-size:13px;line-height:1.55;color:#2B2B2B;margin-bottom:22px">La cuenta <strong id="noacceso-email"></strong> no está habilitada para el panel interno. Pedile a un administrador que la agregue a la lista de usuarios.</p>
+    <a class="google-btn" id="noacceso-cot" href="cotizador.html" style="display:none;margin-bottom:10px;text-decoration:none">Ir al Cotizador</a>
     <button class="google-btn" onclick="logout()">Salir y usar otra cuenta</button>
   </div>
 </div>
@@ -560,8 +561,14 @@ function verificarAcceso(email){
     return ref.once('value').then(all => Object.keys(all.val() || {}).length ? null : { perfil: {}, sinConfigurar: true }, () => null);
   }, () => null);
 }
-function mostrarSinAcceso(email){
-  document.getElementById('noacceso-email').textContent = email || '';
+// soloCotizador: la cuenta existe pero con rol "cotizador" (solo entra al Cotizador).
+function mostrarSinAcceso(email, soloCotizador){
+  if (soloCotizador){
+    document.getElementById('noacceso-texto').textContent = `La cuenta ${email || ''} tiene acceso solo al Cotizador por ahora.`;
+    document.getElementById('noacceso-cot').style.display = '';
+  } else {
+    document.getElementById('noacceso-email').textContent = email || '';
+  }
   document.getElementById('noacceso-screen').classList.remove('hidden');
   document.getElementById('lo').classList.add('hidden');
 }
@@ -577,7 +584,10 @@ auth.onAuthStateChanged(user => {
     // Mostrar nombre en nav
     const nameEl = document.getElementById('nav-user-name');
     if (nameEl) nameEl.textContent = user.displayName ? user.displayName.split(' ')[0] : user.email;
-    verificarAcceso(user.email).then(acc => { if (!acc) mostrarSinAcceso(user.email); });
+    verificarAcceso(user.email).then(acc => {
+      if (!acc) mostrarSinAcceso(user.email);
+      else if (acc.perfil.rol === 'cotizador') mostrarSinAcceso(user.email, true);
+    });
   } else {
     // Sin sesión → mostrar login, ocultar loading
     ocultarSinAcceso();
