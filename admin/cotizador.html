@@ -178,9 +178,9 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .deck-scroll{flex:1;overflow:auto;padding:20px}
 .deck{display:flex;flex-direction:column;align-items:center;gap:18px;transform-origin:top center}
 
-/* Slides: A4 horizontal (297 × 210 mm). Todo en mm/pt para que la vista
+/* Páginas: A4 vertical (210 × 297 mm). Todo en mm/pt para que la vista
    previa y el PDF impreso coincidan. */
-.slide{width:297mm;height:210mm;position:relative;overflow:hidden;background:#E6E1D8;color:#2B2B2B;font-family:'Inter',sans-serif;display:flex;flex-direction:column;padding:14mm 18mm 11mm;box-shadow:0 6px 24px rgba(0,0,0,.35);flex-shrink:0}
+.slide{width:210mm;height:297mm;position:relative;overflow:hidden;background:#E6E1D8;color:#2B2B2B;font-family:'Inter',sans-serif;display:flex;flex-direction:column;padding:16mm 16mm 12mm;box-shadow:0 6px 24px rgba(0,0,0,.35);flex-shrink:0}
 .s-head{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:5mm;border-bottom:.3mm solid rgba(15,61,62,.25);margin-bottom:8mm}
 .s-logo{font-size:12pt;font-weight:600;color:#0F3D3E;letter-spacing:-.2pt}
 .s-logo span{color:#B08A5A}
@@ -188,22 +188,22 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .s-title{font-size:24pt;font-weight:600;color:#0F3D3E;letter-spacing:-.4pt;margin-bottom:6mm;line-height:1.15}
 .s-body{flex:1;min-height:0;overflow:hidden}
 .s-foot{display:flex;justify-content:space-between;font-size:7.5pt;color:rgba(43,43,43,.5);padding-top:4mm;border-top:.3mm solid rgba(15,61,62,.15);margin-top:5mm}
-.s-text{font-size:11.5pt;line-height:1.6;white-space:pre-line;max-width:200mm}
+.s-text{font-size:11.5pt;line-height:1.65;white-space:pre-line;max-width:165mm}
 
 /* Portada */
-.slide-cover{padding:0;flex-direction:row;background:#0F3D3E}
-.cover-panel{flex:1;padding:16mm 18mm 13mm;display:flex;flex-direction:column;color:#E6E1D8}
+.slide-cover{padding:0;flex-direction:column-reverse;background:#0F3D3E}
+.cover-panel{flex:1;padding:14mm 18mm 13mm;display:flex;flex-direction:column;color:#E6E1D8}
 .cover-logo{font-size:15pt;font-weight:600;letter-spacing:-.3pt}
 .cover-logo span{color:#B08A5A}
-.cover-main{flex:1;display:flex;flex-direction:column;justify-content:center;max-width:150mm}
+.cover-main{flex:1;display:flex;flex-direction:column;justify-content:center;max-width:170mm}
 .cover-kicker{font-size:8.5pt;font-weight:600;letter-spacing:2pt;text-transform:uppercase;color:rgba(230,225,216,.6);margin-bottom:6mm}
-.cover-title{font-size:32pt;font-weight:600;letter-spacing:-.6pt;line-height:1.1;margin-bottom:8mm;color:#fff}
+.cover-title{font-size:30pt;font-weight:600;letter-spacing:-.6pt;line-height:1.1;margin-bottom:8mm;color:#fff}
 .cover-meta{font-size:12pt;line-height:1.7;color:rgba(230,225,216,.85)}
 .cover-foot{font-size:8pt;color:rgba(230,225,216,.5);letter-spacing:.3pt}
-.cover-img{width:46%;height:100%;object-fit:cover;display:block}
+.cover-img{width:100%;height:48%;object-fit:cover;display:block;flex-shrink:0}
 
 /* Itinerario */
-.dias{display:grid;grid-template-columns:1fr 1fr;gap:7mm 12mm;align-content:start}
+.dias{display:grid;grid-template-columns:1fr;gap:6.5mm;align-content:start}
 .dia{break-inside:avoid;border-left:.8mm solid #0F3D3E;padding-left:4.5mm}
 .dia-label{font-size:7.5pt;font-weight:600;letter-spacing:1.2pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin-bottom:1.5mm}
 .dia-titulo{font-size:12.5pt;font-weight:600;color:#0F3D3E;margin-bottom:1.5mm;line-height:1.3}
@@ -235,7 +235,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .inv-table tr.sec td{font-weight:600;color:#0F3D3E;font-size:10.5pt;padding-top:4mm;border-bottom:.3mm solid rgba(15,61,62,.35)}
 
 /* Inversión */
-.inv-total{display:flex;flex-direction:column;justify-content:center;height:100%;max-width:200mm}
+.inv-total{display:flex;flex-direction:column;justify-content:flex-start;padding-top:18mm;max-width:178mm}
 .inv-label{font-size:8.5pt;font-weight:600;letter-spacing:1.6pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin-bottom:3mm}
 .inv-amount{font-size:40pt;font-weight:600;color:#0F3D3E;letter-spacing:-1pt;line-height:1.1}
 .inv-pp{font-size:14pt;color:#2B2B2B;margin-top:5mm}
@@ -248,7 +248,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .inv-table tr.pp td{border-bottom:none;font-size:10pt;color:rgba(43,43,43,.75);padding-top:1mm}
 
 /* Condiciones */
-.cond{display:grid;grid-template-columns:1fr 1fr;gap:14mm}
+.cond{display:grid;grid-template-columns:1fr;gap:9mm}
 .cond h4{font-size:8pt;font-weight:600;letter-spacing:1.4pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin-bottom:3mm}
 .cond ul{list-style:none}
 .cond li{font-size:10pt;line-height:1.5;padding:1.3mm 0 1.3mm 4.5mm;position:relative}
@@ -264,7 +264,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .close-contact b{color:#fff;font-weight:600}
 
 @media print{
-  @page{size:A4 landscape;margin:0}
+  @page{size:A4 portrait;margin:0}
   html,body{height:auto!important;overflow:visible!important;background:#fff!important;display:block!important}
   body>*:not(#deck-modal){display:none!important}
   #deck-modal{position:static!important;display:block!important;background:none!important}
@@ -371,7 +371,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   <div class="deck-toolbar">
     <div>
       <div class="t">Vista previa de la propuesta</div>
-      <div class="hint">En el diálogo de impresión elegí "Guardar como PDF". El formato ya queda en A4 horizontal.</div>
+      <div class="hint">En el diálogo de impresión elegí "Guardar como PDF". El formato ya queda en A4 vertical.</div>
       <div class="hint" id="deck-warn" style="color:#f0b35a"></div>
     </div>
     <div style="display:flex;gap:8px">
@@ -1384,7 +1384,7 @@ function convertirEnReserva(){
     .catch(handleWriteError);
 }
 
-// ── PROPUESTA (slides → PDF) ───────────────────────────────────────────────
+// ── PROPUESTA (páginas A4 vertical → PDF) ───────────────────────────────────────────────
 // Id de la imagen de biblioteca que corresponde a la portada (o null).
 function portadaId(c){
   if (c.portada === 'auto'){ const m = imagenesDelDestino(c.destino)[0]; return m ? m.id : null; }
@@ -1482,7 +1482,7 @@ function buildSlides(c){
       </div>`;
   const paginasDias = paginar(dias, renderDias);
   paginasDias.forEach((chunk, idx) => {
-    // Un día que no entra ni solo en dos columnas pasa a ancho completo.
+    // Un día que no entra solo en la página se muestra con letra un poco más chica.
     let solo = false;
     if (chunk.length === 1){
       const body = probeBody();
@@ -1574,7 +1574,7 @@ function buildSlides(c){
   } else if (ops.length){
     slides.push(slideInterior('Inversión', `
       <div class="s-title">Inversión</div>
-      <div class="inv-opciones" style="grid-template-columns:repeat(${Math.min(ops.length, 4)},1fr)">
+      <div class="inv-opciones" style="grid-template-columns:repeat(${Math.min(ops.length, 2)},1fr)">
         ${ops.map(o => {
           const tt = totales(c, o), nom = String(c.nombresOpciones[o] || '').trim();
           // Si alguna opción tiene nombre, todas reservan esa línea para que los montos queden alineados.
@@ -1641,7 +1641,7 @@ function buildSlides(c){
 function ajustarZoomDeck(){
   const scroll = document.getElementById('deck-scroll');
   const deck = document.getElementById('deck');
-  const slideW = 297 * 96 / 25.4; // 297 mm en px CSS
+  const slideW = 210 * 96 / 25.4; // 210 mm en px CSS
   const z = Math.min(1, (scroll.clientWidth - 40) / slideW);
   deck.style.zoom = z > 0 ? z : 1;
 }
