@@ -420,7 +420,7 @@ const IMG_DATA_REF = db.ref('finanzas/imagenesData');   // imagen completa (se b
 const OPCIONES = ['A','B','C','D'];
 const MODOS_SRV = [['incluido','Incluido'], ...OPCIONES.map(o => [o, 'Opción ' + o]), ['adicional','Adicional opcional']];
 // URL del Worker de Cloudflare que redacta con IA (ver infra/redactor/LEEME.md).
-const REDACTOR_URL = '';
+const REDACTOR_URL = 'https://betravel-redactor.fanadini.workers.dev';
 const MARKUP_DEFAULT = 10;
 // Borradores de texto para la propuesta: revisarlos antes de enviar la primera.
 const DEFAULT_NO_INCLUYE = 'Gastos personales.\nPropinas.\nServicios no mencionados como incluidos.';
