@@ -52,6 +52,7 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 └── admin/
     ├── kanban.html           ← CRM interno (Firebase)
     ├── gestioninterna.html    ← Finanzas / Reservas / Facturas de proveedores (Firebase)
+    ├── cotizador.html         ← Cotizaciones con itinerario → propuesta PDF (slides) y "Convertir en reserva" (Firebase)
     └── SEGURIDAD_FIREBASE.md  ← Pasos manuales: sembrar admin, publicar reglas, backups
 ```
 

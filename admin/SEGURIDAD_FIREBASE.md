@@ -36,6 +36,10 @@ El código ya tiene una salvaguarda: si `finanzas/meta/usuarios` está completam
 2. Elegí un bucket de Cloud Storage (podés crear uno nuevo, ej. `betravel-kanban-backups`) y una frecuencia (diaria recomendada).
 3. Confirmá que el bucket de backups tiene acceso restringido (no público) — por defecto los buckets nuevos de Cloud Storage son privados, no hace falta tocar nada extra salvo no cambiarlo.
 
+## 4. Cotizador (`admin/cotizador.html`)
+
+El cotizador guarda en `finanzas/cotizaciones` y numera con `finanzas/meta/cotizacionCodigoCounter`. Esos dos nodos están habilitados en `database.rules.json`, pero **hasta que se vuelvan a publicar las reglas (paso 2)** Firebase rechaza cualquier guardado ahí: el cotizador lo avisa con un mensaje en rojo en vez de fallar en silencio. "Convertir en reserva" escribe en `finanzas/reservas`, que ya estaba habilitado.
+
 ## Notas
 
 - Estas reglas son un primer borrador (ver plan de implementación). Cubren: lectura de `finanzas`/`kanban` solo para usuarios logueados, escritura de `reparto`/`facturacion`/`facturas` solo para admins, y escritura pública pero de solo-creación (no edición/borrado) en `kanban/prospectos` para que el formulario del sitio pueda cargar leads sin login.
