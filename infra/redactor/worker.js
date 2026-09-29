@@ -98,32 +98,41 @@ export default {
     const contenido = `Redactá ${pedir} para esta propuesta.\n\n<cotizacion>\n${JSON.stringify(cot, null, 2)}\n</cotizacion>`
       + (indicaciones ? `\n\n<indicaciones_del_ejecutivo>\n${indicaciones}\n</indicaciones_del_ejecutivo>` : '');
 
-    let resp;
+    const llamar = (conFallback) => fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        ...(conFallback ? { 'anthropic-beta': 'server-side-fallback-2026-07-01' } : {}),
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 16000,
+        ...(conFallback ? { fallbacks: 'default' } : {}),
+        output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
+        system: SYSTEM,
+        messages: [{ role: 'user', content: contenido }],
+      }),
+    });
+
+    let resp, detalle = '';
     try {
-      resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': env.ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-beta': 'server-side-fallback-2026-07-01',
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: 16000,
-          fallbacks: 'default',
-          output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
-          system: SYSTEM,
-          messages: [{ role: 'user', content: contenido }],
-        }),
-      });
+      resp = await llamar(true);
+      if (!resp.ok) {
+        detalle = await resp.text();
+        // Si la cuenta no acepta el reintento automático en otro modelo (beta), se pide sin él.
+        if (resp.status === 400 && /fallback|anthropic-beta|beta/i.test(detalle)) {
+          resp = await llamar(false);
+          detalle = resp.ok ? '' : await resp.text();
+        }
+      }
     } catch (e) {
       return json(502, { error: 'No se pudo conectar con la IA. Probá de nuevo.' });
     }
     if (!resp.ok) {
-      console.error('Anthropic', resp.status, (await resp.text()).slice(0, 800));
-      const saturada = resp.status === 429 || resp.status === 529;
-      return json(502, { error: saturada ? 'La IA está saturada en este momento. Probá de nuevo en un minuto.' : 'No se pudo generar el texto. Probá de nuevo.' });
+      console.error('Anthropic', resp.status, detalle.slice(0, 800));
+      return json(502, { error: explicarError(resp.status, detalle) });
     }
     const msg = await resp.json();
     if (msg.stop_reason === 'refusal') return json(422, { error: 'La IA no pudo redactar este contenido. Ajustá las indicaciones y probá de nuevo.' });
@@ -137,6 +146,18 @@ export default {
     return json(200, out);
   },
 };
+
+// Traduce los errores más comunes de la API de Claude a qué hay que revisar.
+function explicarError(status, detalle) {
+  let m = '';
+  try { m = (JSON.parse(detalle).error || {}).message || ''; } catch (e) { m = String(detalle || '').slice(0, 200); }
+  if (status === 429 || status === 529) return 'La IA está saturada en este momento. Probá de nuevo en un minuto.';
+  if (status === 401) return 'La API key de Claude no es válida: revisá el secreto ANTHROPIC_API_KEY en Cloudflare (sin espacios ni comillas).';
+  if (/credit balance|billing|purchase credits/i.test(m)) return 'La cuenta de Anthropic no tiene crédito: cargalo en console.anthropic.com → Billing.';
+  if (status === 403) return 'La API key no tiene permiso para usar la IA. Revisá la key en console.anthropic.com. (' + m + ')';
+  if (status === 404) return 'El modelo de IA no está disponible para esta cuenta. (' + m + ')';
+  return 'No se pudo generar el texto (error ' + status + (m ? ': ' + m : '') + ').';
+}
 
 // Solo los campos que la IA necesita (sin costos, precios ni proveedores).
 function limpiarCotizacion(c) {
