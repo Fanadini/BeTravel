@@ -4,50 +4,79 @@
     ".write": false,
 
     "finanzas": {
-      ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
-
       "meta": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
         "usuarios": {
           ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() === 'admin'",
           "$usuario": {
             ".read": "auth != null && auth.token.email.toLowerCase().replace('.', ',') === $usuario"
           }
         },
-        "proveedores": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()" },
-        "ejecutivos": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()" },
-        "reservaCodigoCounter": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()" },
-        "cotizacionPrefijo": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() === 'admin'" },
-        "cotizacionCodigoCounter": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()" }
-      },
-
-      "reservas": {
-        "$rid": {
+        "proveedores": {
+          ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+          ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'"
+        },
+        "ejecutivos": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'" },
+        "reservaCodigoCounter": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'" },
+        "cotizacionPrefijo": {
+          ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+          ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() === 'admin'"
+        },
+        "cotizacionCodigoCounter": {
+          ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
           ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()"
         }
       },
 
+      "reservas": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
+        "$rid": {
+          ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'"
+        }
+      },
+
       "facturas": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
         ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() === 'admin'"
       },
 
-      "recordatorios": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()" },
-      "pasajeros": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()" },
-      "clientesDocumentos": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()" },
-      "cotizaciones": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()" },
-      "imagenesMeta": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()" },
-      "imagenesData": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()" }
+      "recordatorios": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
+        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'"
+      },
+      "pasajeros": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
+        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'"
+      },
+      "clientesDocumentos": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
+        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'"
+      },
+
+      "cotizaciones": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()"
+      },
+      "imagenesMeta": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()"
+      },
+      "imagenesData": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()"
+      }
     },
 
     "kanban": {
-      ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+      ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
 
       "prospectos": {
         "$id": {
-          ".write": "(auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) || !data.exists()"
+          ".write": "(auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador') || !data.exists()"
         }
       },
-      "segmentos": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()" },
-      "prioridades": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()" }
+      "segmentos": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'" },
+      "prioridades": { ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'" }
     }
   }
 }

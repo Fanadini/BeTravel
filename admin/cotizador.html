@@ -318,8 +318,8 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   <div class="nav-right">
     <span class="nav-user" id="nav-user-name"></span>
     <div class="sync-pill"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Conectando…</span></div>
-    <a class="nav-btn" href="gestioninterna.html">Gestión interna</a>
-    <a class="nav-btn" href="kanban.html">Prospectos</a>
+    <a class="nav-btn no-solo-cot" href="gestioninterna.html">Gestión interna</a>
+    <a class="nav-btn no-solo-cot" href="kanban.html">Prospectos</a>
     <button class="nav-btn" onclick="logout()">Salir</button>
   </div>
 </div>
@@ -472,7 +472,8 @@ auth.onAuthStateChanged(user => {
   verificarAcceso(user.email).then(acc => {
     if (!acc){ mostrarSinAcceso(user.email); return; }
     if (acc.perfil.nombre) CURRENT_USER.nombre = acc.perfil.nombre;
-    CURRENT_USER.rol = acc.sinConfigurar || acc.perfil.rol === 'admin' ? 'admin' : 'agente';
+    // Rol "cotizador": solo esta página (sin Gestión interna, Kanban ni reservas).
+    CURRENT_USER.rol = acc.sinConfigurar || acc.perfil.rol === 'admin' ? 'admin' : acc.perfil.rol === 'cotizador' ? 'cotizador' : 'agente';
     aplicarRol();
     if (!listenersAttached){ attachListeners(); listenersAttached = true; }
   });
@@ -525,8 +526,9 @@ function attachListeners(){
     IMAGENES = Object.keys(val).map(id => ({ id, ...val[id] })).sort((a,b) => (b.fecha||0) - (a.fecha||0));
     renderPortadaGrid();
   }, err => console.error(err));
-  // Clientes: los que ya existen en reservas, solo para sugerir al tipear.
-  RESERVAS_REF.once('value').then(snap => {
+  // Clientes: los que ya existen en reservas, solo para sugerir al tipear
+  // (el rol "cotizador" no tiene acceso a reservas).
+  if (CURRENT_USER.rol !== 'cotizador') RESERVAS_REF.once('value').then(snap => {
     const set = new Set();
     Object.values(snap.val()||{}).forEach(r => { if (r && r.cliente) set.add(String(r.cliente).trim()); });
     CLIENTES = [...set].sort((a,b) => a.localeCompare(b));
@@ -683,6 +685,7 @@ let PREFIJO = 'COT-';
 function codigoNuevo(n){ return PREFIJO + String(n).padStart(4,'0'); }
 function aplicarRol(){
   document.querySelectorAll('.solo-admin').forEach(el => { el.style.display = CURRENT_USER.rol === 'admin' ? '' : 'none'; });
+  document.querySelectorAll('.no-solo-cot').forEach(el => { el.style.display = CURRENT_USER.rol === 'cotizador' ? 'none' : ''; });
 }
 function codigoEnUso(codigo, exceptoId){
   const k = codigo.trim().toLowerCase();
@@ -856,7 +859,7 @@ function renderEditor(){
           <div class="side-btns">
             <button class="new-btn" onclick="abrirDeck(false)">Vista previa</button>
             <button class="new-btn outline" onclick="abrirDeck(true)">Descargar PDF</button>
-            <button class="new-btn outline" onclick="convertirEnReserva()">${c.reservaId ? 'Ver reserva →' : 'Convertir en reserva'}</button>
+            ${CURRENT_USER.rol === 'cotizador' ? '' : `<button class="new-btn outline" onclick="convertirEnReserva()">${c.reservaId ? 'Ver reserva →' : 'Convertir en reserva'}</button>`}
             <button class="new-btn outline" onclick="duplicarCotizacion()">Duplicar</button>
           </div>
           <div style="text-align:center"><button class="link-danger" onclick="eliminarCotizacion()">Eliminar cotización</button></div>
@@ -1330,6 +1333,7 @@ function asignarCodigoReserva(){
 // servicios tildados de lo incluido + la opción que eligió el cliente (+ los
 // adicionales, si los contrató).
 function convertirEnReserva(){
+  if (CURRENT_USER.rol === 'cotizador') return; // sin acceso a reservas
   const c = editing.data;
   if (c.reservaId){
     flushSave().finally(() => { location.href = 'gestioninterna.html?reserva=' + encodeURIComponent(c.reservaId); });

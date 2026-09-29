@@ -102,7 +102,7 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 - Columnas con counter, drag-and-drop con listeners preservados
 - **Crítico:** al modificar HTML complejo, reconstruir el archivo completo es más confiable que chained string replacements
 - **Crítico:** las Firebase security rules deben mantenerse activas — versión de referencia en `database.rules.json`, pasos de publicación en `admin/SEGURIDAD_FIREBASE.md`
-- Roles: `finanzas/meta/usuarios/{email en minúsculas con "." reemplazado por ","}` define `rol: admin|agente`. Es también la lista de acceso: con las reglas actuales, una cuenta sin entrada ahí no lee ni escribe `finanzas` ni `kanban`
+- Roles: `finanzas/meta/usuarios/{email en minúsculas con "." reemplazado por ","}` define `rol: admin|agente|cotizador` (`cotizador` = solo el Cotizador, forzado también por las reglas). Es también la lista de acceso: con las reglas actuales, una cuenta sin entrada ahí no lee ni escribe `finanzas` ni `kanban`
 - Emails @betravel.com.ar están en Zoho (no Google): para loguearse con Google, cada persona crea una cuenta de Google con su email actual (ver admin/SEGURIDAD_FIREBASE.md)
 
 ---
