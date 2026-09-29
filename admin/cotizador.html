@@ -115,6 +115,41 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .item-card .grid{margin-bottom:8px}
 .item-foot{font-size:11px;color:rgba(43,43,43,.55);display:flex;gap:14px;flex-wrap:wrap}
 .item-foot .warn{color:var(--amber)}
+.item-card.off{opacity:.5}
+.item-card.off .item-label{text-decoration:line-through}
+.srv-check{display:flex;align-items:center;gap:7px;cursor:pointer}
+.srv-check input{width:15px;height:15px;accent-color:var(--teal);cursor:pointer}
+.modo-tag{font-size:9.5px;font-weight:600;padding:2px 7px;border-radius:99px;background:rgba(176,138,90,.18);color:var(--bronze);letter-spacing:.3px}
+.opc-block{border:1px solid var(--beige-d);border-radius:8px;padding:8px 10px;margin-bottom:8px}
+.opc-block .fi{font-size:11.5px;padding:5px 8px;margin:4px 0 6px}
+.opc-titulo{font-size:10px;font-weight:600;color:var(--teal);letter-spacing:.5px;text-transform:uppercase}
+
+/* Portada: biblioteca de imágenes */
+.portada-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin-bottom:10px}
+.pt{position:relative;border:2px solid transparent;border-radius:8px;overflow:hidden;cursor:pointer;background:var(--beige);text-align:left;padding:0;font-family:'Inter',sans-serif}
+.pt.sel{border-color:var(--teal)}
+.pt img,.pt .pt-vacio{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.pt .pt-vacio{display:flex;align-items:center;justify-content:center;font-size:11px;color:rgba(43,43,43,.45);background:var(--beige-d)}
+.pt-cap{font-size:10.5px;padding:4px 6px 5px;color:var(--dark);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pt-cap small{display:block;color:rgba(43,43,43,.45);font-size:9.5px}
+.pt-del{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;border:none;background:rgba(20,24,24,.6);color:#fff;font-size:11px;cursor:pointer;display:none;align-items:center;justify-content:center}
+.pt:hover .pt-del{display:flex}
+.file-btn{position:relative;overflow:hidden}
+.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+
+/* Redactar con IA */
+.ia-btn{font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;padding:6px 11px;border-radius:7px;border:1.5px solid var(--teal);background:transparent;color:var(--teal);cursor:pointer;white-space:nowrap}
+.ia-btn:hover{background:var(--teal-l)}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.card-head h3{margin-bottom:0;flex:1}
+.ia-modal{position:fixed;inset:0;background:rgba(20,24,24,.6);z-index:950;display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+.ia-modal.open{display:flex}
+.ia-box{background:var(--white);border-radius:12px;width:100%;max-width:760px;padding:20px 22px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.ia-box h2{font-size:15px;font-weight:600;color:var(--teal);margin-bottom:4px}
+.ia-res-dia{border-left:3px solid var(--teal);padding-left:10px;margin-bottom:10px}
+.ia-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.ia-estado{font-size:12px;color:rgba(43,43,43,.6);margin:10px 0}
+.ia-estado.err{color:var(--red)}
 .add-item-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border-radius:7px;border:1.5px dashed var(--beige-d);background:transparent;color:rgba(43,43,43,.5);font-family:'Inter',sans-serif;font-size:12px;font-weight:500;cursor:pointer;width:100%}
 .add-item-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-l)}
 .row-btns{display:flex;gap:8px;margin-top:4px}
@@ -183,6 +218,21 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .srv-concepto{font-size:11pt;font-weight:600;color:#0F3D3E;line-height:1.35}
 .srv-detalle{font-size:9pt;line-height:1.5;white-space:pre-line;margin-top:1mm}
 .srv-group{break-inside:avoid-column;margin-bottom:3mm}
+.srv-seccion{font-size:12pt;font-weight:600;color:#0F3D3E;margin:0 0 3mm;padding-bottom:1.5mm;border-bottom:.3mm solid rgba(15,61,62,.3);break-after:avoid}
+.srv-seccion:not(:first-child){margin-top:3mm}
+
+/* Opciones y adicionales en Inversión */
+.inv-opciones{display:grid;gap:8mm;margin-bottom:4mm}
+.inv-opcion{border-top:.8mm solid #0F3D3E;padding-top:4mm}
+.inv-opcion .inv-label{margin-bottom:1.5mm}
+.inv-opcion-nombre{font-size:11pt;font-weight:600;color:#0F3D3E;margin-bottom:3mm;line-height:1.3}
+.inv-opcion-monto{font-size:24pt;font-weight:600;color:#0F3D3E;letter-spacing:-.5pt;line-height:1.1}
+.inv-opcion-pp{font-size:10pt;margin-top:2mm}
+.inv-adic{margin-top:7mm;max-width:200mm}
+.inv-adic h4{font-size:8pt;font-weight:600;letter-spacing:1.4pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin-bottom:2mm}
+.inv-adic-row{display:flex;justify-content:space-between;gap:8mm;font-size:10pt;padding:1.8mm 0;border-bottom:.2mm solid rgba(15,61,62,.15)}
+.inv-adic-row span:last-child{white-space:nowrap}
+.inv-table tr.sec td{font-weight:600;color:#0F3D3E;font-size:10.5pt;padding-top:4mm;border-bottom:.3mm solid rgba(15,61,62,.35)}
 
 /* Inversión */
 .inv-total{display:flex;flex-direction:column;justify-content:center;height:100%;max-width:200mm}
@@ -273,6 +323,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
       <h2>Cotizaciones</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input class="search" id="search" placeholder="Buscar por cliente, destino o código…" oninput="renderList()">
+        <button class="new-btn outline solo-admin" style="display:none" onclick="cambiarPrefijo()" title="Solo admin">Prefijo de códigos</button>
         <button class="new-btn" onclick="nuevaCotizacion()">+ Nueva cotización</button>
       </div>
     </div>
@@ -287,6 +338,25 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 </div>
 
 <!-- VISTA PREVIA / PDF -->
+<!-- REDACTAR CON IA -->
+<div class="ia-modal" id="ia-modal">
+  <div class="ia-box">
+    <h2>Redactar con IA</h2>
+    <p class="card-hint" style="margin:0 0 12px">La IA redacta con los datos de la cotización (destino, fechas, días y servicios) y el tono de Be•Travel. Revisá el resultado antes de aplicarlo: no reemplaza nada hasta que toques "Aplicar".</p>
+    <label class="check-row"><input type="checkbox" id="ia-intro"> Presentación</label>
+    <label class="check-row"><input type="checkbox" id="ia-dias"> Itinerario (título y descripción de cada día)</label>
+    <label class="fl" style="margin-top:8px">Indicaciones para la IA (opcional)</label>
+    <textarea class="fta" id="ia-indicaciones" rows="2" placeholder="Ej: destacar que el hotel tiene sala de conferencias; tono más cálido; el día 3 es libre"></textarea>
+    <div class="ia-estado" id="ia-estado"></div>
+    <div id="ia-resultado"></div>
+    <div class="ia-actions">
+      <button class="new-btn outline" onclick="cerrarIA()">Cerrar</button>
+      <button class="new-btn outline" id="ia-generar" onclick="generarIA()">Generar</button>
+      <button class="new-btn" id="ia-aplicar" style="display:none" onclick="aplicarIA()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
 <div class="deck-modal" id="deck-modal">
   <div class="deck-toolbar">
     <div>
@@ -321,6 +391,7 @@ const auth = firebase.auth();
 const COT_REF = db.ref('finanzas/cotizaciones');
 const RESERVAS_REF = db.ref('finanzas/reservas');
 const META_COT_COUNTER_REF = db.ref('finanzas/meta/cotizacionCodigoCounter');
+const META_COT_PREFIJO_REF = db.ref('finanzas/meta/cotizacionPrefijo');
 const META_RES_COUNTER_REF = db.ref('finanzas/meta/reservaCodigoCounter');
 const META_PROV_REF = db.ref('finanzas/meta/proveedores');
 const META_USUARIOS_REF = db.ref('finanzas/meta/usuarios');
@@ -328,14 +399,18 @@ const META_USUARIOS_REF = db.ref('finanzas/meta/usuarios');
 // Mismos tipos que gestioninterna.html, para que "Convertir en reserva" sea compatible.
 const SERVICIO_TIPOS = ['Aéreo','Hotel','Traslados','Autos','Tren','Actividades','Crucero','Atracciones','Otro'];
 const ESTADOS_COT = { borrador:'Borrador', enviada:'Enviada', aceptada:'Aceptada', rechazada:'Rechazada' };
-const PORTADAS = [
-  ['../betravel-editorial.jpg','Editorial'],
-  ['../becorporate-hero.jpg','Corporativo'],
-  ['../becommunity-hero.jpg','Community'],
-  ['../vacacional-paris.jpg','Vacacional'],
-  ['custom','Link propio'],
-  ['','Sin imagen'],
-];
+// Portada: siempre una imagen del destino cotizado. 'auto' (la más reciente de
+// la biblioteca para ese destino), 'lib:<id>' (una puntual) o 'custom' (link).
+// Las imágenes genéricas del sitio que usaban las primeras cotizaciones pasan a 'auto'.
+const PORTADAS_SITIO = ['../betravel-editorial.jpg','../becorporate-hero.jpg','../becommunity-hero.jpg','../vacacional-paris.jpg'];
+const IMG_META_REF = db.ref('finanzas/imagenesMeta');   // destino + miniatura (liviano, se escucha siempre)
+const IMG_DATA_REF = db.ref('finanzas/imagenesData');   // imagen completa (se baja solo al usarla)
+// Servicios: incluido en todas las opciones, parte de una opción alternativa
+// (ej: dos hoteles para las mismas noches) o adicional que no suma al total.
+const OPCIONES = ['A','B','C','D'];
+const MODOS_SRV = [['incluido','Incluido'], ...OPCIONES.map(o => [o, 'Opción ' + o]), ['adicional','Adicional opcional']];
+// URL del Worker de Cloudflare que redacta con IA (ver infra/redactor/LEEME.md).
+const REDACTOR_URL = '';
 const MARKUP_DEFAULT = 10;
 // Borradores de texto para la propuesta: revisarlos antes de enviar la primera.
 const DEFAULT_NO_INCLUYE = 'Gastos personales.\nPropinas.\nServicios no mencionados como incluidos.';
@@ -365,10 +440,14 @@ auth.onAuthStateChanged(user => {
   loginScreen.classList.add('hidden');
   const nombreGoogle = user.displayName ? user.displayName.split(' ')[0] : user.email;
   document.getElementById('nav-user-name').textContent = nombreGoogle;
-  CURRENT_USER = { email:user.email, nombre: user.displayName || nombreGoogle };
+  CURRENT_USER = { email:user.email, nombre: user.displayName || nombreGoogle, rol:'agente' };
   META_USUARIOS_REF.once('value').then(snap => {
-    const perfil = (snap.val()||{})[emailKey(user.email)];
+    const todos = snap.val() || {};
+    const perfil = todos[emailKey(user.email)];
     if (perfil && perfil.nombre) CURRENT_USER.nombre = perfil.nombre;
+    // Mismo criterio que Gestión interna: lista vacía = todavía sin configurar, todos admin.
+    CURRENT_USER.rol = !Object.keys(todos).length || (perfil && perfil.rol === 'admin') ? 'admin' : 'agente';
+    aplicarRol();
   }).catch(()=>{});
   if (!listenersAttached){ attachListeners(); listenersAttached = true; }
 });
@@ -386,7 +465,7 @@ function showBanner(msg){
 function handleWriteError(err){
   console.error(err);
   if (String(err && (err.code||err.message)).toUpperCase().includes('PERMISSION')){
-    showBanner('Firebase rechazó el guardado: faltan publicar las reglas actualizadas (database.rules.json) que habilitan finanzas/cotizaciones. Ver admin/SEGURIDAD_FIREBASE.md.');
+    showBanner('Firebase rechazó el guardado: faltan publicar las reglas actualizadas (database.rules.json) o tu cuenta no está en la lista de usuarios. Ver admin/SEGURIDAD_FIREBASE.md.');
   } else {
     showBanner('No se pudo guardar. Revisá la conexión e intentá de nuevo.');
   }
@@ -398,6 +477,8 @@ let COTS = [];
 let PROVEEDORES = [];
 let CLIENTES = [];
 let editing = null; // { id, data }
+let IMAGENES = [];   // biblioteca: [{ id, destino, destinoKey, thumb, fecha, creadoPor }]
+const IMG_FULL = {}; // id → dataUrl de la imagen completa (se baja al usarla)
 let saveTimer = null;
 let openedFromParam = false;
 
@@ -412,6 +493,12 @@ function attachListeners(){
     openFromParam();
   }, err => { setSyncStatus('err','Error de sync'); console.error(err); document.getElementById('lo').classList.add('hidden'); });
   META_PROV_REF.on('value', snap => { PROVEEDORES = snap.val() ? Object.values(snap.val()) : []; refreshDatalists(); });
+  META_COT_PREFIJO_REF.on('value', snap => { PREFIJO = String(snap.val() || 'COT-'); });
+  IMG_META_REF.on('value', snap => {
+    const val = snap.val() || {};
+    IMAGENES = Object.keys(val).map(id => ({ id, ...val[id] })).sort((a,b) => (b.fecha||0) - (a.fecha||0));
+    renderPortadaGrid();
+  }, err => console.error(err));
   // Clientes: los que ya existen en reservas, solo para sugerir al tipear.
   RESERVAS_REF.once('value').then(snap => {
     const set = new Set();
@@ -480,7 +567,7 @@ function blankCotizacion(){
   return {
     codigo:'', titulo:'', cliente:'', destino:'', fechaInicio:'', fechaFin:'', pasajeros:'',
     moneda:'USD', tipoCambio:'', validezHasta:'', estado:'borrador',
-    portada:'../betravel-editorial.jpg', portadaUrl:'',
+    portada:'auto', portadaUrl:'', nombresOpciones:{}, opcionElegida:'',
     introduccion:'', dias:[], servicios:[], markupDefault: MARKUP_DEFAULT,
     mostrarDesglose:false, mostrarPorPersona:true,
     noIncluye: DEFAULT_NO_INCLUYE, condiciones: DEFAULT_CONDICIONES,
@@ -496,14 +583,34 @@ function normalizar(raw){
   c.dias = Array.isArray(c.dias) ? c.dias.filter(Boolean) : Object.values(c.dias||{});
   c.servicios = Array.isArray(c.servicios) ? c.servicios.filter(Boolean) : Object.values(c.servicios||{});
   c.dias = c.dias.map(d => ({ titulo:'', descripcion:'', ...d }));
-  c.servicios = c.servicios.map(s => ({ tipo:'Otro', concepto:'', detalle:'', proveedor:'', costo:0, moneda:c.moneda, markup:0, precio:0, ...s }));
+  c.servicios = c.servicios.map(s => ({ tipo:'Otro', concepto:'', detalle:'', proveedor:'', costo:0, moneda:c.moneda, markup:0, precio:0, activo:true, modo:'incluido', ...s }));
+  c.nombresOpciones = { ...(c.nombresOpciones||{}) };
   if (raw && raw.noIncluye === undefined) c.noIncluye = '';
   if (raw && raw.condiciones === undefined) c.condiciones = '';
+  if (!c.portada || c.portada === 'none' || PORTADAS_SITIO.includes(c.portada)) c.portada = 'auto';
   return c;
 }
-function totales(c){
+// Servicios tildados (los destildados quedan guardados pero no cuentan ni se muestran).
+function srvActivos(c){ return (c.servicios||[]).filter(s => s.activo !== false); }
+function modoDe(s){ return s.modo || 'incluido'; }
+// Letras de opción en uso, en orden (solo servicios tildados).
+function opcionesDe(c){ return OPCIONES.filter(o => srvActivos(c).some(s => modoDe(s) === o)); }
+function nombreOpcion(c, o){
+  const n = String((c.nombresOpciones||{})[o] || '').trim();
+  return 'Opción ' + o + (n ? ' · ' + n : '');
+}
+// Totales de lo incluido + (si se pasa) una opción. Los adicionales no suman.
+function totales(c, opcion){
+  return sumarServicios(c, srvActivos(c).filter(s => modoDe(s) === 'incluido' || (opcion && modoDe(s) === opcion)));
+}
+// Un total por opción; sin opciones, un único total.
+function totalesPorOpcion(c){
+  const ops = opcionesDe(c);
+  return ops.length ? ops.map(o => ({ o, t: totales(c, o) })) : [{ o: null, t: totales(c) }];
+}
+function sumarServicios(c, lista){
   let costo = 0, precio = 0, faltaTC = false, huboConversion = false;
-  (c.servicios||[]).forEach(s => {
+  lista.forEach(s => {
     const m = s.moneda || c.moneda;
     const cc = convertir(num(s.costo), m, c.moneda, c.tipoCambio);
     const pc = convertir(num(s.precio), m, c.moneda, c.tipoCambio);
@@ -529,7 +636,8 @@ function renderList(){
     return;
   }
   tbody.innerHTML = items.map(c => {
-    const t = totales(c);
+    const tops = totalesPorOpcion(c);
+    const t = tops.reduce((a, x) => x.t.precio < a.precio ? x.t : a, tops[0].t);
     const usd = c.moneda==='USD' ? 'usd' : '';
     return `<tr onclick="abrirCotizacion('${c.id}')">
       <td><b>${escHtml(c.codigo||'—')}</b></td>
@@ -537,18 +645,64 @@ function renderList(){
       <td>${escHtml(c.titulo||c.destino||'—')}</td>
       <td>${c.fechaInicio ? fmtDateShort(c.fechaInicio) : '—'}${c.fechaFin ? ' – '+fmtDateShort(c.fechaFin) : ''}</td>
       <td>${t.pax ? fmtNum(t.pax) : '—'}</td>
-      <td><span class="money ${usd}">${fmtMoney(t.precio, c.moneda)}</span></td>
+      <td><span class="money ${usd}">${tops.length > 1 ? 'desde ' : ''}${fmtMoney(t.precio, c.moneda)}</span></td>
       <td><span class="badge estado-${escHtml(c.estado)}">${escHtml(ESTADOS_COT[c.estado]||c.estado)}</span>${c.reservaId ? '<span class="badge reserva">En reserva</span>' : ''}</td>
       <td class="muted">${c.updatedAt ? new Date(c.updatedAt).toLocaleDateString('es-AR') : ''}</td>
     </tr>`;
   }).join('');
 }
 
+// ── CÓDIGOS (el prefijo y el código de cada cotización los cambia un admin) ──
+let PREFIJO = 'COT-';
+function codigoNuevo(n){ return PREFIJO + String(n).padStart(4,'0'); }
+function aplicarRol(){
+  document.querySelectorAll('.solo-admin').forEach(el => { el.style.display = CURRENT_USER.rol === 'admin' ? '' : 'none'; });
+}
+function codigoEnUso(codigo, exceptoId){
+  const k = codigo.trim().toLowerCase();
+  return COTS.some(x => x.id !== exceptoId && String(x.codigo||'').trim().toLowerCase() === k);
+}
+// La reserva generada guarda el código de su cotización de origen: se mantiene al día.
+function actualizarCodigoEnReserva(c){
+  return c.reservaId ? RESERVAS_REF.child(c.reservaId + '/cotizacionCodigo').set(c.codigo).catch(()=>{}) : Promise.resolve();
+}
+function editarCodigo(){
+  if (CURRENT_USER.rol !== 'admin') return;
+  const c = editing.data;
+  const r = prompt('Código de la cotización:', c.codigo);
+  if (r === null) return;
+  const nuevo = r.trim();
+  if (!nuevo || nuevo === c.codigo) return;
+  if (codigoEnUso(nuevo, editing.id)){ alert(`El código "${nuevo}" ya lo usa otra cotización.`); return; }
+  c.codigo = nuevo;
+  saveNow().then(() => actualizarCodigoEnReserva(c)).then(() => { renderEditor(); renderList(); }).catch(()=>{});
+}
+function cambiarPrefijo(){
+  if (CURRENT_USER.rol !== 'admin') return;
+  const r = prompt('Prefijo para los códigos de las cotizaciones nuevas (ej: COT-, PROP-, BT-):', PREFIJO);
+  if (r === null) return;
+  const nuevo = r.trim();
+  if (!nuevo || nuevo === PREFIJO) return;
+  const anterior = PREFIJO;
+  const afectadas = COTS.filter(x => String(x.codigo||'').startsWith(anterior));
+  const renombrar = afectadas.length > 0 && confirm(`¿Renombrar también las ${afectadas.length} cotizaciones existentes? (ej: ${afectadas[0].codigo} → ${nuevo + afectadas[0].codigo.slice(anterior.length)})\n\nAceptar: sí. Cancelar: solo las nuevas usan el prefijo nuevo.`);
+  META_COT_PREFIJO_REF.set(nuevo).then(() => {
+    if (!renombrar) return;
+    const upd = {}, updRes = {};
+    afectadas.forEach(x => {
+      const cod = nuevo + x.codigo.slice(anterior.length);
+      upd[x.id + '/codigo'] = cod;
+      if (x.reservaId) updRes[x.reservaId + '/cotizacionCodigo'] = cod;
+    });
+    return COT_REF.update(upd).then(() => Object.keys(updRes).length ? RESERVAS_REF.update(updRes).catch(()=>{}) : null);
+  }).catch(handleWriteError);
+}
+
 function nuevaCotizacion(){
   META_COT_COUNTER_REF.transaction(cur => (Number(cur)||0) + 1).then(res => {
     if (!res.committed) throw new Error('No se pudo asignar el código');
     const data = blankCotizacion();
-    data.codigo = 'COT-' + String(res.snapshot.val()).padStart(4,'0');
+    data.codigo = codigoNuevo(res.snapshot.val());
     const ref = COT_REF.push();
     return ref.set(data).then(() => {
       COTS = COTS.filter(c => c.id !== ref.key).concat([{ id: ref.key, ...data }]);
@@ -588,17 +742,16 @@ function refreshDatalists(){
 
 function renderEditor(){
   const c = editing.data;
-  const portadaSel = PORTADAS.some(([v]) => v === c.portada) ? c.portada : 'custom';
   document.getElementById('view-editor').innerHTML = `
     <button class="back-link" onclick="volverALista()">← Volver a cotizaciones</button>
     <div class="editor">
       <div>
         <div class="card">
-          <h3>Datos de la propuesta · ${escHtml(c.codigo)}</h3>
+          <div class="card-head"><h3>Datos de la propuesta · ${escHtml(c.codigo)}</h3><button class="ia-btn solo-admin" style="${CURRENT_USER.rol==='admin'?'':'display:none'}" onclick="editarCodigo()">Cambiar código</button></div>
           <div class="frow"><label class="fl">Título de la propuesta</label><input class="fi" value="${escHtml(c.titulo)}" placeholder="Ej: Bariloche · Encuentro anual de equipos" oninput="setCampo('titulo',this.value)"></div>
           <div class="grid g2">
             <div><label class="fl">Cliente</label><input class="fi" list="dl-clientes" value="${escHtml(c.cliente)}" placeholder="Empresa, sindicato o pasajero" oninput="setCampo('cliente',this.value)"></div>
-            <div><label class="fl">Destino</label><input class="fi" value="${escHtml(c.destino)}" placeholder="Ej: San Carlos de Bariloche" oninput="setCampo('destino',this.value)"></div>
+            <div><label class="fl">Destino</label><input class="fi" value="${escHtml(c.destino)}" placeholder="Ej: San Carlos de Bariloche" oninput="setCampo('destino',this.value);renderPortadaGrid()"></div>
           </div>
           <div class="grid g4">
             <div><label class="fl">Fecha de inicio</label><input class="fi" type="date" value="${escHtml(c.fechaInicio)}" onchange="setCampo('fechaInicio',this.value);renderDias()"></div>
@@ -606,22 +759,30 @@ function renderEditor(){
             <div><label class="fl">Pasajeros</label><input class="fi" type="number" min="0" step="1" value="${escHtml(c.pasajeros)}" placeholder="Ej: 40" oninput="setCampo('pasajeros',this.value);renderTotales()"></div>
             <div><label class="fl">Válida hasta</label><input class="fi" type="date" value="${escHtml(c.validezHasta)}" onchange="setCampo('validezHasta',this.value)"></div>
           </div>
-          <div class="grid g4" style="margin-bottom:0">
+          <div class="grid g2" style="margin-bottom:0">
             <div><label class="fl">Moneda de la propuesta</label><select class="fsel" onchange="setCampo('moneda',this.value);renderServicios();renderTotales()">${selOpts(['USD','ARS'],['USD','ARS'],c.moneda)}</select></div>
             <div><label class="fl">T.C. de referencia (ARS por US$)</label><input class="fi" type="number" step="0.01" value="${escHtml(c.tipoCambio)}" placeholder="Ej: 1450" oninput="setCampo('tipoCambio',this.value);renderServiciosFoot();renderTotales()"></div>
-            <div><label class="fl">Imagen de portada</label><select class="fsel" onchange="setPortada(this.value)">${selOpts(PORTADAS.map(p=>p[0]),PORTADAS.map(p=>p[1]),portadaSel)}</select></div>
-            <div id="portada-url-wrap" style="${portadaSel==='custom'?'':'display:none'}"><label class="fl">Link de la imagen</label><input class="fi" value="${escHtml(c.portadaUrl)}" placeholder="https://…/foto.jpg" oninput="setCampo('portadaUrl',this.value)"></div>
           </div>
         </div>
 
         <div class="card">
-          <h3>Presentación</h3>
-          <p class="card-hint">Texto opcional que abre la propuesta. Si queda vacío, esa página no se incluye.</p>
-          <textarea class="fta" rows="4" placeholder="Ej: Compartimos la propuesta para el encuentro anual de su equipo, pensada para…" oninput="setCampo('introduccion',this.value)">${escHtml(c.introduccion)}</textarea>
+          <h3>Imagen de portada</h3>
+          <p class="card-hint">"Automática" usa la imagen de la biblioteca que coincide con el destino. Las imágenes que carguen quedan guardadas para las próximas propuestas a ese destino.</p>
+          <div class="portada-grid" id="portada-grid"></div>
+          <div class="row-btns">
+            <label class="add-item-btn file-btn">+ Cargar imagen desde la computadora<input type="file" accept="image/*" onchange="subirImagen(this)"></label>
+          </div>
+          <div id="portada-url-wrap" style="margin-top:10px;${c.portada==='custom'?'':'display:none'}"><label class="fl">Link de la imagen</label><input class="fi" value="${escHtml(c.portadaUrl)}" placeholder="https://…/foto.jpg" oninput="setCampo('portadaUrl',this.value)"></div>
         </div>
 
         <div class="card">
-          <h3>Itinerario</h3>
+          <div class="card-head"><h3>Presentación</h3><button class="ia-btn" onclick="abrirIA({introduccion:true})">Redactar con IA</button></div>
+          <p class="card-hint">Texto opcional que abre la propuesta. Si queda vacío, esa página no se incluye.</p>
+          <textarea class="fta" id="f-introduccion" rows="4" placeholder="Ej: Compartimos la propuesta para el encuentro anual de su equipo, pensada para…" oninput="setCampo('introduccion',this.value)">${escHtml(c.introduccion)}</textarea>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Itinerario</h3><button class="ia-btn" onclick="abrirIA({dias:true})">Redactar días con IA</button></div>
           <p class="card-hint">Un bloque por día. Con las fechas cargadas, cada día muestra su fecha automáticamente.</p>
           <div id="dias-list"></div>
           <div class="row-btns">
@@ -634,7 +795,7 @@ function renderEditor(){
           <h3>Servicios</h3>
           <div class="grid g4" style="align-items:end">
             <div><label class="fl">Markup por defecto (%)</label><input class="fi" type="number" step="0.1" value="${escHtml(c.markupDefault)}" oninput="setCampo('markupDefault',num(this.value))"></div>
-            <div style="grid-column:span 3"><p class="card-hint" style="margin:0">Se aplica a cada servicio nuevo. En cada línea podés ajustar el markup o escribir directo el precio de venta: el otro valor se recalcula solo.</p></div>
+            <div style="grid-column:span 3"><p class="card-hint" style="margin:0">Se aplica a cada servicio nuevo. En cada línea podés ajustar el markup o escribir directo el precio de venta: el otro valor se recalcula solo. Destildá un servicio para sacarlo de la propuesta sin borrarlo. Para ofrecer alternativas (ej: dos hoteles para las mismas noches), marcá cada una como Opción A, B…: la propuesta muestra un total por opción.</p></div>
           </div>
           <div id="servicios-list"></div>
           <button class="add-item-btn" onclick="agregarServicio()">+ Agregar servicio</button>
@@ -681,6 +842,7 @@ function renderEditor(){
     <datalist id="dl-clientes"></datalist>
   `;
   refreshDatalists();
+  renderPortadaGrid();
   renderDias();
   renderServicios();
   renderTotales();
@@ -692,6 +854,7 @@ function setCampo(campo, valor){ editing.data[campo] = valor; markDirty(); }
 function setPortada(v){
   editing.data.portada = v;
   document.getElementById('portada-url-wrap').style.display = v==='custom' ? '' : 'none';
+  renderPortadaGrid();
   markDirty();
 }
 function setSaveStatus(txt){ const el = document.getElementById('save-status'); if (el) el.textContent = txt; }
@@ -717,6 +880,192 @@ function saveNow(){
 function flushSave(){
   if (saveTimer){ clearTimeout(saveTimer); saveTimer = null; return saveNow(); }
   return Promise.resolve();
+}
+
+// ── REDACTAR CON IA ────────────────────────────────────────────────────────
+// Llama al Worker de Cloudflare (infra/redactor/worker.js), que guarda la API
+// key de Claude y verifica que quien pide esté logueado y habilitado. La
+// respuesta se muestra editable y solo se copia a la cotización con "Aplicar".
+let IA_RES = null;
+function abrirIA(tareas){
+  if (!REDACTOR_URL){ alert('La redacción con IA todavía no está configurada: falta crear el Worker de Cloudflare (ver infra/redactor/LEEME.md).'); return; }
+  document.getElementById('ia-intro').checked = !!tareas.introduccion;
+  document.getElementById('ia-dias').checked = !!tareas.dias;
+  document.getElementById('ia-resultado').innerHTML = '';
+  document.getElementById('ia-aplicar').style.display = 'none';
+  setIAEstado('');
+  IA_RES = null;
+  document.getElementById('ia-modal').classList.add('open');
+}
+function cerrarIA(){ document.getElementById('ia-modal').classList.remove('open'); }
+function setIAEstado(txt, err){
+  const el = document.getElementById('ia-estado');
+  el.textContent = txt; el.classList.toggle('err', !!err);
+}
+function datosParaIA(c){
+  const lbl = s => modoDe(s) === 'incluido' ? 'incluido' : modoDe(s) === 'adicional' ? 'adicional opcional' : nombreOpcion(c, modoDe(s));
+  return {
+    titulo: c.titulo, cliente: c.cliente, destino: c.destino,
+    fechaInicio: c.fechaInicio, fechaFin: c.fechaFin, pasajeros: c.pasajeros,
+    introduccion: c.introduccion,
+    dias: c.dias.map((d, i) => ({ n: i + 1, fecha: c.fechaInicio ? fmtDiaLabel(addDays(c.fechaInicio, i)) : '', titulo: d.titulo, descripcion: d.descripcion })),
+    servicios: srvActivos(c).map(s => ({ tipo: s.tipo, concepto: s.concepto, detalle: s.detalle, en_la_propuesta: lbl(s) })),
+  };
+}
+async function generarIA(){
+  const c = editing.data;
+  const tareas = { introduccion: document.getElementById('ia-intro').checked, dias: document.getElementById('ia-dias').checked };
+  if (!tareas.introduccion && !tareas.dias){ setIAEstado('Elegí qué redactar.', true); return; }
+  if (tareas.dias && !c.dias.length){ setIAEstado('No hay días en el itinerario: generalos primero con "Generar días según las fechas".', true); return; }
+  const btn = document.getElementById('ia-generar');
+  btn.disabled = true;
+  document.getElementById('ia-aplicar').style.display = 'none';
+  document.getElementById('ia-resultado').innerHTML = '';
+  setIAEstado('Redactando… puede tardar hasta un minuto.');
+  try {
+    const token = await auth.currentUser.getIdToken();
+    const resp = await fetch(REDACTOR_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ tareas, indicaciones: document.getElementById('ia-indicaciones').value, cotizacion: datosParaIA(c) }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || 'No se pudo generar el texto. Probá de nuevo.');
+    IA_RES = data;
+    renderResultadoIA();
+    setIAEstado('Revisá y ajustá el texto. "Aplicar" reemplaza lo que esté cargado en esos campos.');
+    document.getElementById('ia-aplicar').style.display = '';
+  } catch (err){
+    setIAEstado(err.message && !/Failed to fetch/i.test(err.message) ? err.message : 'No se pudo conectar con el servicio de IA. Revisá la conexión.', true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+function renderResultadoIA(){
+  const c = editing.data;
+  let html = '';
+  if (typeof IA_RES.introduccion === 'string'){
+    html += `<label class="fl">Presentación</label><textarea class="fta" rows="5" oninput="IA_RES.introduccion=this.value">${escHtml(IA_RES.introduccion)}</textarea>`;
+  }
+  if (Array.isArray(IA_RES.dias)){
+    html += `<label class="fl" style="margin-top:12px">Itinerario</label>` + IA_RES.dias.map((d, i) => `
+      <div class="ia-res-dia">
+        <div class="item-label" style="margin-bottom:4px">Día ${i+1}${c.fechaInicio ? ' · ' + escHtml(fmtDiaLabel(addDays(c.fechaInicio, i))) : ''}</div>
+        <input class="fi" style="margin-bottom:6px" value="${escHtml(d.titulo)}" oninput="IA_RES.dias[${i}].titulo=this.value">
+        <textarea class="fta" rows="3" oninput="IA_RES.dias[${i}].descripcion=this.value">${escHtml(d.descripcion)}</textarea>
+      </div>`).join('');
+  }
+  document.getElementById('ia-resultado').innerHTML = html;
+}
+function aplicarIA(){
+  if (!IA_RES || !editing) return;
+  const c = editing.data;
+  if (typeof IA_RES.introduccion === 'string') c.introduccion = IA_RES.introduccion.trim();
+  if (Array.isArray(IA_RES.dias)) IA_RES.dias.forEach((d, i) => {
+    if (c.dias[i]) { c.dias[i].titulo = String(d.titulo || '').trim(); c.dias[i].descripcion = String(d.descripcion || '').trim(); }
+  });
+  markDirty();
+  renderEditor();
+  cerrarIA();
+}
+
+// ── PORTADA: BIBLIOTECA DE IMÁGENES POR DESTINO ────────────────────────────
+// Las imágenes se guardan en la base (reducidas a JPEG): la miniatura en
+// imagenesMeta y la completa en imagenesData, que solo se baja al armar la
+// propuesta. "Automática" elige la más reciente cuyo destino coincide.
+function normTxt(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+}
+// Coincide si uno contiene al otro como palabras completas:
+// "Bariloche" ↔ "San Carlos de Bariloche", pero "Roma" no ↔ "Rumania".
+function destinoCoincide(a, b){
+  if (!a || !b) return false;
+  return (' ' + a + ' ').includes(' ' + b + ' ') || (' ' + b + ' ').includes(' ' + a + ' ');
+}
+function imagenesDelDestino(destino){
+  const k = normTxt(destino);
+  return IMAGENES.filter(im => destinoCoincide(k, im.destinoKey || normTxt(im.destino)));
+}
+function cargarImagenFull(id){
+  if (!id || IMG_FULL[id]) return Promise.resolve();
+  return IMG_DATA_REF.child(id).once('value').then(s => {
+    const v = s.val();
+    if (v && v.dataUrl) IMG_FULL[id] = v.dataUrl;
+  }).catch(err => console.error(err));
+}
+function renderPortadaGrid(){
+  const el = document.getElementById('portada-grid');
+  if (!el || !editing) return;
+  const c = editing.data;
+  const delDestino = imagenesDelDestino(c.destino);
+  const auto = delDestino[0];
+  // Solo imágenes del destino (+ la elegida a mano, si su destino se escribió distinto).
+  const elegida = String(c.portada).startsWith('lib:') ? IMAGENES.find(x => 'lib:' + x.id === c.portada) : null;
+  const lib = elegida && !delDestino.includes(elegida) ? [...delDestino, elegida] : delDestino;
+  const tile = (valor, img, cap, sub, borrarId) => `
+    <button type="button" class="pt ${c.portada === valor ? 'sel' : ''}" onclick="setPortada('${escHtml(valor)}')">
+      ${img ? `<img src="${escHtml(img)}" alt="" loading="lazy">` : `<div class="pt-vacio">${escHtml(sub || '')}</div>`}
+      <div class="pt-cap">${escHtml(cap)}${sub && img ? `<small>${escHtml(sub)}</small>` : ''}</div>
+      ${borrarId ? `<span class="pt-del" title="Quitar de la biblioteca" onclick="event.stopPropagation();eliminarImagen('${escHtml(borrarId)}')">✕</span>` : ''}
+    </button>`;
+  const aviso = !c.destino ? 'Cargá el destino para elegir la portada.'
+    : !delDestino.length ? `Todavía no hay imágenes de ${c.destino} en la biblioteca: cargá una para la portada.` : '';
+  el.innerHTML = [
+    tile('auto', auto ? auto.thumb : '', 'Automática', auto ? 'La más reciente de ' + auto.destino : 'Sin imagen del destino'),
+    ...lib.map(im => tile('lib:' + im.id, im.thumb, im.destino || 'Sin destino', new Date(im.fecha || 0).toLocaleDateString('es-AR'), im.id)),
+    tile('custom', '', 'Link propio', 'Pegar link'),
+  ].join('') + (aviso ? `<p class="tot-warn" style="grid-column:1/-1;margin:0">⚠ ${escHtml(aviso)}</p>` : '');
+}
+// Reduce la imagen en el navegador (JPEG) para que la base no se llene de archivos pesados.
+function reducirImagen(file, maxLado, calidad){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, maxLado / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve({ dataUrl: cv.toDataURL('image/jpeg', calidad), w, h });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen.')); };
+    img.src = url;
+  });
+}
+async function subirImagen(input){
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file || !editing) return;
+  if (!/^image\//.test(file.type)){ alert('El archivo no es una imagen.'); return; }
+  const destino = prompt('¿A qué destino corresponde esta imagen? Se va a usar automáticamente en las propuestas a ese destino.', editing.data.destino || '');
+  if (destino === null) return;
+  setSaveStatus('Procesando imagen…');
+  try {
+    let full = await reducirImagen(file, 1800, 0.82);
+    if (full.dataUrl.length > 1400000) full = await reducirImagen(file, 1400, 0.72);
+    const thumb = await reducirImagen(file, 360, 0.7);
+    const id = IMG_META_REF.push().key;
+    await IMG_DATA_REF.child(id).set({ dataUrl: full.dataUrl });
+    await IMG_META_REF.child(id).set({
+      destino: destino.trim(), destinoKey: normTxt(destino), thumb: thumb.dataUrl,
+      ancho: full.w, alto: full.h, creadoPor: CURRENT_USER.email, fecha: Date.now(),
+    });
+    IMG_FULL[id] = full.dataUrl;
+    setPortada(normTxt(destino) && destinoCoincide(normTxt(editing.data.destino), normTxt(destino)) ? 'auto' : 'lib:' + id);
+  } catch (err){
+    if (err && err.message === 'No se pudo leer la imagen.'){ alert('No se pudo leer la imagen. Probá con un JPG o PNG.'); setSaveStatus(''); }
+    else handleWriteError(err);
+  }
+}
+function eliminarImagen(id){
+  const im = IMAGENES.find(x => x.id === id);
+  if (!confirm(`¿Quitar de la biblioteca la imagen de ${im && im.destino ? im.destino : 'este destino'}? Las propuestas que la usan pasan a la imagen automática.`)) return;
+  Promise.all([IMG_META_REF.child(id).remove(), IMG_DATA_REF.child(id).remove()]).then(() => {
+    delete IMG_FULL[id];
+    if (editing && editing.data.portada === 'lib:' + id) setPortada('auto');
+  }).catch(handleWriteError);
 }
 
 // ── ITINERARIO ─────────────────────────────────────────────────────────────
@@ -776,18 +1125,23 @@ function renderServicios(){
   if (!el) return;
   const c = editing.data;
   if (!c.servicios.length){ el.innerHTML = `<p class="card-hint" style="margin:0 0 10px">Todavía no hay servicios cargados.</p>`; return; }
-  el.innerHTML = c.servicios.map((s,i) => `<div class="item-card" data-srv="${i}">
+  el.innerHTML = c.servicios.map((s,i) => `<div class="item-card ${s.activo===false?'off':''}" data-srv="${i}">
     <div class="item-head">
-      <span class="item-label">Servicio ${i+1}</span>
+      <label class="srv-check" title="Destildado: queda guardado pero no se incluye en la propuesta ni en los totales">
+        <input type="checkbox" ${s.activo!==false?'checked':''} onchange="setActivo(${i},this.checked)">
+        <span class="item-label">Servicio ${i+1}</span>
+        ${modoDe(s)!=='incluido' ? `<span class="modo-tag">${escHtml(modoDe(s)==='adicional' ? 'Adicional' : 'Opción ' + modoDe(s))}</span>` : ''}
+      </label>
       <div class="item-actions">
         <button class="icon-btn" title="Subir" ${i===0?'disabled':''} onclick="moverServicio(${i},-1)">▲</button>
         <button class="icon-btn" title="Bajar" ${i===c.servicios.length-1?'disabled':''} onclick="moverServicio(${i},1)">▼</button>
         <button class="icon-btn danger" title="Eliminar servicio" onclick="eliminarServicio(${i})">✕</button>
       </div>
     </div>
-    <div class="grid" style="grid-template-columns:140px 1fr">
+    <div class="grid" style="grid-template-columns:130px 1fr 150px">
       <div><label class="fl">Tipo</label><select class="fsel" onchange="setServicio(${i},'tipo',this.value)">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,s.tipo)}</select></div>
       <div><label class="fl">Servicio (visible en la propuesta)</label><input class="fi" value="${escHtml(s.concepto)}" placeholder="Ej: Hotel Llao Llao · 3 noches · desayuno" oninput="setServicio(${i},'concepto',this.value)"></div>
+      <div><label class="fl">En la propuesta</label><select class="fsel" onchange="setModo(${i},this.value)">${selOpts(MODOS_SRV.map(x=>x[0]),MODOS_SRV.map(x=>x[1]),modoDe(s))}</select></div>
     </div>
     <div class="grid" style="grid-template-columns:1fr 200px">
       <div><label class="fl">Detalle (visible en la propuesta)</label><textarea class="fta" rows="2" placeholder="Horarios, categoría de habitación, equipaje…" oninput="setServicio(${i},'detalle',this.value)">${escHtml(s.detalle)}</textarea></div>
@@ -822,6 +1176,9 @@ function renderServiciosFoot(){
   });
 }
 function setServicio(i, campo, v){ editing.data.servicios[i][campo] = v; markDirty(); }
+function setActivo(i, v){ editing.data.servicios[i].activo = v; renderServicios(); renderTotales(); markDirty(); }
+function setModo(i, v){ editing.data.servicios[i].modo = v; renderServicios(); renderTotales(); markDirty(); }
+function setNombreOpcion(o, v){ editing.data.nombresOpciones[o] = v; markDirty(); }
 function onCosto(i, v){
   const s = editing.data.servicios[i];
   s.costo = num(v);
@@ -850,7 +1207,7 @@ function onPrecio(i, v){
 }
 function agregarServicio(){
   const c = editing.data;
-  c.servicios.push({ tipo:'Hotel', concepto:'', detalle:'', proveedor:'', costo:0, moneda:c.moneda, markup: num(c.markupDefault), precio:0 });
+  c.servicios.push({ tipo:'Hotel', concepto:'', detalle:'', proveedor:'', costo:0, moneda:c.moneda, markup: num(c.markupDefault), precio:0, activo:true, modo:'incluido' });
   renderServicios(); renderTotales(); markDirty();
 }
 function moverServicio(i, dir){
@@ -868,16 +1225,31 @@ function eliminarServicio(i){
 function renderTotales(){
   const el = document.getElementById('totales');
   if (!el) return;
-  const c = editing.data, t = totales(c), m = c.moneda;
-  el.innerHTML = `
+  const c = editing.data, m = c.moneda;
+  const lineas = t => `
     <div class="tot-line"><span>Costo neto</span><b>${fmtMoney(t.costo, m)}</b></div>
     <div class="tot-line"><span>Ganancia</span><b>${fmtMoney(t.margen, m)}</b></div>
     <div class="tot-line"><span>Margen sobre venta</span><b>${fmtNum(round2(t.margenPct))}%</b></div>
     <div class="tot-sep"></div>
     <div class="tot-line big"><span>Precio total</span><b>${fmtMoney(t.precio, m)}</b></div>
-    <div class="tot-line"><span>Por persona</span><b>${t.porPersona!=null ? fmtMoney(t.porPersona, m) : '—'}</b></div>
-    ${t.faltaTC ? `<div class="tot-warn">⚠ Hay servicios en otra moneda sin T.C. de referencia: no están sumados.</div>` : ''}
-  `;
+    <div class="tot-line"><span>Por persona</span><b>${t.porPersona!=null ? fmtMoney(t.porPersona, m) : '—'}</b></div>`;
+  const ops = opcionesDe(c);
+  let html = ops.length
+    ? ops.map(o => `<div class="opc-block">
+        <div class="opc-titulo">Opción ${o}</div>
+        <input class="fi" value="${escHtml(c.nombresOpciones[o]||'')}" placeholder="Nombre (opcional), ej: Hotel Llao Llao" oninput="setNombreOpcion('${o}',this.value)">
+        ${lineas(totales(c, o))}
+      </div>`).join('')
+    : lineas(totales(c));
+  const adic = srvActivos(c).filter(s => modoDe(s) === 'adicional');
+  if (adic.length){
+    const ta = sumarServicios(c, adic);
+    html += `<div class="opc-block"><div class="opc-titulo">Adicionales (no suman al total)</div>
+      <div class="tot-line"><span>Precio</span><b>${fmtMoney(ta.precio, m)}</b></div>
+      <div class="tot-line"><span>Ganancia</span><b>${fmtMoney(ta.margen, m)}</b></div></div>`;
+  }
+  if (sumarServicios(c, srvActivos(c)).faltaTC) html += `<div class="tot-warn">⚠ Hay servicios en otra moneda sin T.C. de referencia: no están sumados.</div>`;
+  el.innerHTML = html;
 }
 
 // ── ACCIONES ───────────────────────────────────────────────────────────────
@@ -886,7 +1258,7 @@ function duplicarCotizacion(){
     if (!res.committed) throw new Error('No se pudo asignar el código');
     const copia = JSON.parse(JSON.stringify(editing.data));
     Object.assign(copia, {
-      codigo: 'COT-' + String(res.snapshot.val()).padStart(4,'0'),
+      codigo: codigoNuevo(res.snapshot.val()),
       titulo: (copia.titulo ? copia.titulo + ' ' : '') + '(copia)',
       estado:'borrador', reservaId:'', fechaCreacion: todayISO(),
       creadoPor: CURRENT_USER.email, creadoPorNombre: CURRENT_USER.nombre,
@@ -915,9 +1287,6 @@ function eliminarCotizacion(){
   }).catch(handleWriteError);
 }
 
-// Crea la reserva en Gestión interna con el mismo formato que usa ese panel
-// (y que ya usa "Convertir a reserva" en el kanban): código vacío, que se
-// asigna al guardarla allá; ítems cotizados = precio de venta; costos = costo neto.
 // Código interno BeT# de la reserva, con el mismo contador que Gestión interna.
 // Se asigna acá (y no después, en Gestión interna) para que la reserva ya abra
 // con su código y el primer guardado del panel no lo deje vacío.
@@ -930,6 +1299,10 @@ function asignarCodigoReserva(){
     return META_RES_COUNTER_REF.transaction(n => Math.max(Number(n) || 0, maxExisting) + 1);
   }).then(res => 'BeT' + res.snapshot.val());
 }
+// Crea la reserva en Gestión interna con el mismo formato que usa ese panel:
+// ítems cotizados = precio de venta; costos = costo neto. Solo pasan los
+// servicios tildados de lo incluido + la opción que eligió el cliente (+ los
+// adicionales, si los contrató).
 function convertirEnReserva(){
   const c = editing.data;
   if (c.reservaId){
@@ -937,12 +1310,24 @@ function convertirEnReserva(){
     return;
   }
   if (!String(c.cliente).trim()){ alert('Cargá el cliente antes de convertir la cotización en reserva.'); return; }
-  if (!c.servicios.length){ alert('La cotización no tiene servicios cargados.'); return; }
+  const ops = opcionesDe(c);
+  let elegida = '';
+  if (ops.length){
+    const r = prompt(`La cotización tiene ${ops.length} opciones:\n${ops.map(o => '· ' + nombreOpcion(c, o)).join('\n')}\n\n¿Cuál eligió el cliente? Escribí la letra:`, c.opcionElegida || ops[0]);
+    if (r === null) return;
+    elegida = r.trim().toUpperCase();
+    if (!ops.includes(elegida)){ alert(`"${r}" no es una de las opciones (${ops.join(', ')}).`); return; }
+  }
+  const adic = srvActivos(c).filter(s => modoDe(s) === 'adicional');
+  const conAdic = adic.length > 0 && confirm(`Adicionales opcionales cotizados:\n${adic.map(s => '· ' + (s.concepto || s.tipo)).join('\n')}\n\n¿El cliente los contrató?\nAceptar: se suman a la reserva. Cancelar: quedan afuera.`);
+  const elegidos = srvActivos(c).filter(s => modoDe(s) === 'incluido' || (elegida && modoDe(s) === elegida) || (conAdic && modoDe(s) === 'adicional'));
+  if (!elegidos.length){ alert('No hay servicios tildados para pasar a la reserva.'); return; }
   const estadoReserva = c.estado === 'aceptada' ? 'aceptado' : 'cotizado';
-  if (!confirm(`Se va a crear una reserva en Gestión interna para ${c.cliente}, con ${c.servicios.length} servicio(s) como ítems cotizados y costos, en estado "${estadoReserva === 'aceptado' ? 'Aceptado' : 'Cotizado'}". ¿Continuar?`)) return;
+  if (!confirm(`Se va a crear una reserva en Gestión interna para ${c.cliente}${elegida ? ' (' + nombreOpcion(c, elegida) + ')' : ''}, con ${elegidos.length} servicio(s) como ítems cotizados y costos, en estado "${estadoReserva === 'aceptado' ? 'Aceptado' : 'Cotizado'}". ¿Continuar?`)) return;
+  c.opcionElegida = elegida;
 
   const cotizado = {}, costos = {};
-  c.servicios.forEach(s => {
+  elegidos.forEach(s => {
     const m = s.moneda || c.moneda;
     const tc = m !== c.moneda ? (num(c.tipoCambio) || '') : '';
     const concepto = [s.concepto, s.detalle].filter(Boolean).join(' — ').slice(0, 300);
@@ -954,10 +1339,12 @@ function convertirEnReserva(){
   });
   const nueva = {
     codigo:'', cliente: String(c.cliente).trim(), concepto: c.titulo || c.destino || '',
-    servicios: [...new Set(c.servicios.map(s => s.tipo).filter(Boolean))], servicioOtroTexto:'',
+    servicios: [...new Set(elegidos.map(s => s.tipo).filter(Boolean))], servicioOtroTexto:'',
     moneda: c.moneda, estado: estadoReserva,
     fechaCotizacion: c.fechaCreacion || todayISO(), fechaInicio: c.fechaInicio||'', fechaFin: c.fechaFin||'',
-    pasajeros: c.pasajeros || '', notas: `Generada desde la cotización ${c.codigo}.`,
+    pasajeros: c.pasajeros || '',
+    notas: [`Generada desde la cotización ${c.codigo}.`, elegida ? `Opción elegida: ${nombreOpcion(c, elegida)}.` : '',
+      adic.length && !conAdic ? `Adicionales cotizados y no contratados: ${adic.map(s => s.concepto || s.tipo).join(', ')}.` : ''].filter(Boolean).join(' '),
     pagos:{}, reparto:{}, comprobantes:{}, costos, cotizado, facturacion:{}, pasajeroIds:{},
     cotizacionId: editing.id, cotizacionCodigo: c.codigo,
     updatedAt: Date.now(), updatedBy: CURRENT_USER.email,
@@ -972,9 +1359,21 @@ function convertirEnReserva(){
 }
 
 // ── PROPUESTA (slides → PDF) ───────────────────────────────────────────────
+// Id de la imagen de biblioteca que corresponde a la portada (o null).
+function portadaId(c){
+  if (c.portada === 'auto'){ const m = imagenesDelDestino(c.destino)[0]; return m ? m.id : null; }
+  if (String(c.portada).startsWith('lib:')){
+    const id = c.portada.slice(4);
+    return IMAGENES.some(x => x.id === id) ? id : null;
+  }
+  return null;
+}
+// '' = no hay imagen del destino todavía (la propuesta sale sin foto y se avisa).
 function portadaSrc(c){
+  const id = portadaId(c);
+  if (id) return IMG_FULL[id] || (IMAGENES.find(x => x.id === id) || {}).thumb || '';
   if (c.portada === 'custom') return String(c.portadaUrl||'').trim();
-  return c.portada || '';
+  return '';
 }
 function slideInterior(kicker, inner){ return { kicker, html: inner }; }
 
@@ -1067,18 +1466,28 @@ function buildSlides(c){
     slides.push(slideInterior('Itinerario', renderDias(chunk, { n: idx+1, total: paginasDias.length, solo })));
   });
 
-  // Servicios incluidos (agrupados por tipo, en dos columnas)
-  const srvs = c.servicios.filter(s => s.concepto || s.detalle)
-    .map((s,i) => ({ ...s, _i:i }))
-    .sort((a,b) => (SERVICIO_TIPOS.indexOf(a.tipo) - SERVICIO_TIPOS.indexOf(b.tipo)) || (a._i - b._i));
+  // Servicios (agrupados por sección y tipo, en dos columnas). Secciones solo
+  // si hay opciones o adicionales: incluido / Opción A, B… / adicionales.
+  const ops = opcionesDe(c);
+  const adicionales = srvActivos(c).filter(s => modoDe(s) === 'adicional');
+  const conSecciones = ops.length > 0 || adicionales.length > 0;
+  const ORDEN_SEC = ['incluido', ...OPCIONES, 'adicional'];
+  const etiquetaSec = sec => sec === 'incluido' ? (ops.length ? 'Incluido en todas las opciones' : 'Incluido')
+    : sec === 'adicional' ? 'Adicionales opcionales' : nombreOpcion(c, sec);
+  const srvs = c.servicios.map((s,i) => ({ ...s, _i:i, _sec: modoDe(s) }))
+    .filter(s => s.activo !== false && (s.concepto || s.detalle))
+    .sort((a,b) => (ORDEN_SEC.indexOf(a._sec) - ORDEN_SEC.indexOf(b._sec)) || (SERVICIO_TIPOS.indexOf(a.tipo) - SERVICIO_TIPOS.indexOf(b.tipo)) || (a._i - b._i));
+  const tituloSrv = conSecciones ? 'Servicios' : 'Servicios incluidos';
   const renderSrv = (chunk, p) => {
     const grupos = [];
     chunk.forEach(s => {
       const g = grupos[grupos.length-1];
-      if (g && g.tipo === s.tipo) g.items.push(s); else grupos.push({ tipo:s.tipo, items:[s] });
+      if (g && g.tipo === s.tipo && g.sec === s._sec) g.items.push(s);
+      else grupos.push({ tipo:s.tipo, sec:s._sec, nuevaSec: !g || g.sec !== s._sec, items:[s] });
     });
-    return tituloPaginado('Servicios incluidos', p.n, p.total) + `
+    return tituloPaginado(tituloSrv, p.n, p.total) + `
       <div class="servicios">${grupos.map(g => `
+        ${conSecciones && g.nuevaSec ? `<div class="srv-seccion">${escHtml(etiquetaSec(g.sec))}</div>` : ''}
         <div class="srv-group">
           <div class="srv-tipo">${escHtml(g.tipo)}</div>
           ${g.items.map(s => `<div class="srv">
@@ -1089,39 +1498,80 @@ function buildSlides(c){
       </div>`;
   };
   const paginasSrv = paginar(srvs, renderSrv);
-  paginasSrv.forEach((chunk, idx) => slides.push(slideInterior('Servicios incluidos', renderSrv(chunk, { n: idx+1, total: paginasSrv.length }))));
+  paginasSrv.forEach((chunk, idx) => slides.push(slideInterior(tituloSrv, renderSrv(chunk, { n: idx+1, total: paginasSrv.length }))));
 
   // Inversión
+  const tTodos = sumarServicios(c, srvActivos(c));
   const notaMoneda = [
     `Valores expresados en ${m === 'USD' ? 'dólares estadounidenses' : 'pesos argentinos'}.`,
-    t.huboConversion && num(c.tipoCambio) ? `Los servicios cotizados en otra moneda se convirtieron a un tipo de cambio de referencia de $ ${fmtNum(c.tipoCambio)} por US$ 1.` : '',
+    tTodos.huboConversion && num(c.tipoCambio) ? `Los servicios cotizados en otra moneda se convirtieron a un tipo de cambio de referencia de $ ${fmtNum(c.tipoCambio)} por US$ 1.` : '',
   ].filter(Boolean).join(' ');
-  const ppLinea = c.mostrarPorPersona && t.porPersona != null
-    ? `${fmtMoney(t.porPersona, m)} por persona, en base a ${fmtNum(pax)} pasajero${pax===1?'':'s'}.` : '';
-  if (c.mostrarDesglose && c.servicios.length){
-    const filas = c.servicios.map(s => {
-      const conv = convertir(num(s.precio), s.moneda || m, m, c.tipoCambio);
-      return conv.ok ? { tipo:s.tipo, concepto: s.concepto || s.tipo, monto: conv.value } : null;
-    }).filter(Boolean);
+  const basePax = pax ? `en base a ${fmtNum(pax)} pasajero${pax===1?'':'s'}` : '';
+  const ppCorto = tt => c.mostrarPorPersona && tt.porPersona != null ? `${fmtMoney(tt.porPersona, m)} por persona` : '';
+  const ppLinea = tt => ppCorto(tt) ? `${ppCorto(tt)}, ${basePax}.` : '';
+  const precioConv = s => { const conv = convertir(num(s.precio), s.moneda || m, m, c.tipoCambio); return conv.ok ? conv.value : null; };
+  const adicHtml = adicionales.length ? `<div class="inv-adic"><h4>Adicionales opcionales · no incluidos en el total</h4>${adicionales.map(s => {
+      const v = precioConv(s);
+      if (v == null) return '';
+      const pp = c.mostrarPorPersona && pax ? ` · ${fmtMoney(v / pax, m)} por persona` : '';
+      return `<div class="inv-adic-row"><span>${escHtml(s.concepto || s.tipo)}</span><span>${fmtMoney(v, m)}${pp}</span></div>`;
+    }).join('')}</div>` : '';
+  if (c.mostrarDesglose && srvActivos(c).length){
+    const filas = [];
+    const pushSrv = lista => lista.forEach(s => { const v = precioConv(s); if (v != null) filas.push({ k:'f', tipo:s.tipo, concepto: s.concepto || s.tipo, monto: v }); });
+    const pushTotal = (txt, tt) => { filas.push({ k:'t', txt, monto: tt.precio }); if (ppLinea(tt)) filas.push({ k:'pp', txt: ppLinea(tt) }); };
+    const incluidos = srvActivos(c).filter(s => modoDe(s) === 'incluido');
+    if (ops.length && incluidos.length) filas.push({ k:'sec', txt:'Incluido en todas las opciones' });
+    pushSrv(incluidos);
+    if (!ops.length) pushTotal('Total', totales(c));
+    ops.forEach(o => {
+      filas.push({ k:'sec', txt: nombreOpcion(c, o) });
+      pushSrv(srvActivos(c).filter(s => modoDe(s) === o));
+      pushTotal('Total ' + nombreOpcion(c, o), totales(c, o));
+    });
+    if (adicionales.length){
+      filas.push({ k:'sec', txt:'Adicionales opcionales · no incluidos en el total' });
+      pushSrv(adicionales);
+    }
+    const filaHtml = f => f.k === 'sec' ? `<tr class="sec"><td colspan="3">${escHtml(f.txt)}</td></tr>`
+      : f.k === 't' ? `<tr class="total"><td></td><td>${escHtml(f.txt)}</td><td class="r">${fmtMoney(f.monto, m)}</td></tr>`
+      : f.k === 'pp' ? `<tr class="pp"><td></td><td colspan="2">${escHtml(f.txt)}</td></tr>`
+      : `<tr><td>${escHtml(f.tipo)}</td><td>${escHtml(f.concepto)}</td><td class="r">${fmtMoney(f.monto, m)}</td></tr>`;
     const renderInv = (pag, p) => `${tituloPaginado('Inversión', p.n, p.total)}
         <table class="inv-table">
           <thead><tr><th style="width:22%">Tipo</th><th>Servicio</th><th class="r">Importe</th></tr></thead>
-          <tbody>
-            ${pag.map(f => `<tr><td>${escHtml(f.tipo)}</td><td>${escHtml(f.concepto)}</td><td class="r">${fmtMoney(f.monto, m)}</td></tr>`).join('')}
-            ${p.ultima ? `<tr class="total"><td></td><td>Total</td><td class="r">${fmtMoney(t.precio, m)}</td></tr>` : ''}
-            ${p.ultima && ppLinea ? `<tr class="pp"><td></td><td colspan="2">${escHtml(ppLinea)}</td></tr>` : ''}
-          </tbody>
+          <tbody>${pag.map(filaHtml).join('')}</tbody>
         </table>
         ${p.ultima ? `<div class="inv-note">${escHtml(notaMoneda)}</div>` : ''}`;
     const paginasInv = paginar(filas, renderInv);
     paginasInv.forEach((pag, idx) => slides.push(slideInterior('Inversión', renderInv(pag, { n: idx+1, total: paginasInv.length, ultima: idx === paginasInv.length-1 }))));
+  } else if (ops.length){
+    slides.push(slideInterior('Inversión', `
+      <div class="s-title">Inversión</div>
+      <div class="inv-opciones" style="grid-template-columns:repeat(${Math.min(ops.length, 4)},1fr)">
+        ${ops.map(o => {
+          const tt = totales(c, o), nom = String(c.nombresOpciones[o] || '').trim();
+          // Si alguna opción tiene nombre, todas reservan esa línea para que los montos queden alineados.
+          const algunaConNombre = ops.some(x => String(c.nombresOpciones[x] || '').trim());
+          return `<div class="inv-opcion">
+            <div class="inv-label">Opción ${o}</div>
+            ${algunaConNombre ? `<div class="inv-opcion-nombre">${nom ? escHtml(nom) : '&nbsp;'}</div>` : ''}
+            <div class="inv-opcion-monto">${fmtMoney(tt.precio, m)}</div>
+            ${ppCorto(tt) ? `<div class="inv-opcion-pp">${escHtml(ppCorto(tt))}</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="inv-note" style="margin-top:4mm">${escHtml([ppCorto(totales(c, ops[0])) && basePax ? `Valores por persona ${basePax}.` : '', notaMoneda].filter(Boolean).join(' '))}</div>
+      ${adicHtml}`));
   } else {
+    const tt = totales(c);
     slides.push(slideInterior('Inversión', `
       <div class="inv-total">
         <div class="inv-label">Inversión total</div>
-        <div class="inv-amount">${fmtMoney(t.precio, m)}</div>
-        ${ppLinea ? `<div class="inv-pp">${escHtml(ppLinea)}</div>` : ''}
+        <div class="inv-amount">${fmtMoney(tt.precio, m)}</div>
+        ${ppLinea(tt) ? `<div class="inv-pp">${escHtml(ppLinea(tt))}</div>` : ''}
         <div class="inv-note">${escHtml(notaMoneda)}</div>
+        ${adicHtml}
       </div>`));
   }
 
@@ -1188,9 +1638,9 @@ function detectarDesbordes(){
 }
 async function abrirDeck(imprimir){
   const c = editing.data;
-  const t = totales(c);
-  if (t.faltaTC && !confirm('Hay servicios en otra moneda sin T.C. de referencia: quedan fuera del total de la propuesta. ¿Continuar igual?')) return;
+  if (sumarServicios(c, srvActivos(c)).faltaTC && !confirm('Hay servicios en otra moneda sin T.C. de referencia: quedan fuera del total de la propuesta. ¿Continuar igual?')) return;
   flushSave().catch(()=>{});
+  await cargarImagenFull(portadaId(c));
   // La paginación mide texto real: hay que esperar a que la tipografía esté cargada.
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
   const deck = document.getElementById('deck');
@@ -1199,9 +1649,10 @@ async function abrirDeck(imprimir){
   deck.innerHTML = buildSlides(c);
   DESBORDES = detectarDesbordes();
   const uno = DESBORDES.length === 1;
-  document.getElementById('deck-warn').textContent = DESBORDES.length
-    ? `⚠ ${uno?'La página':'Las páginas'} ${DESBORDES.join(', ')} ${uno?'tiene':'tienen'} más texto del que entra y se ${uno?'va':'van'} a cortar: acortá ese contenido.`
-    : '';
+  document.getElementById('deck-warn').textContent = [
+    DESBORDES.length ? `⚠ ${uno?'La página':'Las páginas'} ${DESBORDES.join(', ')} ${uno?'tiene':'tienen'} más texto del que entra y se ${uno?'va':'van'} a cortar: acortá ese contenido.` : '',
+    !portadaSrc(c) ? '⚠ La portada no tiene imagen del destino: cargala en "Imagen de portada".' : '',
+  ].filter(Boolean).join(' ');
   ajustarZoomDeck();
   if (imprimir) imprimirDeck();
 }
@@ -1217,7 +1668,7 @@ function imprimirDeck(){
   esperarRecursos().then(() => window.print());
 }
 window.addEventListener('resize', () => { if (document.getElementById('deck-modal').classList.contains('open')) ajustarZoomDeck(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarDeck(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape'){ cerrarDeck(); cerrarIA(); } });
 </script>
 </body>
 </html>

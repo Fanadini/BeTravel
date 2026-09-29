@@ -49,6 +49,7 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 ├── guia_interna/
 │   └── index.html           ← Guía de formación interna
 ├── database.rules.json      ← Security Rules de Firebase RTDB (versionadas; publicar manualmente en la consola)
+├── infra/redactor/          ← Worker de Cloudflare para "Redactar con IA" del cotizador (se pega en Cloudflare; ver LEEME.md)
 └── admin/
     ├── kanban.html           ← CRM interno (Firebase)
     ├── gestioninterna.html    ← Finanzas / Reservas / Facturas de proveedores (Firebase)
@@ -101,7 +102,8 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 - Columnas con counter, drag-and-drop con listeners preservados
 - **Crítico:** al modificar HTML complejo, reconstruir el archivo completo es más confiable que chained string replacements
 - **Crítico:** las Firebase security rules deben mantenerse activas — versión de referencia en `database.rules.json`, pasos de publicación en `admin/SEGURIDAD_FIREBASE.md`
-- Roles: `finanzas/meta/usuarios/{email con "." reemplazado por ","}` define `rol: admin|agente`. Sin entrada ahí, cualquier cuenta entra como `agente` (acceso restringido a reparto/facturación/ganancia)
+- Roles: `finanzas/meta/usuarios/{email en minúsculas con "." reemplazado por ","}` define `rol: admin|agente`. Es también la lista de acceso: con las reglas actuales, una cuenta sin entrada ahí no lee ni escribe `finanzas` ni `kanban`
+- Emails @betravel.com.ar están en Zoho (no Google): para loguearse con Google, cada persona crea una cuenta de Google con su email actual (ver admin/SEGURIDAD_FIREBASE.md)
 
 ---
 
