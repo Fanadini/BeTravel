@@ -125,7 +125,17 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .opc-titulo{font-size:10px;font-weight:600;color:var(--teal);letter-spacing:.5px;text-transform:uppercase}
 
 /* Detalle de vuelos (servicio Aéreo) */
-.vuelos-ed{border-top:1px dashed var(--beige-d);margin-top:4px;padding-top:10px;display:grid;gap:8px}
+.vuelos-ed{display:grid;gap:8px;padding-top:8px}
+.vuelos-panel{border-top:1px dashed var(--beige-d);margin-top:4px;padding-top:8px}
+.vuelos-panel>summary,.leg-ed>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;min-width:0;user-select:none}
+.vuelos-panel>summary::-webkit-details-marker,.leg-ed>summary::-webkit-details-marker{display:none}
+.vuelos-panel>summary::before,.leg-ed>summary::before{content:'▸';color:var(--teal);font-size:12px;width:10px;flex-shrink:0;transition:transform .15s}
+.vuelos-panel[open]>summary::before,.leg-ed[open]>summary::before{transform:rotate(90deg)}
+.vuelos-panel>summary:focus-visible,.leg-ed>summary:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:4px}
+.vuelos-sum,.leg-sum{font-size:11px;color:rgba(43,43,43,.6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.vuelos-sum.warn,.leg-sum.warn{color:var(--amber)}
+.leg-ed>summary .item-actions{margin-left:auto;flex-shrink:0}
+.leg-ed[open]>summary{margin-bottom:8px}
 .leg-ed{background:var(--white);border:1px solid var(--beige-d);border-radius:8px;padding:10px 12px}
 .leg-ed .item-head{margin-bottom:6px}
 .seg-ed{border-top:1px solid var(--beige-d);padding-top:8px;margin-top:8px}
@@ -1377,14 +1387,38 @@ function rutaVuelos(v){
 }
 
 // ── Detalle de vuelos en el editor ──
+// Estado de los paneles plegables (solo mientras se edita): panel completo e ida / vuelta.
+// El panel arranca abierto mientras no hay vuelos y plegado cuando ya están cargados.
+const VUELOS_UI = new WeakMap();
+function uiVuelos(i, k, abierto){
+  const s = editing && editing.data.servicios[i]; if (!s) return;
+  const u = VUELOS_UI.get(s) || {}; u[k] = abierto; VUELOS_UI.set(s, u);
+}
+function abrirPanelVuelos(s){ VUELOS_UI.set(s, { ...(VUELOS_UI.get(s) || {}), panel: true, ida: true, vuelta: true }); }
+function plegarVuelos(i, abrir){
+  const s = editing.data.servicios[i];
+  VUELOS_UI.set(s, { panel: abrir, ida: abrir, vuelta: abrir });
+  const card = document.querySelector(`[data-srv="${i}"]`);
+  if (!card) return;
+  const panel = card.querySelector('.vuelos-panel'); if (panel) panel.open = abrir;
+  card.querySelectorAll('.leg-ed').forEach(d => { d.open = abrir; });
+}
+function vuelosPanel(s, i, cuerpo){
+  const ui = VUELOS_UI.get(s) || {};
+  const abierto = ui.panel !== undefined ? ui.panel : !s.vuelos;
+  return `<details class="vuelos-panel" ${abierto ? 'open' : ''} ontoggle="uiVuelos(${i},'panel',this.open)">
+    <summary><span class="item-label">Detalle de vuelos</span><span class="vuelos-sum">${s.vuelos ? '' : 'Sin cargar'}</span></summary>
+    <div class="vuelos-ed">${cuerpo}</div></details>`;
+}
 function vuelosEditor(s, i){
-  if (!s.vuelos) return `<div class="vuelos-ed">${capturaBox(s, i)}<button class="add-item-btn" onclick="agregarVuelos(${i})">+ Cargar los vuelos a mano (ida, vuelta, tramos y escalas)</button></div>`;
+  if (!s.vuelos) return vuelosPanel(s, i, `${capturaBox(s, i)}<button class="add-item-btn" onclick="agregarVuelos(${i})">+ Cargar los vuelos a mano (ida, vuelta, tramos y escalas)</button>`);
+  const ui = VUELOS_UI.get(s) || {};
   const legs = [['ida','Ida'], ['vuelta','Vuelta']].map(([k, nom]) => {
     const l = s.vuelos[k];
     if (!l) return k === 'vuelta' ? `<button class="add-item-btn" onclick="agregarVuelta(${i})">+ Agregar vuelta</button>` : '';
-    return `<div class="leg-ed" data-leg="${k}">
-      <div class="item-head"><span class="item-label">${nom}</span>
-        <div class="item-actions"><button class="icon-btn danger" title="${k==='ida' ? 'Quitar todo el detalle de vuelos' : 'Quitar la vuelta'}" onclick="quitarLeg(${i},'${k}')">✕</button></div></div>
+    return `<details class="leg-ed" data-leg="${k}" ${ui[k] !== false ? 'open' : ''} ontoggle="uiVuelos(${i},'${k}',this.open)">
+      <summary><span class="item-label">${nom}</span><span class="leg-sum"></span>
+        <span class="item-actions"><button class="icon-btn danger" title="${k==='ida' ? 'Quitar todo el detalle de vuelos' : 'Quitar la vuelta'}" onclick="event.preventDefault();event.stopPropagation();quitarLeg(${i},'${k}')">✕</button></span></summary>
       <div class="grid g3">
         <div><label class="fl">Aerolínea</label><input class="fi" list="dl-aerolineas" value="${escHtml(l.aerolinea)}" placeholder="Ej: American Airlines" oninput="setLeg(${i},'${k}','aerolinea',this.value)"></div>
         <div><label class="fl">Equipaje (opcional)</label><input class="fi" value="${escHtml(l.equipaje)}" placeholder="Ej: Carry-on y 1 valija de 23 kg" oninput="setLeg(${i},'${k}','equipaje',this.value)"></div>
@@ -1413,9 +1447,23 @@ function vuelosEditor(s, i){
       </div>`).join('')}
       <div style="margin-top:8px"><button class="add-item-btn" onclick="agregarSeg(${i},'${k}')">+ Agregar tramo (escala)</button></div>
       <div class="item-foot vuelo-resumen"></div>
-    </div>`;
+    </details>`;
   }).join('');
-  return `<div class="vuelos-ed">${capturaBox(s, i)}${legs}</div>`;
+  const todo = `<div class="row-btns" style="margin:0"><button class="add-item-btn" onclick="plegarVuelos(${i},false)">Plegar todo</button><button class="add-item-btn" onclick="plegarVuelos(${i},true)">Desplegar todo</button></div>`;
+  return vuelosPanel(s, i, `${capturaBox(s, i)}${legs}${todo}`);
+}
+// Resumen de una línea que queda a la vista aunque el panel esté plegado.
+function avisosLeg(l){
+  const inf = infoLeg(l); if (!inf) return 0;
+  let n = 0;
+  if (!inf.completo) n++;
+  if (inf.capt != null && inf.durCalc != null && inf.capt !== inf.durCalc) n++;
+  return n;
+}
+function textoLeg(l){
+  const inf = infoLeg(l); if (!inf) return '';
+  const ruta = [inf.a.origen].concat(inf.sg.map(x => x.destino)).filter(Boolean).join('–');
+  return [ruta, inf.dur != null ? fmtDur(inf.dur) : '', paradasTexto(inf.paradas)].filter(Boolean).join(' · ') + (avisosLeg(l) ? ' · ⚠ revisar' : '');
 }
 function resumenLegTexto(l){
   const inf = infoLeg(l);
@@ -1446,7 +1494,15 @@ function actualizarResumenVuelos(i){
     box.querySelector('.vuelo-resumen').innerHTML = resumenLegTexto(s.vuelos[k]);
     const inf = infoLeg(s.vuelos[k]);
     box.querySelector('.leg-dur').placeholder = inf && inf.auto && inf.dur != null ? fmtDur(inf.dur) + ' (automática)' : 'Se calcula sola';
+    const ls = box.querySelector('.leg-sum');
+    if (ls){ ls.textContent = textoLeg(s.vuelos[k]); ls.classList.toggle('warn', avisosLeg(s.vuelos[k]) > 0); }
   });
+  const sum = card.querySelector('.vuelos-sum');
+  if (sum){
+    const n = avisosLeg(s.vuelos.ida) + avisosLeg(s.vuelos.vuelta);
+    sum.textContent = [rutaVuelos(s.vuelos), n ? `⚠ ${n} aviso${n === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ');
+    sum.classList.toggle('warn', n > 0);
+  }
 }
 // ── Completar los vuelos desde una captura de pantalla ──
 // La captura se manda al servicio de IA (Worker de Cloudflare), que devuelve los
@@ -1541,6 +1597,7 @@ function aplicarCaptura(s, vuelos, img){
   s.vuelos = { ida: legDesdeCaptura(ida, ref, firme, avisos), vuelta: vuelta ? legDesdeCaptura(vuelta, ref, firme, avisos) : null };
   if (!c.fechaInicio) avisos.push('La cotización no tiene fecha de inicio: el año de los vuelos se dedujo a partir de hoy y del día de la semana. Verificalo.');
   const tramos = s.vuelos.ida.segmentos.length + (s.vuelos.vuelta ? s.vuelos.vuelta.segmentos.length : 0);
+  abrirPanelVuelos(s);
   CAPTURA_VUELOS.set(s, { img, avisos, msg: `Se cargaron ${tramos} tramo${tramos === 1 ? '' : 's'} leídos de la captura. La lectura automática puede equivocarse: revisá horarios, códigos y números de vuelo contra la imagen antes de enviar la propuesta.` });
   if (!s.concepto){
     const inf = infoLeg(s.vuelos.ida);
@@ -1577,7 +1634,7 @@ async function procesarCaptura(i, file){
 }
 
 function setTipo(i, v){ editing.data.servicios[i].tipo = v; renderServicios(); markDirty(); }
-function agregarVuelos(i){ editing.data.servicios[i].vuelos = { ida: legVacio(), vuelta: null }; renderServicios(); markDirty(); }
+function agregarVuelos(i){ const s = editing.data.servicios[i]; s.vuelos = { ida: legVacio(), vuelta: null }; abrirPanelVuelos(s); renderServicios(); markDirty(); }
 function agregarVuelta(i){
   const v = editing.data.servicios[i].vuelos, ida = infoLeg(v.ida);
   const l = legVacio();
@@ -1586,7 +1643,7 @@ function agregarVuelta(i){
     const a = ida.a, z = ida.z;
     Object.assign(l.segmentos[0], { origen: z.destino, origenCiudad: z.destinoCiudad, origenAeropuerto: z.destinoAeropuerto, destino: a.origen, destinoCiudad: a.origenCiudad, destinoAeropuerto: a.origenAeropuerto });
   }
-  v.vuelta = l; renderServicios(); markDirty();
+  v.vuelta = l; abrirPanelVuelos(editing.data.servicios[i]); renderServicios(); markDirty();
 }
 function quitarLeg(i, k){
   const s = editing.data.servicios[i];
