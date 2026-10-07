@@ -124,6 +124,19 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .opc-block .fi{font-size:11.5px;padding:5px 8px;margin:4px 0 6px}
 .opc-titulo{font-size:10px;font-weight:600;color:var(--teal);letter-spacing:.5px;text-transform:uppercase}
 
+/* Detalle de vuelos (servicio Aéreo) */
+.vuelos-ed{border-top:1px dashed var(--beige-d);margin-top:4px;padding-top:10px;display:grid;gap:8px}
+.leg-ed{background:var(--white);border:1px solid var(--beige-d);border-radius:8px;padding:10px 12px}
+.leg-ed .item-head{margin-bottom:6px}
+.seg-ed{border-top:1px solid var(--beige-d);padding-top:8px;margin-top:8px}
+.seg-ed-head{display:flex;justify-content:space-between;align-items:center;font-size:10px;font-weight:600;color:rgba(43,43,43,.5);letter-spacing:.5px;text-transform:uppercase;margin-bottom:5px}
+.seg-ed .grid{margin-bottom:6px}
+.seg-ed details{margin-bottom:2px}
+.seg-ed summary{font-size:10.5px;color:var(--teal);cursor:pointer;margin-bottom:6px}
+.iata{text-transform:uppercase;font-weight:600;letter-spacing:1px}
+.vuelo-resumen{margin-top:8px;padding-top:6px;border-top:1px dashed var(--beige-d);display:block;line-height:1.5}
+.vuelo-resumen .warn{color:var(--amber)}
+
 /* Portada: biblioteca de imágenes */
 .portada-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin-bottom:10px}
 .pt{position:relative;border:2px solid transparent;border-radius:8px;overflow:hidden;cursor:pointer;background:var(--beige);text-align:left;padding:0;font-family:'Inter',sans-serif}
@@ -220,6 +233,36 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .srv-group{break-inside:avoid-column;margin-bottom:3mm}
 .srv-seccion{font-size:12pt;font-weight:600;color:#0F3D3E;margin:0 0 3mm;padding-bottom:1.5mm;border-bottom:.3mm solid rgba(15,61,62,.3);break-after:avoid}
 .srv-seccion:not(:first-child){margin-top:3mm}
+
+/* Vuelos */
+.vuelo{margin-bottom:4mm}
+.vuelo-head{display:flex;justify-content:space-between;align-items:baseline;gap:6mm;margin-bottom:2.5mm}
+.vuelo-nombre{font-size:12pt;font-weight:600;color:#0F3D3E;line-height:1.3}
+.vuelo-tag{font-size:7.5pt;font-weight:600;letter-spacing:1.2pt;text-transform:uppercase;color:#B08A5A;white-space:nowrap}
+.leg{border:.3mm solid rgba(15,61,62,.35);margin-bottom:3.5mm;background:rgba(255,255,255,.45)}
+.leg-bar{display:flex;justify-content:space-between;gap:6mm;padding:1.8mm 4mm;background:rgba(15,61,62,.1);font-size:8.5pt;font-weight:600;color:#0F3D3E}
+.leg-res{display:grid;grid-template-columns:auto 1fr auto;gap:6mm;align-items:center;padding:3.5mm 4mm 3mm}
+.hora-b{min-width:24mm}
+.hora-b.der{text-align:right}
+.hora-b .fch{font-size:7.5pt;font-weight:500;color:rgba(43,43,43,.65);margin-bottom:.8mm}
+.hora-b .hh{font-size:18pt;font-weight:600;color:#0F3D3E;line-height:1;letter-spacing:-.4pt}
+.hora-b .cc{font-size:9pt;font-weight:600;color:rgba(43,43,43,.8);margin-top:1mm;letter-spacing:.6pt}
+.ruta{text-align:center;font-size:8.5pt;color:rgba(43,43,43,.8)}
+.ruta .dur{font-weight:600;color:#0F3D3E}
+.ruta .linea{height:0;border-top:.35mm solid #0F3D3E;margin:1.8mm 2mm;position:relative}
+.ruta .linea::before,.ruta .linea::after{content:'';position:absolute;top:-1.1mm;width:1.8mm;height:1.8mm;border-radius:50%;background:#0F3D3E}
+.ruta .linea::before{left:-2mm}
+.ruta .linea::after{right:-2mm}
+.leg-eq{padding:0 4mm 3mm;font-size:8.5pt;color:rgba(43,43,43,.75)}
+.seg{display:grid;grid-template-columns:1fr 26mm 1fr;gap:4mm;padding:3mm 4mm;border-top:.2mm solid rgba(15,61,62,.2)}
+.seg .cod{font-size:12pt;font-weight:600;color:#0F3D3E;line-height:1.1}
+.seg .tt{font-size:8.5pt;font-weight:600;color:#0F3D3E;margin:.6mm 0}
+.seg .dd{font-size:8.5pt;line-height:1.4;color:rgba(43,43,43,.85)}
+.seg .der{text-align:right}
+.seg-medio{text-align:center;font-size:8pt;color:rgba(43,43,43,.75);padding-top:1mm}
+.seg-medio .linea{height:0;border-top:.3mm solid rgba(15,61,62,.6);margin:1.4mm 0}
+.seg-medio b{display:block;color:#0F3D3E;font-size:8.5pt;margin-top:.8mm}
+.escala{padding:1.8mm 4mm;background:rgba(176,138,90,.16);font-size:8.5pt;font-weight:600;color:#0F3D3E;text-align:center}
 
 /* Opciones y adicionales en Inversión */
 .inv-opciones{display:grid;gap:8mm;margin-bottom:4mm}
@@ -422,6 +465,87 @@ const MODOS_SRV = [['incluido','Incluido'], ...OPCIONES.map(o => [o, 'Opción ' 
 // URL del Worker de Cloudflare que redacta con IA (ver infra/redactor/LEEME.md).
 const REDACTOR_URL = 'https://betravel-redactor.fanadini.workers.dev';
 const MARKUP_DEFAULT = 10;
+// Aeropuertos frecuentes: completan ciudad y nombre al escribir el código y
+// permiten calcular la duración real del vuelo (la zona horaria cuenta).
+const TZ_AR = 'America/Argentina/Buenos_Aires';
+const AEROPUERTOS = {
+  EZE:['Buenos Aires','Aeropuerto Internacional Ministro Pistarini',TZ_AR],
+  AEP:['Buenos Aires','Aeroparque Jorge Newbery',TZ_AR],
+  BRC:['San Carlos de Bariloche','Aeropuerto Internacional Teniente Luis Candelaria',TZ_AR],
+  COR:['Córdoba','Aeropuerto Internacional Ingeniero Ambrosio Taravella',TZ_AR],
+  MDZ:['Mendoza','Aeropuerto Internacional Gobernador Francisco Gabrielli',TZ_AR],
+  IGR:['Puerto Iguazú','Aeropuerto Internacional Cataratas del Iguazú',TZ_AR],
+  USH:['Ushuaia','Aeropuerto Internacional Malvinas Argentinas',TZ_AR],
+  FTE:['El Calafate','Aeropuerto Internacional Comandante Armando Tola',TZ_AR],
+  SLA:['Salta','Aeropuerto Internacional Martín Miguel de Güemes',TZ_AR],
+  TUC:['San Miguel de Tucumán','Aeropuerto Internacional Teniente Benjamín Matienzo',TZ_AR],
+  ROS:['Rosario','Aeropuerto Internacional Islas Malvinas',TZ_AR],
+  NQN:['Neuquén','Aeropuerto Presidente Perón',TZ_AR],
+  JUJ:['San Salvador de Jujuy','Aeropuerto Gobernador Horacio Guzmán',TZ_AR],
+  MDQ:['Mar del Plata','Aeropuerto Internacional Astor Piazzolla',TZ_AR],
+  SCL:['Santiago de Chile','Aeropuerto Internacional Arturo Merino Benítez','America/Santiago'],
+  GRU:['São Paulo','Aeropuerto Internacional de Guarulhos','America/Sao_Paulo'],
+  GIG:['Río de Janeiro','Aeropuerto Internacional Galeão','America/Sao_Paulo'],
+  SDU:['Río de Janeiro','Aeropuerto Santos Dumont','America/Sao_Paulo'],
+  FLN:['Florianópolis','Aeropuerto Internacional Hercílio Luz','America/Sao_Paulo'],
+  SSA:['Salvador de Bahía','Aeropuerto Internacional Luís Eduardo Magalhães','America/Bahia'],
+  REC:['Recife','Aeropuerto Internacional de Recife','America/Recife'],
+  FOR:['Fortaleza','Aeropuerto Internacional Pinto Martins','America/Fortaleza'],
+  MVD:['Montevideo','Aeropuerto Internacional de Carrasco','America/Montevideo'],
+  PDP:['Punta del Este','Aeropuerto Internacional de Punta del Este','America/Montevideo'],
+  ASU:['Asunción','Aeropuerto Internacional Silvio Pettirossi','America/Asuncion'],
+  LIM:['Lima','Aeropuerto Internacional Jorge Chávez','America/Lima'],
+  CUZ:['Cusco','Aeropuerto Internacional Alejandro Velasco Astete','America/Lima'],
+  BOG:['Bogotá','Aeropuerto Internacional El Dorado','America/Bogota'],
+  CTG:['Cartagena','Aeropuerto Internacional Rafael Núñez','America/Bogota'],
+  MDE:['Medellín','Aeropuerto Internacional José María Córdova','America/Bogota'],
+  PTY:['Ciudad de Panamá','Aeropuerto Internacional de Tocumen','America/Panama'],
+  MEX:['Ciudad de México','Aeropuerto Internacional Benito Juárez','America/Mexico_City'],
+  CUN:['Cancún','Aeropuerto Internacional de Cancún','America/Cancun'],
+  PUJ:['Punta Cana','Aeropuerto Internacional de Punta Cana','America/Santo_Domingo'],
+  HAV:['La Habana','Aeropuerto Internacional José Martí','America/Havana'],
+  SJO:['San José','Aeropuerto Internacional Juan Santamaría','America/Costa_Rica'],
+  UIO:['Quito','Aeropuerto Internacional Mariscal Sucre','America/Guayaquil'],
+  LPB:['La Paz','Aeropuerto Internacional El Alto','America/La_Paz'],
+  VVI:['Santa Cruz de la Sierra','Aeropuerto Internacional Viru Viru','America/La_Paz'],
+  MIA:['Miami','Aeropuerto Internacional de Miami','America/New_York'],
+  JFK:['Nueva York','Aeropuerto Internacional John F. Kennedy','America/New_York'],
+  EWR:['Nueva York (Newark)','Aeropuerto Internacional Libertad de Newark','America/New_York'],
+  LAX:['Los Ángeles','Aeropuerto Internacional de Los Ángeles','America/Los_Angeles'],
+  ATL:['Atlanta','Aeropuerto Internacional Hartsfield-Jackson','America/New_York'],
+  DFW:['Dallas','Aeropuerto Internacional Dallas/Fort Worth','America/Chicago'],
+  ORD:['Chicago','Aeropuerto Internacional O\'Hare','America/Chicago'],
+  IAH:['Houston','Aeropuerto Intercontinental George Bush','America/Chicago'],
+  MCO:['Orlando','Aeropuerto Internacional de Orlando','America/New_York'],
+  FLL:['Fort Lauderdale','Aeropuerto Internacional Fort Lauderdale-Hollywood','America/New_York'],
+  LAS:['Las Vegas','Aeropuerto Internacional Harry Reid','America/Los_Angeles'],
+  SFO:['San Francisco','Aeropuerto Internacional de San Francisco','America/Los_Angeles'],
+  BOS:['Boston','Aeropuerto Internacional Logan','America/New_York'],
+  IAD:['Washington D. C.','Aeropuerto Internacional Washington-Dulles','America/New_York'],
+  SEA:['Seattle','Aeropuerto Internacional de Seattle-Tacoma','America/Los_Angeles'],
+  YYZ:['Toronto','Aeropuerto Internacional Pearson','America/Toronto'],
+  YUL:['Montreal','Aeropuerto Internacional Pierre Elliott Trudeau','America/Toronto'],
+  MAD:['Madrid','Aeropuerto Adolfo Suárez Madrid-Barajas','Europe/Madrid'],
+  BCN:['Barcelona','Aeropuerto Josep Tarradellas Barcelona-El Prat','Europe/Madrid'],
+  LIS:['Lisboa','Aeropuerto Humberto Delgado','Europe/Lisbon'],
+  OPO:['Oporto','Aeropuerto Francisco Sá Carneiro','Europe/Lisbon'],
+  FCO:['Roma','Aeropuerto Leonardo da Vinci-Fiumicino','Europe/Rome'],
+  MXP:['Milán','Aeropuerto de Milán-Malpensa','Europe/Rome'],
+  VCE:['Venecia','Aeropuerto Marco Polo','Europe/Rome'],
+  CDG:['París','Aeropuerto Charles de Gaulle','Europe/Paris'],
+  ORY:['París','Aeropuerto de París-Orly','Europe/Paris'],
+  LHR:['Londres','Aeropuerto de Heathrow','Europe/London'],
+  LGW:['Londres','Aeropuerto de Gatwick','Europe/London'],
+  AMS:['Ámsterdam','Aeropuerto de Ámsterdam-Schiphol','Europe/Amsterdam'],
+  FRA:['Fráncfort','Aeropuerto de Fráncfort del Meno','Europe/Berlin'],
+  MUC:['Múnich','Aeropuerto de Múnich Franz Josef Strauss','Europe/Berlin'],
+  ZRH:['Zúrich','Aeropuerto de Zúrich','Europe/Zurich'],
+  IST:['Estambul','Aeropuerto de Estambul','Europe/Istanbul'],
+  ATH:['Atenas','Aeropuerto Internacional Eleftherios Venizelos','Europe/Athens'],
+  DXB:['Dubái','Aeropuerto Internacional de Dubái','Asia/Dubai'],
+  DOH:['Doha','Aeropuerto Internacional Hamad','Asia/Qatar'],
+};
+const AEROLINEAS = ['Aerolíneas Argentinas','LATAM','American Airlines','Copa Airlines','Iberia','Air Europa','Air France','KLM','Delta','United','Avianca','GOL','Azul','Flybondi','JetSMART','Sky Airline','Turkish Airlines','Emirates','Qatar Airways','TAP Air Portugal','ITA Airways','British Airways','Lufthansa','Swiss','Aeroméxico','Boliviana de Aviación','Paranair'];
 // Borradores de texto para la propuesta: revisarlos antes de enviar la primera.
 const DEFAULT_NO_INCLUYE = 'Gastos personales.\nPropinas.\nServicios no mencionados como incluidos.';
 const DEFAULT_CONDICIONES = 'Tarifas sujetas a disponibilidad al momento de la confirmación.\nLa propuesta no constituye reserva hasta su confirmación y el pago de la seña acordada.\nCondiciones de cambio y cancelación según las políticas de cada proveedor.';
@@ -615,6 +739,7 @@ function normalizar(raw){
   c.servicios = Array.isArray(c.servicios) ? c.servicios.filter(Boolean) : Object.values(c.servicios||{});
   c.dias = c.dias.map(d => ({ titulo:'', descripcion:'', ...d }));
   c.servicios = c.servicios.map(s => ({ tipo:'Otro', concepto:'', detalle:'', proveedor:'', costo:0, moneda:c.moneda, markup:0, precio:0, activo:true, modo:'incluido', ...s }));
+  c.servicios.forEach(s => { s.vuelos = normVuelos(s.vuelos); });
   c.nombresOpciones = { ...(c.nombresOpciones||{}) };
   if (raw && raw.noIncluye === undefined) c.noIncluye = '';
   if (raw && raw.condiciones === undefined) c.condiciones = '';
@@ -873,6 +998,8 @@ function renderEditor(){
     </div>
     <datalist id="dl-proveedores"></datalist>
     <datalist id="dl-clientes"></datalist>
+    <datalist id="dl-iata">${Object.keys(AEROPUERTOS).map(k => `<option value="${k}" label="${escHtml(AEROPUERTOS[k][0] + ' · ' + AEROPUERTOS[k][1])}">`).join('')}</datalist>
+    <datalist id="dl-aerolineas">${AEROLINEAS.map(a => `<option value="${escHtml(a)}">`).join('')}</datalist>
   `;
   refreshDatalists();
   renderPortadaGrid();
@@ -1152,6 +1279,208 @@ function generarDias(){
   renderDias(); markDirty();
 }
 
+// ── VUELOS ─────────────────────────────────────────────────────────────────
+// Un servicio Aéreo puede llevar el detalle de los vuelos: ida y (opcional)
+// vuelta, cada una con uno o más tramos. Los horarios se cargan en hora local
+// de cada aeropuerto; la espera de cada escala y la duración total se calculan.
+function segVacio(){ return { vuelo:'', clase:'', origen:'', origenCiudad:'', origenAeropuerto:'', salida:'', destino:'', destinoCiudad:'', destinoAeropuerto:'', llegada:'' }; }
+function legVacio(){ return { aerolinea:'', equipaje:'', duracion:'', segmentos:[segVacio()] }; }
+function normLeg(l){
+  if (!l || typeof l !== 'object') return null;
+  const segs = Array.isArray(l.segmentos) ? l.segmentos : Object.values(l.segmentos || {});
+  return { aerolinea:'', equipaje:'', duracion:'', ...l, segmentos: segs.filter(Boolean).map(x => ({ ...segVacio(), ...x })) };
+}
+function normVuelos(v){
+  if (!v || typeof v !== 'object') return null;
+  const ida = normLeg(v.ida), vuelta = normLeg(v.vuelta);
+  return ida || vuelta ? { ida, vuelta } : null;
+}
+function parseLocal(str){
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(str||''));
+  return m ? { y:+m[1], m:+m[2], d:+m[3], h:+m[4], mi:+m[5] } : null;
+}
+const DIAS_SEM = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+function fechaCorta(str){ const t = parseLocal(str); if (!t) return ''; return DIAS_SEM[new Date(t.y, t.m-1, t.d).getDay()] + ' ' + t.d + '/' + t.m; }
+function fechaCortaCap(str){ const f = fechaCorta(str); return f ? f.charAt(0).toUpperCase() + f.slice(1) : ''; }
+function horaDe(str){ const t = parseLocal(str); return t ? String(t.h).padStart(2,'0') + ':' + String(t.mi).padStart(2,'0') : ''; }
+function fmtDur(min){
+  if (min == null || !isFinite(min)) return '';
+  const h = Math.floor(min / 60), m = Math.round(min % 60);
+  return h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`;
+}
+function parseDur(txt){
+  const m = /^\s*(\d+)\s*(?:h|hs|horas?|:)\s*(?:(\d+)\s*(?:m|min|minutos?)?)?\s*$/i.exec(String(txt||''));
+  if (m) return +m[1] * 60 + (m[2] ? +m[2] : 0);
+  const solo = /^\s*(\d+)\s*(?:m|min|minutos?)\s*$/i.exec(String(txt||''));
+  return solo ? +solo[1] : null;
+}
+// Hora local de un aeropuerto → instante UTC (respeta el horario de verano de ese día).
+const _dtf = {};
+function _offsetMs(tz, utcMs){
+  const f = _dtf[tz] || (_dtf[tz] = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle:'h23', year:'numeric', month:'numeric', day:'numeric', hour:'numeric', minute:'numeric', second:'numeric' }));
+  const p = {}; f.formatToParts(new Date(utcMs)).forEach(x => { p[x.type] = x.value; });
+  return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - utcMs;
+}
+function localToUtcMs(str, tz){
+  const t = parseLocal(str); if (!t || !tz) return null;
+  const guess = Date.UTC(t.y, t.m - 1, t.d, t.h, t.mi);
+  try { const u1 = guess - _offsetMs(tz, guess); return guess - _offsetMs(tz, u1); } catch (e) { return null; }
+}
+function tzDe(cod){ return (AEROPUERTOS[String(cod||'').toUpperCase()] || [])[2] || null; }
+// Espera entre dos tramos (mismo aeropuerto: se restan las horas locales).
+function esperaMin(prev, next){
+  const a = parseLocal(prev.llegada), b = parseLocal(next.salida);
+  if (!a || !b) return null;
+  const min = (Date.UTC(b.y, b.m-1, b.d, b.h, b.mi) - Date.UTC(a.y, a.m-1, a.d, a.h, a.mi)) / 60000;
+  return min >= 0 ? min : null;
+}
+function paradasTexto(n){ return n <= 0 ? 'Directo' : n === 1 ? '1 escala' : n + ' escalas'; }
+// Resumen calculado de un tramo (ida o vuelta).
+function infoLeg(leg){
+  if (!leg) return null;
+  const sg = leg.segmentos.filter(x => x.origen || x.destino || x.salida || x.llegada);
+  if (!sg.length) return null;
+  const a = sg[0], z = sg[sg.length - 1];
+  let dur = parseDur(leg.duracion), auto = false;
+  if (dur == null){
+    const u1 = localToUtcMs(a.salida, tzDe(a.origen)), u2 = localToUtcMs(z.llegada, tzDe(z.destino));
+    if (u1 != null && u2 != null && u2 > u1){ dur = Math.round((u2 - u1) / 60000); auto = true; }
+  }
+  const escalas = sg.slice(1).map((x, i) => ({ en: sg[i].destino || x.origen, ciudad: sg[i].destinoCiudad || x.origenCiudad, min: esperaMin(sg[i], x) }));
+  const completo = sg.every(x => x.origen && x.destino && parseLocal(x.salida) && parseLocal(x.llegada));
+  return { sg, a, z, paradas: sg.length - 1, dur, auto, escalas, completo };
+}
+function rutaVuelos(v){
+  if (!v) return '';
+  return [v.ida, v.vuelta].map(l => {
+    const inf = infoLeg(l); if (!inf) return '';
+    return [inf.a.origen].concat(inf.sg.map(x => x.destino)).filter(Boolean).join('-');
+  }).filter(Boolean).join(' / ');
+}
+
+// ── Detalle de vuelos en el editor ──
+function vuelosEditor(s, i){
+  if (!s.vuelos) return `<div class="vuelos-ed"><button class="add-item-btn" onclick="agregarVuelos(${i})">+ Agregar detalle de vuelos (ida, vuelta, tramos y escalas)</button></div>`;
+  const legs = [['ida','Ida'], ['vuelta','Vuelta']].map(([k, nom]) => {
+    const l = s.vuelos[k];
+    if (!l) return k === 'vuelta' ? `<button class="add-item-btn" onclick="agregarVuelta(${i})">+ Agregar vuelta</button>` : '';
+    return `<div class="leg-ed" data-leg="${k}">
+      <div class="item-head"><span class="item-label">${nom}</span>
+        <div class="item-actions"><button class="icon-btn danger" title="${k==='ida' ? 'Quitar todo el detalle de vuelos' : 'Quitar la vuelta'}" onclick="quitarLeg(${i},'${k}')">✕</button></div></div>
+      <div class="grid g3">
+        <div><label class="fl">Aerolínea</label><input class="fi" list="dl-aerolineas" value="${escHtml(l.aerolinea)}" placeholder="Ej: American Airlines" oninput="setLeg(${i},'${k}','aerolinea',this.value)"></div>
+        <div><label class="fl">Equipaje (opcional)</label><input class="fi" value="${escHtml(l.equipaje)}" placeholder="Ej: Carry-on y 1 valija de 23 kg" oninput="setLeg(${i},'${k}','equipaje',this.value)"></div>
+        <div><label class="fl">Duración total (opcional)</label><input class="fi leg-dur" value="${escHtml(l.duracion)}" placeholder="Se calcula sola" oninput="setLeg(${i},'${k}','duracion',this.value)"></div>
+      </div>
+      ${l.segmentos.map((g, j) => `<div class="seg-ed" data-seg="${j}">
+        <div class="seg-ed-head"><span>Tramo ${j+1}</span>${l.segmentos.length > 1 ? `<button class="icon-btn danger" title="Quitar tramo" onclick="quitarSeg(${i},'${k}',${j})">✕</button>` : ''}</div>
+        <div class="grid g4">
+          <div><label class="fl">Vuelo</label><input class="fi" value="${escHtml(g.vuelo)}" placeholder="AA982" data-f="vuelo" oninput="setSeg(${i},'${k}',${j},'vuelo',this.value)"></div>
+          <div><label class="fl">Clase</label><input class="fi" value="${escHtml(g.clase)}" placeholder="Económica (Q)" data-f="clase" oninput="setSeg(${i},'${k}',${j},'clase',this.value)"></div>
+          <div><label class="fl">Origen (código)</label><input class="fi iata" list="dl-iata" maxlength="3" value="${escHtml(g.origen)}" placeholder="EZE" data-f="origen" oninput="onIata(${i},'${k}',${j},'origen',this)" onchange="autoNombres(${i},'${k}',${j},'origen')"></div>
+          <div><label class="fl">Destino (código)</label><input class="fi iata" list="dl-iata" maxlength="3" value="${escHtml(g.destino)}" placeholder="MIA" data-f="destino" oninput="onIata(${i},'${k}',${j},'destino',this)" onchange="autoNombres(${i},'${k}',${j},'destino')"></div>
+        </div>
+        <div class="grid g2">
+          <div><label class="fl">Salida (hora local del aeropuerto)</label><input class="fi" type="datetime-local" value="${escHtml(g.salida)}" data-f="salida" oninput="setSeg(${i},'${k}',${j},'salida',this.value)"></div>
+          <div><label class="fl">Llegada (hora local del aeropuerto)</label><input class="fi" type="datetime-local" value="${escHtml(g.llegada)}" data-f="llegada" oninput="setSeg(${i},'${k}',${j},'llegada',this.value)"></div>
+        </div>
+        <details ${(g.origen && !g.origenCiudad) || (g.destino && !g.destinoCiudad) ? 'open' : ''}><summary>Ciudades y aeropuertos</summary>
+          <div class="grid g2">
+            <div><label class="fl">Ciudad de origen</label><input class="fi" value="${escHtml(g.origenCiudad)}" data-f="origenCiudad" oninput="setSeg(${i},'${k}',${j},'origenCiudad',this.value)"></div>
+            <div><label class="fl">Ciudad de destino</label><input class="fi" value="${escHtml(g.destinoCiudad)}" data-f="destinoCiudad" oninput="setSeg(${i},'${k}',${j},'destinoCiudad',this.value)"></div>
+            <div><label class="fl">Aeropuerto de origen</label><input class="fi" value="${escHtml(g.origenAeropuerto)}" data-f="origenAeropuerto" oninput="setSeg(${i},'${k}',${j},'origenAeropuerto',this.value)"></div>
+            <div><label class="fl">Aeropuerto de destino</label><input class="fi" value="${escHtml(g.destinoAeropuerto)}" data-f="destinoAeropuerto" oninput="setSeg(${i},'${k}',${j},'destinoAeropuerto',this.value)"></div>
+          </div>
+        </details>
+      </div>`).join('')}
+      <div style="margin-top:8px"><button class="add-item-btn" onclick="agregarSeg(${i},'${k}')">+ Agregar tramo (escala)</button></div>
+      <div class="item-foot vuelo-resumen"></div>
+    </div>`;
+  }).join('');
+  return `<div class="vuelos-ed">${legs}</div>`;
+}
+function resumenLegTexto(l){
+  const inf = infoLeg(l);
+  if (!inf) return '';
+  const partes = [];
+  if (inf.a.salida) partes.push(`Sale ${fechaCorta(inf.a.salida)} ${horaDe(inf.a.salida)}`);
+  if (inf.z.llegada) partes.push(`llega ${fechaCorta(inf.z.llegada)} ${horaDe(inf.z.llegada)}`);
+  const txt = [];
+  if (partes.length) txt.push(escHtml(partes.join(', ')));
+  if (inf.dur != null) txt.push(`<b>${escHtml(fmtDur(inf.dur))}</b>${inf.auto ? ' (calculada)' : ''}`);
+  txt.push(escHtml(paradasTexto(inf.paradas)) + (inf.escalas.length ? ' (' + escHtml(inf.escalas.map(e => (e.min != null ? fmtDur(e.min) + ' en ' : 'en ') + (e.en || '?')).join(', ')) + ')' : ''));
+  let html = txt.join(' · ');
+  if (!inf.completo) html += `<br><span class="warn">⚠ Faltan códigos de aeropuerto u horarios en algún tramo.</span>`;
+  else if (inf.dur == null) html += `<br><span class="warn">No se pudo calcular la duración (aeropuerto fuera de la lista): cargala a mano si querés mostrarla.</span>`;
+  return html;
+}
+function actualizarResumenVuelos(i){
+  const s = editing.data.servicios[i], card = document.querySelector(`[data-srv="${i}"]`);
+  if (!s || !s.vuelos || !card) return;
+  ['ida','vuelta'].forEach(k => {
+    const box = card.querySelector(`[data-leg="${k}"]`);
+    if (!box || !s.vuelos[k]) return;
+    box.querySelector('.vuelo-resumen').innerHTML = resumenLegTexto(s.vuelos[k]);
+    const inf = infoLeg(s.vuelos[k]);
+    box.querySelector('.leg-dur').placeholder = inf && inf.auto && inf.dur != null ? fmtDur(inf.dur) + ' (automática)' : 'Se calcula sola';
+  });
+}
+function setTipo(i, v){ editing.data.servicios[i].tipo = v; renderServicios(); markDirty(); }
+function agregarVuelos(i){ editing.data.servicios[i].vuelos = { ida: legVacio(), vuelta: null }; renderServicios(); markDirty(); }
+function agregarVuelta(i){
+  const v = editing.data.servicios[i].vuelos, ida = infoLeg(v.ida);
+  const l = legVacio();
+  l.aerolinea = v.ida.aerolinea;
+  if (ida){
+    const a = ida.a, z = ida.z;
+    Object.assign(l.segmentos[0], { origen: z.destino, origenCiudad: z.destinoCiudad, origenAeropuerto: z.destinoAeropuerto, destino: a.origen, destinoCiudad: a.origenCiudad, destinoAeropuerto: a.origenAeropuerto });
+  }
+  v.vuelta = l; renderServicios(); markDirty();
+}
+function quitarLeg(i, k){
+  const s = editing.data.servicios[i];
+  if (k === 'ida'){
+    if (!confirm('¿Quitar todo el detalle de vuelos de este servicio?')) return;
+    s.vuelos = null;
+  } else {
+    if (!confirm('¿Quitar la vuelta?')) return;
+    s.vuelos.vuelta = null;
+  }
+  renderServicios(); markDirty();
+}
+function agregarSeg(i, k){
+  const l = editing.data.servicios[i].vuelos[k], ult = l.segmentos[l.segmentos.length - 1];
+  const n = segVacio();
+  if (ult) Object.assign(n, { origen: ult.destino, origenCiudad: ult.destinoCiudad, origenAeropuerto: ult.destinoAeropuerto });
+  l.segmentos.push(n); renderServicios(); markDirty();
+}
+function quitarSeg(i, k, j){ editing.data.servicios[i].vuelos[k].segmentos.splice(j, 1); renderServicios(); markDirty(); }
+function setLeg(i, k, campo, v){ editing.data.servicios[i].vuelos[k][campo] = v; actualizarResumenVuelos(i); markDirty(); }
+function setSeg(i, k, j, campo, v){ editing.data.servicios[i].vuelos[k].segmentos[j][campo] = v; actualizarResumenVuelos(i); markDirty(); }
+function onIata(i, k, j, campo, input){
+  const v = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+  if (input.value !== v) input.value = v;
+  setSeg(i, k, j, campo, v);
+}
+// Al terminar de escribir el código, completa ciudad y aeropuerto si estaban vacíos
+// (o si eran los del código anterior). No pisa lo que la persona haya escrito a mano.
+const _codigoPrevio = {};
+function autoNombres(i, k, j, lado){
+  const g = editing.data.servicios[i].vuelos[k].segmentos[j];
+  const cod = g[lado], clave = `${i}-${k}-${j}-${lado}`, prev = AEROPUERTOS[_codigoPrevio[clave]] || null, nuevo = AEROPUERTOS[cod];
+  _codigoPrevio[clave] = cod;
+  if (!nuevo) return;
+  const caja = document.querySelector(`[data-srv="${i}"] [data-leg="${k}"] [data-seg="${j}"]`);
+  [[lado + 'Ciudad', nuevo[0], prev && prev[0]], [lado + 'Aeropuerto', nuevo[1], prev && prev[1]]].forEach(([campo, valor, previo]) => {
+    if (!g[campo] || g[campo] === previo){
+      g[campo] = valor;
+      const inp = caja && caja.querySelector(`[data-f="${campo}"]`);
+      if (inp) inp.value = valor;
+    }
+  });
+  actualizarResumenVuelos(i); markDirty();
+}
+
 // ── SERVICIOS ──────────────────────────────────────────────────────────────
 function renderServicios(){
   const el = document.getElementById('servicios-list');
@@ -1172,7 +1501,7 @@ function renderServicios(){
       </div>
     </div>
     <div class="grid" style="grid-template-columns:130px 1fr 150px">
-      <div><label class="fl">Tipo</label><select class="fsel" onchange="setServicio(${i},'tipo',this.value)">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,s.tipo)}</select></div>
+      <div><label class="fl">Tipo</label><select class="fsel" onchange="setTipo(${i},this.value)">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,s.tipo)}</select></div>
       <div><label class="fl">Servicio (visible en la propuesta)</label><input class="fi" value="${escHtml(s.concepto)}" placeholder="Ej: Hotel Llao Llao · 3 noches · desayuno" oninput="setServicio(${i},'concepto',this.value)"></div>
       <div><label class="fl">En la propuesta</label><select class="fsel" onchange="setModo(${i},this.value)">${selOpts(MODOS_SRV.map(x=>x[0]),MODOS_SRV.map(x=>x[1]),modoDe(s))}</select></div>
     </div>
@@ -1186,9 +1515,11 @@ function renderServicios(){
       <div><label class="fl">Markup %</label><input class="fi srv-markup" type="number" step="0.1" value="${escHtml(s.markup)}" oninput="onMarkup(${i},this.value)"></div>
       <div><label class="fl">Precio de venta</label><input class="fi srv-precio" type="number" step="0.01" value="${escHtml(s.precio)}" oninput="onPrecio(${i},this.value)"></div>
     </div>
+    ${s.tipo === 'Aéreo' ? vuelosEditor(s, i) : ''}
     <div class="item-foot srv-foot"></div>
   </div>`).join('');
   renderServiciosFoot();
+  c.servicios.forEach((s, i) => { if (s.tipo === 'Aéreo' && s.vuelos) actualizarResumenVuelos(i); });
 }
 function renderServiciosFoot(){
   if (!editing) return;
@@ -1364,7 +1695,7 @@ function convertirEnReserva(){
   elegidos.forEach(s => {
     const m = s.moneda || c.moneda;
     const tc = m !== c.moneda ? (num(c.tipoCambio) || '') : '';
-    const concepto = [s.concepto, s.detalle].filter(Boolean).join(' — ').slice(0, 300);
+    const concepto = [s.concepto, s.vuelos ? rutaVuelos(s.vuelos) : '', s.detalle].filter(Boolean).join(' — ').slice(0, 300);
     cotizado[RESERVAS_REF.push().key] = { tipo: s.tipo||'Otro', concepto, monto: num(s.precio), moneda: m, tipoCambio: tc };
     costos[RESERVAS_REF.push().key] = {
       tipo: s.tipo||'Otro', proveedor: s.proveedor||'', concepto, monto: num(s.costo), moneda: m, tipoCambio: tc,
@@ -1499,6 +1830,56 @@ function buildSlides(c){
     }
     slides.push(slideInterior('Itinerario', renderDias(chunk, { n: idx+1, total: paginasDias.length, solo })));
   });
+
+
+  // Vuelos: una tarjeta por servicio Aéreo con detalle cargado (ida y vuelta, tramos y escalas).
+  const ordenVuelos = ['incluido', ...OPCIONES, 'adicional'];
+  const vuelosSrv = srvActivos(c).map((x, i) => ({ ...x, _i:i }))
+    .filter(x => x.tipo === 'Aéreo' && x.vuelos && ((x.vuelos.ida && infoLeg(x.vuelos.ida)) || (x.vuelos.vuelta && infoLeg(x.vuelos.vuelta))))
+    .sort((a, b) => (ordenVuelos.indexOf(modoDe(a)) - ordenVuelos.indexOf(modoDe(b))) || (a._i - b._i));
+  const legHTML = (titulo, leg) => {
+    const inf = infoLeg(leg);
+    if (!inf) return '';
+    const { a, z } = inf;
+    const f1 = fechaCorta(a.salida), f2 = fechaCorta(z.llegada);
+    const fechas = f1 && f2 && f1 !== f2 ? `${f1} – ${f2}` : (f1 || f2);
+    const lado = (cod, ciudad, aer, hora, fecha, clase, der) => `<div class="${der ? 'der' : ''}">
+        <div class="cod">${escHtml(cod || '—')}</div>
+        <div class="tt">${escHtml([hora, fecha].filter(Boolean).join(' · '))}</div>
+        ${ciudad ? `<div class="dd">${escHtml(ciudad)}</div>` : ''}
+        ${aer ? `<div class="dd">${escHtml(aer)}</div>` : ''}
+        ${clase ? `<div class="dd">Clase: ${escHtml(clase)}</div>` : ''}
+      </div>`;
+    const tramos = inf.sg.map((g, j) => `
+      ${j > 0 ? `<div class="escala">${escHtml('Escala en ' + (inf.escalas[j-1].ciudad ? inf.escalas[j-1].ciudad + (inf.escalas[j-1].en ? ' (' + inf.escalas[j-1].en + ')' : '') : (inf.escalas[j-1].en || ''))
+        + (inf.escalas[j-1].min != null ? ': ' + fmtDur(inf.escalas[j-1].min) : ''))}</div>` : ''}
+      <div class="seg">
+        ${lado(g.origen, g.origenCiudad, g.origenAeropuerto, horaDe(g.salida), fechaCortaCap(g.salida), g.clase, false)}
+        <div class="seg-medio"><div class="linea"></div>Directo${g.vuelo ? `<b>${escHtml(g.vuelo)}</b>` : ''}</div>
+        ${lado(g.destino, g.destinoCiudad, g.destinoAeropuerto, horaDe(g.llegada), fechaCortaCap(g.llegada), '', true)}
+      </div>`).join('');
+    return `<div class="leg">
+      <div class="leg-bar"><span>${escHtml(titulo)}${leg.aerolinea ? ' | ' + escHtml(leg.aerolinea) : ''}</span><span>${escHtml(fechas)}</span></div>
+      <div class="leg-res">
+        <div class="hora-b"><div class="fch">${escHtml(fechaCortaCap(a.salida))}</div><div class="hh">${escHtml(horaDe(a.salida) || '—')}</div><div class="cc">${escHtml(a.origen || '')}</div></div>
+        <div class="ruta"><div class="dur">${escHtml(fmtDur(inf.dur))}${inf.dur != null ? '' : '&nbsp;'}</div><div class="linea"></div><div>${escHtml(paradasTexto(inf.paradas))}</div></div>
+        <div class="hora-b der"><div class="fch">${escHtml(fechaCortaCap(z.llegada))}</div><div class="hh">${escHtml(horaDe(z.llegada) || '—')}</div><div class="cc">${escHtml(z.destino || '')}</div></div>
+      </div>
+      ${leg.equipaje ? `<div class="leg-eq">Equipaje: ${escHtml(leg.equipaje)}</div>` : ''}
+      ${tramos}
+    </div>`;
+  };
+  // Se pagina por tramo (ida / vuelta): un aéreo con muchas escalas no entra en una sola página.
+  const vuelosItems = vuelosSrv.flatMap(x => ['ida','vuelta'].filter(k => x.vuelos[k] && infoLeg(x.vuelos[k])).map(k => ({ x, k })));
+  const renderVuelos = (chunk, p) => tituloPaginado('Vuelos', p.n, p.total) + chunk.map((it, idx) => {
+    const x = it.x, modo = modoDe(x);
+    const tag = modo === 'incluido' ? '' : (modo === 'adicional' ? 'Adicional opcional' : nombreOpcion(c, modo));
+    const cabecera = idx === 0 || chunk[idx - 1].x !== x
+      ? `<div class="vuelo-head"><span class="vuelo-nombre">${escHtml(x.concepto || 'Aéreo')}</span>${tag ? `<span class="vuelo-tag">${escHtml(tag)}</span>` : ''}</div>` : '';
+    return `<div class="vuelo">${cabecera}${legHTML(it.k === 'ida' ? 'IDA' : 'VUELTA', x.vuelos[it.k])}</div>`;
+  }).join('');
+  const paginasVuelos = paginar(vuelosItems, renderVuelos);
+  paginasVuelos.forEach((chunk, idx) => slides.push(slideInterior('Vuelos', renderVuelos(chunk, { n: idx+1, total: paginasVuelos.length }))));
 
   // Servicios (agrupados por sección y tipo, en dos columnas). Secciones solo
   // si hay opciones o adicionales: incluido / Opción A, B… / adicionales.
