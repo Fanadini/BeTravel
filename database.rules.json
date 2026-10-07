@@ -54,8 +54,12 @@
       },
 
       "cotizaciones": {
-        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
-        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()"
+        ".indexOn": ["creadoPor"],
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && (root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador' || (query.orderByChild === 'creadoPor' && query.equalTo === auth.token.email))",
+        "$cid": {
+          ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && data.child('creadoPor').val() === auth.token.email",
+          ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && (root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador' || (data.exists() && data.child('creadoPor').val() === auth.token.email && (!newData.exists() || newData.child('creadoPor').val() === auth.token.email)) || (!data.exists() && newData.child('creadoPor').val() === auth.token.email))"
+        }
       },
       "imagenesMeta": {
         ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
