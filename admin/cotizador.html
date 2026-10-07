@@ -136,6 +136,20 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .iata{text-transform:uppercase;font-weight:600;letter-spacing:1px}
 .vuelo-resumen{margin-top:8px;padding-top:6px;border-top:1px dashed var(--beige-d);display:block;line-height:1.5}
 .vuelo-resumen .warn{color:var(--amber)}
+.vuelo-resumen .ok{color:var(--green)}
+.captura{border:1.5px dashed var(--beige-d);border-radius:8px;padding:10px 12px;background:var(--white);cursor:text;font-size:12px;line-height:1.5}
+.captura:hover,.captura:focus{border-color:var(--teal);outline:none;background:var(--teal-l)}
+.captura.drag{border-color:var(--bronze);background:rgba(176,138,90,.1)}
+.captura b{color:var(--teal)}
+.captura-ayuda{color:rgba(43,43,43,.6);font-size:11px;margin-top:2px}
+.captura-link{color:var(--teal);text-decoration:underline;cursor:pointer}
+.captura-estado{margin-top:4px;font-size:11.5px}
+.captura-estado.err{color:var(--red)}
+.captura-nota{font-size:11.5px;line-height:1.5;margin-top:6px}
+.captura-nota .warn{color:var(--amber);display:block}
+.captura-img{margin-top:6px}
+.captura-img summary{font-size:11px;color:var(--teal);cursor:pointer;margin-bottom:6px}
+.captura-img img{max-width:100%;border:1px solid var(--beige-d);border-radius:6px;display:block}
 
 /* Portada: biblioteca de imágenes */
 .portada-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin-bottom:10px}
@@ -1186,7 +1200,9 @@ function reducirImagen(file, maxLado, calidad){
       const w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
       const cv = document.createElement('canvas');
       cv.width = w; cv.height = h;
-      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
       resolve({ dataUrl: cv.toDataURL('image/jpeg', calidad), w, h });
     };
@@ -1341,14 +1357,16 @@ function infoLeg(leg){
   const sg = leg.segmentos.filter(x => x.origen || x.destino || x.salida || x.llegada);
   if (!sg.length) return null;
   const a = sg[0], z = sg[sg.length - 1];
-  let dur = parseDur(leg.duracion), auto = false;
-  if (dur == null){
-    const u1 = localToUtcMs(a.salida, tzDe(a.origen)), u2 = localToUtcMs(z.llegada, tzDe(z.destino));
-    if (u1 != null && u2 != null && u2 > u1){ dur = Math.round((u2 - u1) / 60000); auto = true; }
-  }
+  let dur = parseDur(leg.duracion), auto = false, durCalc = null;
+  const u1 = localToUtcMs(a.salida, tzDe(a.origen)), u2 = localToUtcMs(z.llegada, tzDe(z.destino));
+  if (u1 != null && u2 != null && u2 > u1) durCalc = Math.round((u2 - u1) / 60000);
+  if (dur == null && durCalc != null){ dur = durCalc; auto = true; }
+  // Duración que decía la captura: se usa si no se pudo calcular, y sirve para detectar horarios mal leídos.
+  const capt = typeof leg.duracionCaptura === 'number' ? leg.duracionCaptura : null;
+  if (dur == null && capt != null) dur = capt;
   const escalas = sg.slice(1).map((x, i) => ({ en: sg[i].destino || x.origen, ciudad: sg[i].destinoCiudad || x.origenCiudad, min: esperaMin(sg[i], x) }));
   const completo = sg.every(x => x.origen && x.destino && parseLocal(x.salida) && parseLocal(x.llegada));
-  return { sg, a, z, paradas: sg.length - 1, dur, auto, escalas, completo };
+  return { sg, a, z, paradas: sg.length - 1, dur, auto, durCalc, capt, escalas, completo };
 }
 function rutaVuelos(v){
   if (!v) return '';
@@ -1360,7 +1378,7 @@ function rutaVuelos(v){
 
 // ── Detalle de vuelos en el editor ──
 function vuelosEditor(s, i){
-  if (!s.vuelos) return `<div class="vuelos-ed"><button class="add-item-btn" onclick="agregarVuelos(${i})">+ Agregar detalle de vuelos (ida, vuelta, tramos y escalas)</button></div>`;
+  if (!s.vuelos) return `<div class="vuelos-ed">${capturaBox(s, i)}<button class="add-item-btn" onclick="agregarVuelos(${i})">+ Cargar los vuelos a mano (ida, vuelta, tramos y escalas)</button></div>`;
   const legs = [['ida','Ida'], ['vuelta','Vuelta']].map(([k, nom]) => {
     const l = s.vuelos[k];
     if (!l) return k === 'vuelta' ? `<button class="add-item-btn" onclick="agregarVuelta(${i})">+ Agregar vuelta</button>` : '';
@@ -1397,7 +1415,7 @@ function vuelosEditor(s, i){
       <div class="item-foot vuelo-resumen"></div>
     </div>`;
   }).join('');
-  return `<div class="vuelos-ed">${legs}</div>`;
+  return `<div class="vuelos-ed">${capturaBox(s, i)}${legs}</div>`;
 }
 function resumenLegTexto(l){
   const inf = infoLeg(l);
@@ -1410,6 +1428,11 @@ function resumenLegTexto(l){
   if (inf.dur != null) txt.push(`<b>${escHtml(fmtDur(inf.dur))}</b>${inf.auto ? ' (calculada)' : ''}`);
   txt.push(escHtml(paradasTexto(inf.paradas)) + (inf.escalas.length ? ' (' + escHtml(inf.escalas.map(e => (e.min != null ? fmtDur(e.min) + ' en ' : 'en ') + (e.en || '?')).join(', ')) + ')' : ''));
   let html = txt.join(' · ');
+  if (inf.capt != null && inf.durCalc != null){
+    html += inf.capt === inf.durCalc
+      ? `<br><span class="ok">✓ Coincide con la duración de la captura (${escHtml(fmtDur(inf.capt))}).</span>`
+      : `<br><span class="warn">⚠ La captura indica ${escHtml(fmtDur(inf.capt))} y con los horarios cargados da ${escHtml(fmtDur(inf.durCalc))}: algún horario o código está mal leído. Revisalo contra la captura.</span>`;
+  }
   if (!inf.completo) html += `<br><span class="warn">⚠ Faltan códigos de aeropuerto u horarios en algún tramo.</span>`;
   else if (inf.dur == null) html += `<br><span class="warn">No se pudo calcular la duración (aeropuerto fuera de la lista): cargala a mano si querés mostrarla.</span>`;
   return html;
@@ -1425,6 +1448,134 @@ function actualizarResumenVuelos(i){
     box.querySelector('.leg-dur').placeholder = inf && inf.auto && inf.dur != null ? fmtDur(inf.dur) + ' (automática)' : 'Se calcula sola';
   });
 }
+// ── Completar los vuelos desde una captura de pantalla ──
+// La captura se manda al servicio de IA (Worker de Cloudflare), que devuelve los
+// vuelos transcriptos. Nada se guarda hasta que la persona los revisa: la propia
+// captura se muestra al lado y la duración que dice se compara con la calculada.
+const CAPTURA_VUELOS = new WeakMap();   // servicio → { img, msg, avisos } (solo mientras se edita)
+function capturaBox(s, i){
+  const cap = CAPTURA_VUELOS.get(s);
+  return `<div class="captura" tabindex="0" data-captura="${i}" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="soltarCaptura(event,${i})">
+      <div><b>${s.vuelos ? 'Volver a leer los vuelos desde otra captura' : 'Completar los vuelos desde una captura de pantalla'}</b></div>
+      <div class="captura-ayuda">Hacé clic acá y pegá la captura con Ctrl + V (en Mac, Cmd + V). También podés arrastrar la imagen o <label class="captura-link">elegir un archivo<input type="file" accept="image/*" hidden onchange="elegirCaptura(this,${i})"></label>.</div>
+      <div class="captura-estado" aria-live="polite"></div>
+    </div>
+    ${cap ? `<div class="captura-nota">${escHtml(cap.msg)}${cap.avisos.map(a => `<span class="warn">⚠ ${escHtml(a)}</span>`).join('')}</div>
+    <details class="captura-img" open><summary>Captura original: revisá que los datos cargados coincidan</summary><img src="${cap.img}" alt="Captura de pantalla de los vuelos"></details>` : ''}`;
+}
+function setCapturaEstado(s, txt, error){
+  const i = editing ? editing.data.servicios.indexOf(s) : -1;
+  const el = i >= 0 && document.querySelector(`[data-srv="${i}"] .captura-estado`);
+  if (el){ el.textContent = txt; el.classList.toggle('err', !!error); }
+}
+function elegirCaptura(input, i){ const f = input.files && input.files[0]; input.value = ''; if (f) procesarCaptura(i, f); }
+function soltarCaptura(e, i){
+  e.preventDefault(); e.currentTarget.classList.remove('drag');
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) procesarCaptura(i, f);
+}
+// Ctrl + V con una imagen en el portapapeles mientras se está dentro de un servicio Aéreo.
+document.addEventListener('paste', e => {
+  const items = (e.clipboardData && e.clipboardData.items) ? [...e.clipboardData.items] : [];
+  const it = items.find(x => x.kind === 'file' && /^image\//.test(x.type));
+  if (!it || !editing) return;
+  const card = document.activeElement && document.activeElement.closest ? document.activeElement.closest('[data-srv]') : null;
+  const i = card ? Number(card.dataset.srv) : -1;
+  const s = i >= 0 ? editing.data.servicios[i] : null;
+  if (!s || s.tipo !== 'Aéreo') return;
+  e.preventDefault();
+  procesarCaptura(i, it.getAsFile());
+});
+const DIAS3 = ['dom','lun','mar','mie','jue','vie','sab'];
+// "25/1" + "lunes" + hora → "AAAA-MM-DDTHH:MM". La captura no trae el año. Se toma la fecha más
+// cercana desde unos 2 meses antes de la referencia (la fecha de inicio de la cotización). Si la
+// cotización no tiene fecha de inicio (refFirme = false), el día de la semana de la captura
+// ayuda a elegir el año; si no coincide con ninguno, se usa la más cercana y se avisa.
+function resolverFechaHora(fecha, diaSem, hora, ref, refFirme){
+  if (!fecha || !hora) return { valor:'', aviso:'' };
+  const [d, m] = fecha.split('/').map(Number);
+  const r = parseISO(ref) || new Date();
+  const piso = r.getTime() - 60 * 86400000;
+  const validos = [];
+  for (let y = r.getFullYear() - 1; y <= r.getFullYear() + 2; y++){ const x = new Date(y, m - 1, d); if (x.getMonth() === m - 1 && x.getTime() >= piso) validos.push(x); }
+  if (!validos.length) return { valor:'', aviso:'' };
+  const idx = DIAS3.indexOf(diaSem);
+  let el = validos[0], aviso = '';
+  if (idx >= 0 && el.getDay() !== idx){
+    const otro = refFirme ? null : validos.slice(1).find(x => x.getDay() === idx);
+    if (otro) el = otro;
+    else aviso = `El día de la semana de la captura (${diaSem}) no coincide con el ${fecha}/${el.getFullYear()}: revisá la fecha.`;
+  }
+  const p2 = n => String(n).padStart(2, '0');
+  return { valor: `${el.getFullYear()}-${p2(el.getMonth() + 1)}-${p2(el.getDate())}T${hora}`, aviso };
+}
+function legDesdeCaptura(v, ref, firme, avisos){
+  const l = legVacio();
+  l.aerolinea = v.aerolinea;
+  const dur = parseDur(v.duracionTotal);
+  if (dur != null) l.duracionCaptura = dur;
+  l.segmentos = v.tramos.map(t => {
+    const g = segVacio();
+    const sal = resolverFechaHora(t.salidaFecha, t.salidaDiaSemana, t.salidaHora, ref, firme);
+    const lle = resolverFechaHora(t.llegadaFecha, t.llegadaDiaSemana, t.llegadaHora, ref, firme);
+    [sal, lle].forEach(x => { if (x.aviso && !avisos.includes(x.aviso)) avisos.push(x.aviso); });
+    const a1 = AEROPUERTOS[t.origen], a2 = AEROPUERTOS[t.destino];   // si el código está en la lista, se usan sus nombres
+    Object.assign(g, {
+      vuelo: t.vuelo, clase: String(t.clase || '').replace(/^economica/i, 'Económica'),
+      origen: t.origen, origenCiudad: a1 ? a1[0] : t.origenCiudad, origenAeropuerto: a1 ? a1[1] : t.origenAeropuerto, salida: sal.valor,
+      destino: t.destino, destinoCiudad: a2 ? a2[0] : t.destinoCiudad, destinoAeropuerto: a2 ? a2[1] : t.destinoAeropuerto, llegada: lle.valor,
+    });
+    return g;
+  });
+  return l;
+}
+function aplicarCaptura(s, vuelos, img){
+  const c = editing.data, avisos = [];
+  const ref = c.fechaInicio || new Date().toISOString().slice(0, 10);
+  let ida = vuelos.find(v => v.sentido === 'ida'), vuelta = vuelos.find(v => v.sentido === 'vuelta');
+  if (!vuelta && vuelos.length > 1) vuelta = vuelos.find(v => v !== ida);     // dos bloques sin etiqueta: el segundo es la vuelta
+  if (!ida && vuelta){ ida = vuelta; vuelta = null; avisos.push('La captura solo tenía un bloque, marcado como vuelta: se cargó como ida. Cambialo a mano si hace falta.'); }
+  const usados = vuelta ? 2 : 1;
+  if (vuelos.length > usados) avisos.push(`La captura tenía ${vuelos.length} bloques de vuelos: se cargaron solo ${usados === 2 ? 'la ida y la vuelta que aparecen primero' : 'el primero'}.`);
+  const firme = !!c.fechaInicio;
+  s.vuelos = { ida: legDesdeCaptura(ida, ref, firme, avisos), vuelta: vuelta ? legDesdeCaptura(vuelta, ref, firme, avisos) : null };
+  if (!c.fechaInicio) avisos.push('La cotización no tiene fecha de inicio: el año de los vuelos se dedujo a partir de hoy y del día de la semana. Verificalo.');
+  const tramos = s.vuelos.ida.segmentos.length + (s.vuelos.vuelta ? s.vuelos.vuelta.segmentos.length : 0);
+  CAPTURA_VUELOS.set(s, { img, avisos, msg: `Se cargaron ${tramos} tramo${tramos === 1 ? '' : 's'} leídos de la captura. La lectura automática puede equivocarse: revisá horarios, códigos y números de vuelo contra la imagen antes de enviar la propuesta.` });
+  if (!s.concepto){
+    const inf = infoLeg(s.vuelos.ida);
+    if (inf && (inf.a.origen || inf.a.origenCiudad) && (inf.z.destino || inf.z.destinoCiudad)){
+      s.concepto = `Aéreo ${inf.a.origenCiudad || inf.a.origen} – ${inf.z.destinoCiudad || inf.z.destino}` + (vuelta ? ' (ida y vuelta)' : '');
+    }
+  }
+  renderServicios(); markDirty();
+}
+async function procesarCaptura(i, file){
+  const s = editing.data.servicios[i];
+  if (!s) return;
+  if (!REDACTOR_URL){ alert('Leer capturas necesita el servicio de IA: falta configurarlo (ver infra/redactor/LEEME.md).'); return; }
+  if (!file || !/^image\//.test(file.type)){ setCapturaEstado(s, 'Lo que pegaste no es una imagen.', true); return; }
+  if (s.vuelos && infoLeg(s.vuelos.ida) && !confirm('Este servicio ya tiene vuelos cargados. ¿Reemplazarlos con los de la captura?')) return;
+  setCapturaEstado(s, 'Leyendo la captura… puede tardar hasta un minuto.');
+  try {
+    let im = await reducirImagen(file, 1800, 0.9);
+    if (im.dataUrl.length > 3500000) im = await reducirImagen(file, 1400, 0.8);
+    const token = await auth.currentUser.getIdToken();
+    const resp = await fetch(REDACTOR_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ accion: 'vuelos', imagen: im.dataUrl }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || 'No se pudo leer la captura. Probá de nuevo.');
+    if (editing.data.servicios.indexOf(s) < 0) return;   // el servicio se eliminó mientras tanto
+    aplicarCaptura(s, data.vuelos || [], im.dataUrl);
+  } catch (err){
+    const m = err && err.message && !/Failed to fetch|Load failed/i.test(err.message) ? err.message : 'No se pudo conectar con el servicio de IA. Revisá la conexión.';
+    setCapturaEstado(s, m, true);
+  }
+}
+
 function setTipo(i, v){ editing.data.servicios[i].tipo = v; renderServicios(); markDirty(); }
 function agregarVuelos(i){ editing.data.servicios[i].vuelos = { ida: legVacio(), vuelta: null }; renderServicios(); markDirty(); }
 function agregarVuelta(i){

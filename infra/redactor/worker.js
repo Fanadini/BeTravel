@@ -21,6 +21,10 @@
 // defecto ya son los de Be•Travel.
 
 const MODELO_CF = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+// Lectura de capturas de pantalla (modelos con visión de Workers AI, mismo cupo gratuito).
+// Se prueba el primero y, si falla, el segundo. Se puede cambiar con la variable MODELO_VISION.
+const MODELO_VISION = '@cf/meta/llama-4-scout-17b-16e-instruct';
+const MODELO_VISION_2 = '@cf/mistralai/mistral-small-3.1-24b-instruct';
 const MODEL = 'claude-opus-5-5';
 const ORIGENES = 'https://betravel.com.ar,https://www.betravel.com.ar';
 const PROYECTO = 'betravel-kanban';
@@ -46,6 +50,32 @@ Qué redactar:
 - Itinerario: para cada día, un título de 2 a 6 palabras y una descripción de 25 a 70 palabras, en el mismo orden y con la misma cantidad de días que la cotización. Si un día ya tiene texto, mejoralo conservando todos sus datos. Podés separar mañana y tarde con un salto de línea.
 
 Seguí las indicaciones del ejecutivo cuando no contradigan estas reglas.`;
+
+const SYSTEM_VUELOS = `Sos un asistente que transcribe información de vuelos desde capturas de pantalla de sistemas de reservas, para una agencia de viajes. Tu trabajo es transcribir, no interpretar: copiá solo lo que se ve en la imagen y no inventes ningún dato.
+
+Reglas:
+- Devolvé un objeto por cada bloque de vuelo de la captura (típicamente IDA y VUELTA), en el orden en que aparecen. Si la captura muestra varias opciones de itinerario, incluilas todas en orden.
+- Un vuelo con escalas se descompone en tramos: un tramo por cada despegue y aterrizaje (por ejemplo EZE a MIA y MIA a LAX). Los textos de escala como "Realiza una escala: 3h 30m" no son tramos.
+- Códigos de aeropuerto: tres letras en mayúsculas (EZE, MIA). Si no figura el código pero sí el nombre del aeropuerto, completá el código solo si estás seguro; si no, dejalo vacío.
+- Fechas como día/mes ("25/1"), sin año. Si la captura indica el día de la semana, copialo en minúsculas ("lunes"). Horas en formato de 24 horas HH:MM, tal cual figuran.
+- duracionTotal: la duración total del bloque tal como figura (por ejemplo "18h 47m"); vacío si no figura.
+- aerolinea: nombre comercial de la aerolínea (por ejemplo "American Airlines"). Ignorá etiquetas del sistema como "NDC" o "Tarifa pública".
+- clase: la cabina y el código de tarifa tal cual figuran (por ejemplo "Economica (Q)").
+- Ignorá precios, equipaje, plazas disponibles e íconos.
+- Si un dato no se ve con claridad, dejalo como texto vacío en lugar de adivinar: una hora o un código mal copiados son peores que un campo vacío.
+Respondé solo con el JSON.`;
+
+const _str = { type: 'string' };
+const TRAMO_PROPS = ['vuelo', 'clase', 'origen', 'origenCiudad', 'origenAeropuerto', 'salidaFecha', 'salidaDiaSemana', 'salidaHora',
+  'destino', 'destinoCiudad', 'destinoAeropuerto', 'llegadaFecha', 'llegadaDiaSemana', 'llegadaHora'];
+const SCHEMA_VUELOS = {
+  type: 'object', additionalProperties: false, required: ['vuelos'],
+  properties: { vuelos: { type: 'array', items: {
+    type: 'object', additionalProperties: false, required: ['sentido', 'aerolinea', 'duracionTotal', 'tramos'],
+    properties: { sentido: _str, aerolinea: _str, duracionTotal: _str,
+      tramos: { type: 'array', items: { type: 'object', additionalProperties: false, required: TRAMO_PROPS,
+        properties: Object.fromEntries(TRAMO_PROPS.map(k => [k, _str])) } } } } } },
+};
 
 export default {
   async fetch(request, env) {
@@ -82,9 +112,11 @@ export default {
 
     // 2) Pedido
     const raw = await request.text();
-    if (raw.length > 60000) return json(413, { error: 'La cotización tiene demasiado texto para redactarla de una vez.' });
+    if (raw.length > 6500000) return json(413, { error: 'El pedido es demasiado grande.' });
     let body;
     try { body = JSON.parse(raw); } catch { return json(400, { error: 'Pedido inválido.' }); }
+    if (body && body.accion === 'vuelos') return extraerVuelos(body, env, usarClaude, json);
+    if (raw.length > 60000) return json(413, { error: 'La cotización tiene demasiado texto para redactarla de una vez.' });
     const cot = limpiarCotizacion(body && body.cotizacion);
     const tareas = { introduccion: !!(body.tareas && body.tareas.introduccion), dias: !!(body.tareas && body.tareas.dias) && cot.dias.length > 0 };
     if (!tareas.introduccion && !tareas.dias) return json(400, { error: 'No hay nada para redactar.' });
@@ -154,7 +186,7 @@ async function redactarConWorkersAI(env, schema, contenido) {
 }
 
 // Claude (opcional, pago por uso).
-async function redactarConClaude(env, schema, contenido) {
+async function redactarConClaude(env, schema, contenido, opts = {}) {
   const llamar = (conFallback) => fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -168,8 +200,10 @@ async function redactarConClaude(env, schema, contenido) {
       max_tokens: 16000,
       ...(conFallback ? { fallbacks: 'default' } : {}),
       output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
-      system: SYSTEM,
-      messages: [{ role: 'user', content: contenido }],
+      system: opts.system || SYSTEM,
+      messages: [{ role: 'user', content: opts.imagen
+        ? [{ type: 'image', source: { type: 'base64', media_type: opts.imagen.mediaType, data: opts.imagen.data } }, { type: 'text', text: contenido }]
+        : contenido }],
     }),
   });
   let resp, detalle = '';
@@ -195,6 +229,93 @@ async function redactarConClaude(env, schema, contenido) {
   if (msg.stop_reason === 'max_tokens') return { status: 502, error: 'La respuesta quedó incompleta. Probá con menos días por vez.' };
   const texto = (msg.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
   try { return { out: JSON.parse(texto) }; } catch (e) { return { status: 502, error: 'La IA devolvió un formato inesperado. Probá de nuevo.' }; }
+}
+
+// ── Lectura de capturas de pantalla de vuelos ──
+async function extraerVuelos(body, env, usarClaude, json) {
+  const img = String(body.imagen || '');
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(img);
+  if (!m) return json(400, { error: 'La imagen no es válida. Pegá una captura en formato JPG, PNG o WebP.' });
+  if (img.length > 5000000) return json(413, { error: 'La imagen es demasiado pesada. Probá con una captura más chica.' });
+  const instruccion = 'Extraé los vuelos de esta captura de pantalla.';
+  const r = usarClaude
+    ? await redactarConClaude(env, SCHEMA_VUELOS, instruccion, { system: SYSTEM_VUELOS, imagen: { mediaType: m[1], data: m[2] } })
+    : await leerCapturaConWorkersAI(env, img, instruccion);
+  if (r.error) return json(r.status, { error: r.error });
+  const vuelos = normalizarVuelos(r.out);
+  if (!vuelos.length) return json(422, { error: 'No encontré vuelos en la captura. Probá con una captura más nítida que incluya los horarios, los códigos de aeropuerto y los números de vuelo.' });
+  return json(200, { vuelos });
+}
+
+// Devuelve un objeto desde la respuesta del modelo: objeto, JSON en texto o JSON dentro de un bloque de código.
+function parsearJSON(v) {
+  if (v && typeof v === 'object') return v;
+  if (typeof v !== 'string') return null;
+  const t = v.replace(/```(?:json)?/gi, '');
+  for (const cand of [t, t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)]) {
+    try { const o = JSON.parse(cand); if (o && typeof o === 'object') return o; } catch (e) { /* sigue */ }
+  }
+  return null;
+}
+
+async function leerCapturaConWorkersAI(env, imagen, instruccion) {
+  const modelos = [env.MODELO_VISION || MODELO_VISION, MODELO_VISION_2].filter((x, i, a) => x && a.indexOf(x) === i);
+  let ultimo = 'sin respuesta';
+  for (const modelo of modelos) {
+    // Primero con JSON estricto; si el modelo no lo admite con imágenes, sin él y se interpreta el texto.
+    for (const conJson of [true, false]) {
+      try {
+        const res = await env.AI.run(modelo, {
+          messages: [
+            { role: 'system', content: SYSTEM_VUELOS },
+            { role: 'user', content: [{ type: 'text', text: instruccion }, { type: 'image_url', image_url: { url: imagen } }] },
+          ],
+          ...(conJson ? { response_format: { type: 'json_schema', json_schema: SCHEMA_VUELOS } } : {}),
+          max_tokens: 3000,
+          temperature: 0,
+        });
+        const out = parsearJSON(res && res.response);
+        if (out) return { out };
+        ultimo = 'formato inesperado';
+      } catch (e) {
+        const m = String((e && e.message) || e);
+        console.error('Workers AI visión', modelo, m);
+        if (/neuron|daily|quota|exceed|limit|4006|3036/i.test(m)) {
+          return { status: 429, error: 'Se alcanzó el límite gratuito diario de la IA. Se renueva todos los días a las 21 h (hora de Argentina).' };
+        }
+        ultimo = m;
+      }
+    }
+  }
+  return { status: 502, error: 'No se pudo leer la captura (' + String(ultimo).slice(0, 160) + ').' };
+}
+
+// Deja solo datos con el formato esperado: lo que no cumple queda vacío (mejor vacío que mal copiado).
+function normalizarVuelos(out) {
+  const lista = Array.isArray(out && out.vuelos) ? out.vuelos : [];
+  const s = (v, n = 120) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
+  const fecha = v => { const m = /(\d{1,2})\s*[\/\-.]\s*(\d{1,2})/.exec(String(v || '')); if (!m) return ''; const d = +m[1], mo = +m[2]; return d >= 1 && d <= 31 && mo >= 1 && mo <= 12 ? d + '/' + mo : ''; };
+  const hora = v => { const m = /(\d{1,2})\s*[:h.]\s*(\d{2})/.exec(String(v || '')); if (!m) return ''; const h = +m[1], mi = +m[2]; return h < 24 && mi < 60 ? String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0') : ''; };
+  const iata = v => { const x = String(v || '').toUpperCase().replace(/[^A-Z]/g, ''); return x.length === 3 ? x : ''; };
+  const dsem = v => { const x = s(v, 20).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').slice(0, 3); return ['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'].includes(x) ? x : ''; };
+  return lista.slice(0, 6).map(l => {
+    l = l || {};
+    return {
+      sentido: /vuelta|regreso|return/i.test(String(l.sentido || '')) ? 'vuelta' : 'ida',
+      aerolinea: s(l.aerolinea, 60),
+      duracionTotal: s(l.duracionTotal, 20),
+      tramos: (Array.isArray(l.tramos) ? l.tramos : []).slice(0, 8).map(t => {
+        t = t || {};
+        return {
+          vuelo: s(t.vuelo, 12).toUpperCase().replace(/\s+/g, ''), clase: s(t.clase, 40),
+          origen: iata(t.origen), origenCiudad: s(t.origenCiudad, 60), origenAeropuerto: s(t.origenAeropuerto, 90),
+          salidaFecha: fecha(t.salidaFecha), salidaDiaSemana: dsem(t.salidaDiaSemana), salidaHora: hora(t.salidaHora),
+          destino: iata(t.destino), destinoCiudad: s(t.destinoCiudad, 60), destinoAeropuerto: s(t.destinoAeropuerto, 90),
+          llegadaFecha: fecha(t.llegadaFecha), llegadaDiaSemana: dsem(t.llegadaDiaSemana), llegadaHora: hora(t.llegadaHora),
+        };
+      }).filter(t => t.origen || t.destino || t.salidaHora || t.llegadaHora),
+    };
+  }).filter(l => l.tramos.length);
 }
 
 // Traduce los errores más comunes de la API de Claude a qué hay que revisar.
