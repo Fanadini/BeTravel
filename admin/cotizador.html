@@ -338,7 +338,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
       </div>
     </div>
     <table class="data-table">
-      <thead><tr><th>Código</th><th>Cliente</th><th>Propuesta</th><th>Fechas</th><th>Pax</th><th>Total</th><th>Estado</th><th>Actualizada</th></tr></thead>
+      <thead><tr><th>Código</th><th>Cliente</th><th>Propuesta</th><th>Fechas</th><th>Pax</th><th>Total</th><th>Estado</th><th>Actualizada</th><th class="no-solo-cot">Creada por</th></tr></thead>
       <tbody id="tbody-cot"></tbody>
     </table>
   </div>
@@ -511,7 +511,10 @@ let openedFromParam = false;
 
 function attachListeners(){
   setSyncStatus('loading','Cargando…');
-  COT_REF.on('value', snap => {
+  // Rol cotizador: solo sus propias cotizaciones. Las reglas de Firebase exigen
+  // este filtro por autor (sin él rechazan la lectura), así que no llegan las de otros.
+  const consultaCot = CURRENT_USER.rol === 'cotizador' ? COT_REF.orderByChild('creadoPor').equalTo(CURRENT_USER.email) : COT_REF;
+  consultaCot.on('value', snap => {
     const val = snap.val() || {};
     COTS = Object.keys(val).map(id => ({ id, ...normalizar(val[id]) }));
     renderList();
@@ -660,7 +663,7 @@ function renderList(){
     .filter(c => !q || [c.codigo,c.cliente,c.titulo,c.destino].join(' ').toLowerCase().includes(q))
     .sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0));
   if (!items.length){
-    tbody.innerHTML = `<tr><td colspan="8" class="table-empty">${COTS.length ? 'Ninguna cotización coincide con la búsqueda.' : 'Todavía no hay cotizaciones. Creá la primera con "+ Nueva cotización".'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="table-empty">${COTS.length ? 'Ninguna cotización coincide con la búsqueda.' : 'Todavía no hay cotizaciones. Creá la primera con "+ Nueva cotización".'}</td></tr>`;
     return;
   }
   tbody.innerHTML = items.map(c => {
@@ -676,6 +679,7 @@ function renderList(){
       <td><span class="money ${usd}">${tops.length > 1 ? 'desde ' : ''}${fmtMoney(t.precio, c.moneda)}</span></td>
       <td><span class="badge estado-${escHtml(c.estado)}">${escHtml(ESTADOS_COT[c.estado]||c.estado)}</span>${c.reservaId ? '<span class="badge reserva">En reserva</span>' : ''}</td>
       <td class="muted">${c.updatedAt ? new Date(c.updatedAt).toLocaleDateString('es-AR') : ''}</td>
+      <td class="muted no-solo-cot" ${CURRENT_USER.rol === 'cotizador' ? 'style="display:none"' : ''}>${escHtml(c.creadoPorNombre || c.creadoPor || '—')}</td>
     </tr>`;
   }).join('');
 }
