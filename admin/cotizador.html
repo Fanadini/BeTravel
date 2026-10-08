@@ -582,7 +582,7 @@ const DEFAULT_NO_INCLUYE = 'Gastos personales.\nPropinas.\nServicios no menciona
 const DEFAULT_CONDICIONES = 'Tarifas sujetas a disponibilidad al momento de la confirmación.\nLa propuesta no constituye reserva hasta su confirmación y el pago de la seña acordada.\nCondiciones de cambio y cancelación según las políticas de cada proveedor.';
 
 // ── AUTH ───────────────────────────────────────────────────────────────────
-let CURRENT_USER = { email:'', nombre:'' };
+let CURRENT_USER = { email:'', nombre:'', emailContacto:'' };
 function emailKey(email){ return (email||'').toLowerCase().replace(/\./g, ','); }
 function loginWithGoogle(){
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -623,10 +623,12 @@ auth.onAuthStateChanged(user => {
   loginScreen.classList.add('hidden');
   const nombreGoogle = user.displayName ? user.displayName.split(' ')[0] : user.email;
   document.getElementById('nav-user-name').textContent = nombreGoogle;
-  CURRENT_USER = { email:user.email, nombre: user.displayName || nombreGoogle, rol:'agente' };
+  CURRENT_USER = { email:user.email, nombre: user.displayName || nombreGoogle, emailContacto:'', rol:'agente' };
   verificarAcceso(user.email).then(acc => {
     if (!acc){ mostrarSinAcceso(user.email); return; }
     if (acc.perfil.nombre) CURRENT_USER.nombre = acc.perfil.nombre;
+    // Opcional: mail que se muestra al cliente si la persona entra con una cuenta de Google que no es la de la empresa.
+    CURRENT_USER.emailContacto = String(acc.perfil.emailContacto || '').trim();
     // Rol "cotizador": solo esta página (sin Gestión interna, Kanban ni reservas).
     CURRENT_USER.rol = acc.sinConfigurar || acc.perfil.rol === 'admin' ? 'admin' : acc.perfil.rol === 'cotizador' ? 'cotizador' : 'agente';
     aplicarRol();
@@ -758,9 +760,16 @@ function blankCotizacion(){
     mostrarDesglose:false, mostrarPorPersona:true,
     noIncluye: DEFAULT_NO_INCLUYE, condiciones: DEFAULT_CONDICIONES,
     reservaId:'', fechaCreacion: todayISO(),
-    creadoPor: CURRENT_USER.email, creadoPorNombre: CURRENT_USER.nombre,
+    creadoPor: CURRENT_USER.email, creadoPorNombre: CURRENT_USER.nombre, creadoPorEmail: '',
     updatedAt: Date.now(), updatedBy: CURRENT_USER.email,
   };
+}
+// Mail de contacto de quien arma la cotización: el de la ficha de usuario (emailContacto) o, si no hay, el de su cuenta.
+function miContacto(){ return CURRENT_USER.emailContacto || CURRENT_USER.email; }
+// Mail que lleva la propuesta en el cierre: el de quien armó la cotización, no uno genérico de la agencia.
+function contactoDe(c){
+  const propia = c.creadoPor && CURRENT_USER.email && String(c.creadoPor).toLowerCase() === CURRENT_USER.email.toLowerCase();
+  return (propia ? miContacto() : (c.creadoPorEmail || c.creadoPor)) || 'info@betravel.com.ar';
 }
 // Firebase no guarda arrays vacíos ni campos vacíos: al leer se completan los defaults.
 function normalizar(raw){
@@ -892,6 +901,7 @@ function nuevaCotizacion(){
     if (!res.committed) throw new Error('No se pudo asignar el código');
     const data = blankCotizacion();
     data.codigo = codigoNuevo(res.snapshot.val());
+    data.creadoPorEmail = miContacto();
     const ref = COT_REF.push();
     return ref.set(data).then(() => {
       COTS = COTS.filter(c => c.id !== ref.key).concat([{ id: ref.key, ...data }]);
@@ -1840,7 +1850,7 @@ function duplicarCotizacion(){
       codigo: codigoNuevo(res.snapshot.val()),
       titulo: (copia.titulo ? copia.titulo + ' ' : '') + '(copia)',
       estado:'borrador', reservaId:'', fechaCreacion: todayISO(),
-      creadoPor: CURRENT_USER.email, creadoPorNombre: CURRENT_USER.nombre,
+      creadoPor: CURRENT_USER.email, creadoPorNombre: CURRENT_USER.nombre, creadoPorEmail: miContacto(),
       updatedAt: Date.now(), updatedBy: CURRENT_USER.email,
     });
     const ref = COT_REF.push();
@@ -2248,7 +2258,7 @@ function buildSlides(c){
       <div class="close-text">Quedamos a su disposición para ajustar esta propuesta a sus necesidades.</div>
       <div class="close-contact">
         <b>${escHtml(c.creadoPorNombre || CURRENT_USER.nombre || '')}</b><br>
-        info@betravel.com.ar<br>
+        ${escHtml(contactoDe(c))}<br>
         betravel.com.ar
       </div>
     </section>` });
