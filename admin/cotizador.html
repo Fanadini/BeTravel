@@ -2172,10 +2172,15 @@ function buildSlides(c){
     if (ops.length && incluidos.length) filas.push({ k:'sec', txt:'Incluido en todas las opciones' });
     pushSrv(incluidos);
     if (!ops.length) pushTotal('Total', totales(c));
+    // El nombre de la opción solo se agrega al encabezado si no repite al hotel (o servicio) de abajo;
+    // el total lleva solo la letra: "Total Opción A".
     ops.forEach(o => {
-      filas.push({ k:'sec', txt: nombreOpcion(c, o) });
-      pushSrv(srvActivos(c).filter(s => modoDe(s) === o));
-      pushTotal('Total ' + nombreOpcion(c, o), totales(c, o));
+      const delaOpcion = srvActivos(c).filter(s => modoDe(s) === o);
+      const nom = String(c.nombresOpciones[o] || '').trim();
+      const repetido = nom && delaOpcion.some(s => normTxt(s.concepto).includes(normTxt(nom)));
+      filas.push({ k:'sec', txt: 'Opción ' + o + (nom && !repetido ? ' · ' + nom : '') });
+      pushSrv(delaOpcion);
+      pushTotal('Total Opción ' + o, totales(c, o));
     });
     if (adicionales.length){
       filas.push({ k:'sec', txt:'Adicionales opcionales · no incluidos en el total' });
