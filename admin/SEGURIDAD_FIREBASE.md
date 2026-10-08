@@ -15,7 +15,10 @@ El código ya tiene una salvaguarda: si `finanzas/meta/usuarios` está completam
      email: "tuemail@gmail.com"
      rol: "admin"
      nombre: "Facu"
+     emailContacto: "facundo.berdini@betravel.com.ar"   (opcional)
    ```
+
+   `emailContacto` es opcional. El cierre de cada propuesta muestra el mail de quien armó la cotización: por defecto, el email de su cuenta de Google. Si alguien entra con una cuenta que no es la de la empresa (por ejemplo, una de Gmail), cargá acá el mail que debe ver el cliente.
 
 4. Repetí para cada persona que use el admin, con uno de estos roles:
    - `admin`: todo, incluidas facturas de proveedores, reparto, lista de usuarios y prefijo de códigos.
