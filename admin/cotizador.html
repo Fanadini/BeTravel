@@ -249,14 +249,21 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .dias.solo .dia-desc{font-size:9pt}
 
 /* Servicios */
-.servicios{column-count:2;column-gap:12mm}
-.srv-tipo{font-size:7.5pt;font-weight:600;letter-spacing:1.4pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin:0 0 2mm;break-after:avoid}
-.srv{break-inside:avoid;margin-bottom:4.5mm}
+.srv-sec{margin-bottom:7mm}
+.srv-seccion{font-size:12pt;font-weight:600;color:#0F3D3E;margin:0 0 3.5mm;padding-bottom:1.5mm;border-bottom:.3mm solid rgba(15,61,62,.3);break-after:avoid}
+.srv-nota{font-size:8.5pt;color:rgba(43,43,43,.7);margin:-1.5mm 0 3.5mm}
+.srv-grid{display:grid;grid-template-columns:1fr 1fr;gap:5mm 10mm;align-items:stretch}
+.srv-cell.ancho{grid-column:1/-1}
+.srv{break-inside:avoid}
+.srv-tipo{font-size:7.5pt;font-weight:600;letter-spacing:1.4pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin:0 0 1.5mm}
 .srv-concepto{font-size:11pt;font-weight:600;color:#0F3D3E;line-height:1.35}
 .srv-detalle{font-size:9pt;line-height:1.5;white-space:pre-line;margin-top:1mm}
-.srv-group{break-inside:avoid-column;margin-bottom:3mm}
-.srv-seccion{font-size:12pt;font-weight:600;color:#0F3D3E;margin:0 0 3mm;padding-bottom:1.5mm;border-bottom:.3mm solid rgba(15,61,62,.3);break-after:avoid}
-.srv-seccion:not(:first-child){margin-top:3mm}
+/* Hoteles: una tarjeta por opción, todas con el mismo formato */
+.srv-card{border:.3mm solid rgba(15,61,62,.35);background:rgba(255,255,255,.4);padding:3.5mm 4mm}
+.srv-card-head{font-size:7.5pt;font-weight:600;letter-spacing:1.4pt;text-transform:uppercase;color:#B08A5A;margin-bottom:1.8mm}
+.srv-card-nom{font-size:9pt;color:rgba(43,43,43,.7);margin-bottom:1.5mm}
+.srv-card .srv{margin-bottom:3.5mm}
+.srv-card .srv:last-child{margin-bottom:0}
 
 /* Vuelos */
 .vuelo{margin-bottom:4mm}
@@ -2089,38 +2096,56 @@ function buildSlides(c){
   const paginasVuelos = paginar(vuelosItems, renderVuelos);
   paginasVuelos.forEach((chunk, idx) => slides.push(slideInterior('Vuelos', renderVuelos(chunk, { n: idx+1, total: paginasVuelos.length }))));
 
-  // Servicios (agrupados por sección y tipo, en dos columnas). Secciones solo
-  // si hay opciones o adicionales: incluido / Opción A, B… / adicionales.
+  // Servicios. Cada sección es un bloque aparte, de ancho completo, para que nada de una
+  // sección quede al lado de otra: Incluido → Hoteles (una tarjeta por opción) → resto de
+  // cada opción → Adicionales.
   const ops = opcionesDe(c);
   const adicionales = srvActivos(c).filter(s => modoDe(s) === 'adicional');
-  const conSecciones = ops.length > 0 || adicionales.length > 0;
-  const ORDEN_SEC = ['incluido', ...OPCIONES, 'adicional'];
-  const etiquetaSec = sec => sec === 'incluido' ? (ops.length ? 'Incluido en todas las opciones' : 'Incluido')
-    : sec === 'adicional' ? 'Adicionales opcionales' : nombreOpcion(c, sec);
-  const srvs = c.servicios.map((s,i) => ({ ...s, _i:i, _sec: modoDe(s) }))
-    .filter(s => s.activo !== false && (s.concepto || s.detalle))
-    .sort((a,b) => (ORDEN_SEC.indexOf(a._sec) - ORDEN_SEC.indexOf(b._sec)) || (SERVICIO_TIPOS.indexOf(a.tipo) - SERVICIO_TIPOS.indexOf(b.tipo)) || (a._i - b._i));
+  const activos = c.servicios.map((x, i) => ({ ...x, _i:i })).filter(x => x.activo !== false && (x.concepto || x.detalle));
+  const esHotel = x => x.tipo === 'Hotel';
+  const porTipo = (a, b) => (SERVICIO_TIPOS.indexOf(a.tipo) - SERVICIO_TIPOS.indexOf(b.tipo)) || (a._i - b._i);
+  const hayHoteles = activos.some(x => esHotel(x) && modoDe(x) !== 'adicional');
+  const conSecciones = ops.length > 0 || adicionales.length > 0 || hayHoteles;
   const tituloSrv = conSecciones ? 'Servicios' : 'Servicios incluidos';
-  const renderSrv = (chunk, p) => {
-    const grupos = [];
-    chunk.forEach(s => {
-      const g = grupos[grupos.length-1];
-      if (g && g.tipo === s.tipo && g.sec === s._sec) g.items.push(s);
-      else grupos.push({ tipo:s.tipo, sec:s._sec, nuevaSec: !g || g.sec !== s._sec, items:[s] });
-    });
-    return tituloPaginado(tituloSrv, p.n, p.total) + `
-      <div class="servicios">${grupos.map(g => `
-        ${conSecciones && g.nuevaSec ? `<div class="srv-seccion">${escHtml(etiquetaSec(g.sec))}</div>` : ''}
-        <div class="srv-group">
-          <div class="srv-tipo">${escHtml(g.tipo)}</div>
-          ${g.items.map(s => `<div class="srv">
-            ${s.concepto ? `<div class="srv-concepto">${escHtml(s.concepto)}</div>` : ''}
-            ${s.detalle ? `<div class="srv-detalle">${escHtml(s.detalle.trim())}</div>` : ''}
-          </div>`).join('')}
-        </div>`).join('')}
+  const bloques = [];   // unidades que no se parten entre páginas
+  const tituloIncl = ops.length ? 'Incluido en todas las opciones' : (hayHoteles || adicionales.length ? 'Incluido' : '');
+  activos.filter(x => modoDe(x) === 'incluido' && !esHotel(x)).sort(porTipo).forEach(x => bloques.push({ sec:'incluido', titulo:tituloIncl, x }));
+  activos.filter(x => modoDe(x) === 'incluido' && esHotel(x)).sort(porTipo).forEach(x => bloques.push({ sec:'hoteles', titulo:'Hoteles', x, ancho:true }));
+  ops.forEach(o => {
+    const hs = activos.filter(x => modoDe(x) === o && esHotel(x)).sort(porTipo);
+    if (hs.length) bloques.push({ sec:'hoteles', titulo:'Hoteles', opcion:o, items:hs });
+  });
+  ops.forEach(o => activos.filter(x => modoDe(x) === o && !esHotel(x)).sort(porTipo).forEach(x => bloques.push({ sec:'op:' + o, titulo:'Servicios de la ' + nombreOpcion(c, o), x })));
+  activos.filter(x => modoDe(x) === 'adicional').sort(porTipo).forEach(x => bloques.push({ sec:'adicional', titulo:'Adicionales opcionales', x }));
+  const nTarjetas = bloques.filter(b => b.opcion).length;
+  const itemHTML = (x, conTipo) => `<div class="srv">
+        ${conTipo ? `<div class="srv-tipo">${escHtml(x.tipo)}</div>` : ''}
+        ${x.concepto ? `<div class="srv-concepto">${escHtml(x.concepto)}</div>` : ''}
+        ${x.detalle ? `<div class="srv-detalle">${escHtml(x.detalle.trim())}</div>` : ''}
       </div>`;
+  const tarjetaHTML = b => {
+    const nom = String(c.nombresOpciones[b.opcion] || '').trim();
+    // El nombre de la opción solo se muestra si no es el mismo hotel que ya figura abajo.
+    const repetido = nom && b.items.some(x => normTxt(x.concepto).includes(normTxt(nom)));
+    return `<div class="srv-card"><div class="srv-card-head">Opción ${escHtml(b.opcion)}</div>
+        ${nom && !repetido ? `<div class="srv-card-nom">${escHtml(nom)}</div>` : ''}
+        ${b.items.map(x => itemHTML(x, false)).join('')}</div>`;
   };
-  const paginasSrv = paginar(srvs, renderSrv);
+  const renderSrv = (chunk, p) => {
+    const secciones = [];
+    chunk.forEach(b => {
+      const u = secciones[secciones.length - 1];
+      if (u && u.sec === b.sec) u.bloques.push(b); else secciones.push({ sec:b.sec, titulo:b.titulo, bloques:[b] });
+    });
+    return tituloPaginado(tituloSrv, p.n, p.total) + secciones.map(sc => `
+      <div class="srv-sec">
+        ${conSecciones && sc.titulo ? `<div class="srv-seccion">${escHtml(sc.titulo)}</div>` : ''}
+        ${sc.sec === 'hoteles' && nTarjetas > 1 ? `<div class="srv-nota">Opciones alternativas entre sí: se elige una.</div>` : ''}
+        <div class="srv-grid">${sc.bloques.map(b => b.opcion ? tarjetaHTML(b)
+          : `<div class="srv-cell ${b.ancho ? 'ancho' : ''}">${itemHTML(b.x, b.sec !== 'hoteles')}</div>`).join('')}</div>
+      </div>`).join('');
+  };
+  const paginasSrv = paginar(bloques, renderSrv);
   paginasSrv.forEach((chunk, idx) => slides.push(slideInterior(tituloSrv, renderSrv(chunk, { n: idx+1, total: paginasSrv.length }))));
 
   // Inversión
