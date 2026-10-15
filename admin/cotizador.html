@@ -851,12 +851,15 @@ function normHab(v){
 }
 function tieneHab(s){ return s.tipo === 'Hotel' && Array.isArray(s.habitaciones) && s.habitaciones.length > 0; }
 function habPrecio(h){ return round2(num(h.costo) * (1 + num(h.markup)/100)); }
-function habTotalCosto(h){ return round2(num(h.cantidad) * num(h.costo)); }
-function habTotalPrecio(h){ return round2(num(h.cantidad) * num(h.precio)); }
+// Precio por habitación: por toda la estadía (habBase vacío) o por noche (habBase 'noche', con s.noches).
+function habPorNoche(s){ return s.habBase === 'noche'; }
+function habNoches(s){ return habPorNoche(s) ? (num(s.noches) || 1) : 1; }
+function habTotalCosto(h, s){ return round2(num(h.cantidad) * habNoches(s) * num(h.costo)); }
+function habTotalPrecio(h, s){ return round2(num(h.cantidad) * habNoches(s) * num(h.precio)); }
 function sincHab(s){
   if (!tieneHab(s)) return;
-  s.costo = round2(s.habitaciones.reduce((a, h) => a + habTotalCosto(h), 0));
-  s.precio = round2(s.habitaciones.reduce((a, h) => a + habTotalPrecio(h), 0));
+  s.costo = round2(s.habitaciones.reduce((a, h) => a + habTotalCosto(h, s), 0));
+  s.precio = round2(s.habitaciones.reduce((a, h) => a + habTotalPrecio(h, s), 0));
   if (s.costo > 0) s.markup = round2((s.precio / s.costo - 1) * 100);
 }
 function habResumen(s){
@@ -1814,6 +1817,7 @@ function renderServiciosFoot(){
     if (tieneHab(s)){
       const r = habResumen(s), pax = parseInt(c.pasajeros, 10) || 0;
       html += `<span>${fmtNum(r.habitaciones)} ${r.habitaciones===1?'habitación':'habitaciones'} · aloja a <b>${fmtNum(r.pax)}</b> pasajero${r.pax===1?'':'s'}</span>`;
+      if (habPorNoche(s) && !num(s.noches)) html += `<span class="warn">Falta la cantidad de noches: por ahora se calcula como 1.</span>`;
       if (r.pax > 0) html += `<span>Hotel por persona: <b>${fmtMoney(num(s.precio) / r.pax, m)}</b></span>`;
       if (r.pax > 0 && r.pax !== pax) html += `<span class="warn">${pax ? `La cotización tiene ${fmtNum(pax)} pasajeros.` : 'La cotización no tiene cantidad de pasajeros.'} <a href="#" onclick="usarPaxHab(${Number(card.dataset.srv)});return false">Usar ${fmtNum(r.pax)}</a></span>`;
     }
@@ -1861,13 +1865,15 @@ function onPrecio(i, v){
 function habEditor(s, i){
   const c = editing.data;
   return `<div class="hab-ed">
-    <div class="grid" style="grid-template-columns:140px 190px 1fr">
+    <div class="grid" style="grid-template-columns:140px 190px 200px 90px 1fr">
       <div><label class="fl">Moneda</label><select class="fsel" onchange="setServicio(${i},'moneda',this.value);refrescarHab(${i})">${selOpts(['USD','ARS'],['USD','ARS'],s.moneda||c.moneda)}</select></div>
       <div><label class="fl">Markup % para todas</label><input class="fi" type="number" step="0.1" placeholder="Aplicar a todas" onchange="setMarkupHabs(${i},this.value)"></div>
-      <div class="hab-hint">Precio por habitación, por toda la estadía. El precio total del hotel es la suma de las líneas. Para mostrar cada precio en la propuesta, activá "Mostrar desglose por servicio".</div>
+      <div><label class="fl">El precio de cada habitación es</label><select class="fsel" onchange="setHabBase(${i},this.value)">${selOpts(['estadia','noche'],['por toda la estadía','por noche'],habPorNoche(s)?'noche':'estadia')}</select></div>
+      <div style="${habPorNoche(s) ? '' : 'visibility:hidden'}"><label class="fl">Noches</label><input class="fi h-noches" type="number" min="1" step="1" value="${escHtml(s.noches||'')}" placeholder="N°" oninput="setHabNoches(${i},this.value)"></div>
+      <div class="hab-hint">El precio total del hotel es la suma de las líneas${habPorNoche(s) ? ' (cantidad × noches × precio)' : ''}. Para mostrar cada precio en la propuesta, activá "Mostrar desglose por servicio".</div>
     </div>
     <div class="hab-scroll"><div class="hab-tabla">
-      <div class="hab-fila hab-cab"><span>Tipo</span><span>Categoría (visible en la propuesta)</span><span>Cant.</span><span>Ocup.</span><span>Costo c/u</span><span>Markup %</span><span>Venta c/u</span><span>Total venta</span><span></span></div>
+      <div class="hab-fila hab-cab"><span>Tipo</span><span>Categoría (visible en la propuesta)</span><span>Cant.</span><span>Ocup.</span><span>Costo ${habPorNoche(s) ? 'x noche' : 'c/u'}</span><span>Markup %</span><span>Venta ${habPorNoche(s) ? 'x noche' : 'c/u'}</span><span>Total venta</span><span></span></div>
       ${s.habitaciones.map((h, k) => `<div class="hab-fila" data-hab="${k}">
         <select class="fsel" onchange="setHabTipo(${i},${k},this.value)">${selOpts(HAB_TIPOS.map(x=>x[0]),HAB_TIPOS.map(x=>x[0]),h.tipo)}</select>
         <input class="fi" value="${escHtml(h.categoria)}" placeholder="Ej: Junior Suite Pool Access" oninput="setHab(${i},${k},'categoria',this.value)">
@@ -1876,7 +1882,7 @@ function habEditor(s, i){
         <input class="fi h-costo" type="number" step="0.01" value="${escHtml(h.costo)}" oninput="setHab(${i},${k},'costo',this.value)">
         <input class="fi h-markup" type="number" step="0.1" value="${escHtml(h.markup)}" oninput="setHab(${i},${k},'markup',this.value)">
         <input class="fi h-precio" type="number" step="0.01" value="${escHtml(h.precio)}" oninput="setHab(${i},${k},'precio',this.value)">
-        <b class="h-total">${fmtMoney(habTotalPrecio(h), s.moneda || c.moneda)}</b>
+        <b class="h-total">${fmtMoney(habTotalPrecio(h, s), s.moneda || c.moneda)}</b>
         <button class="icon-btn danger" title="Quitar esta línea" onclick="quitarHab(${i},${k})">✕</button>
       </div>`).join('')}
     </div></div>
@@ -1931,48 +1937,57 @@ function nochesCotizacion(c){
   const a = parseISO(c.fechaInicio), z = parseISO(c.fechaFin);
   return a && z && z > a ? Math.round((z - a) / 86400000) : 0;
 }
-// Arma las líneas de un hotel leído. Devuelve { lineas, avisos }.
-function lineasDesdeLectura(h, s, c, modo){
+// Arma las líneas de un hotel leído. Devuelve { lineas, avisos, habBase, noches }.
+// Si el documento dice que el precio es por noche, el servicio pasa a "por noche" con esa cantidad de
+// noches (las del documento o, si no figuran, las de las fechas de la cotización); si no dice nada,
+// se respeta cómo estaba el servicio. Si es por persona, el precio se multiplica por los ocupantes.
+function lineasDesdeLectura(h, dest, c, modo){
   const avisos = [], nombre = h.hotel || 'el hotel';
-  const persona = /^persona/.test(h.base), porNoche = /noche$/.test(h.base);
-  const noches = h.noches || (porNoche ? nochesCotizacion(c) : 0);
-  if (porNoche && !noches) avisos.push(`Los precios de ${nombre} están por noche y no se sabe cuántas noches son: cargá las fechas de la cotización y volvé a leer, o ajustá los precios a mano.`);
-  else if (porNoche) avisos.push(`Los precios de ${nombre} estaban por noche: se multiplicaron por ${noches} noche${noches === 1 ? '' : 's'}.`);
+  const persona = /^persona/.test(h.base);
+  let porNoche = habPorNoche(dest), noches = num(dest.noches);
+  if (/noche$/.test(h.base)){ porNoche = true; noches = h.noches || nochesCotizacion(c) || noches; }
+  else if (/estadia$/.test(h.base)) porNoche = false;
+  else if (porNoche && h.noches) noches = h.noches;
+  if (porNoche && !noches) avisos.push(`Los precios de ${nombre} están por noche y no se sabe cuántas noches son: completá "Noches" en el hotel (o las fechas de la cotización).`);
+  else if (/noche$/.test(h.base)) avisos.push(`Los precios de ${nombre} están por noche: el total del hotel los multiplica por ${noches} noche${noches === 1 ? '' : 's'}.`);
   if (persona) avisos.push(`Los precios de ${nombre} estaban por persona: se multiplicaron por los ocupantes de cada tipo de habitación.`);
-  const markup = num(s.markup) || num(c.markupDefault);
+  const factor = porNoche ? (noches || 1) : 1, sinNoches = porNoche && !noches;
+  const markup = num(dest.markup) || num(c.markupDefault);
   let suma = 0;
   const lineas = h.habitaciones.map(l => {
     const tipo = tipoHabDesde(l.tipo), ocupantes = ocupantesDe(tipo);
-    const unit = round2(num(l.precio) * (persona ? ocupantes : 1) * (porNoche ? (noches || 1) : 1));
-    suma += unit * l.cantidad;
-    const esperado = round2(unit * l.cantidad);
-    if (l.total != null && Math.abs(l.total - esperado) > Math.max(1, esperado * 0.005) && !(porNoche && !noches))
-      avisos.push(`${nombre}, ${l.tipo || 'habitación'}${l.categoria ? ' (' + l.categoria + ')' : ''}: ${l.cantidad} × ${fmtNum(unit)} da ${fmtNum(esperado)} y el documento dice ${fmtNum(l.total)}. Revisá cantidad y precio.`);
+    const unit = round2(num(l.precio) * (persona ? ocupantes : 1));
+    suma += unit * l.cantidad * factor;
+    // El total de la fila puede ser de una noche o de toda la estadía: se acepta cualquiera de los dos.
+    const esperados = [round2(unit * l.cantidad * factor), round2(unit * l.cantidad)];
+    if (l.total != null && !sinNoches && !esperados.some(e => Math.abs(l.total - e) <= Math.max(1, e * 0.005)))
+      avisos.push(`${nombre}, ${l.tipo || 'habitación'}${l.categoria ? ' (' + l.categoria + ')' : ''}: ${l.cantidad} × ${fmtNum(unit)}${factor > 1 ? ' × ' + factor + ' noches' : ''} da ${fmtNum(esperados[0])} y el documento dice ${fmtNum(l.total)}. Revisá cantidad y precio.`);
     const categoria = [tipo === 'Otra' ? capitalizarSiGrita(l.tipo) : '', capitalizarSiGrita(l.categoria)].filter(Boolean).join(' · ');
     const base = { tipo, categoria, cantidad: l.cantidad, ocupantes };
     return modo === 'venta'
       ? { ...base, costo: 0, markup: 0, precio: unit }
       : { ...base, costo: unit, markup, precio: round2(unit * (1 + markup/100)) };
   });
-  if (h.totalHotel != null && Math.abs(h.totalHotel - suma) > Math.max(1, suma * 0.005) && !(porNoche && !noches))
+  if (h.totalHotel != null && !sinNoches && Math.abs(h.totalHotel - suma) > Math.max(1, suma * 0.005))
     avisos.push(`${nombre}: la suma de las líneas (${fmtNum(round2(suma))}) no coincide con el total que decía el documento (${fmtNum(h.totalHotel)}). Puede haber líneas sin leer o impuestos aparte.`);
-  return { lineas, avisos };
+  return { lineas, avisos, habBase: porNoche ? 'noche' : '', noches: noches || '' };
 }
 function aplicarHabitaciones(s, hoteles, origen){
   const c = editing.data, modo = MODO_PEGADO.get(s) || 'costo';
   const avisos = [];
   let lineasTotal = 0;
   hoteles.forEach((h, n) => {
-    const { lineas, avisos: av } = lineasDesdeLectura(h, s, c, modo);
-    avisos.push(...av);
-    lineasTotal += lineas.length;
     let dest = s;
     if (n > 0){
       dest = { tipo:'Hotel', concepto:'', detalle:'', proveedor: s.proveedor, costo:0, moneda: s.moneda || c.moneda, markup: s.markup, precio:0, activo:true, modo: s.modo };
       c.servicios.splice(c.servicios.indexOf(s) + n, 0, dest);
       MODO_PEGADO.set(dest, modo);
     }
+    const { lineas, avisos: av, habBase, noches } = lineasDesdeLectura(h, dest, c, modo);
+    avisos.push(...av);
+    lineasTotal += lineas.length;
     dest.habitaciones = lineas;
+    dest.habBase = habBase; dest.noches = noches;
     if (h.moneda) dest.moneda = h.moneda;
     if (h.hotel && !String(dest.concepto).trim()) dest.concepto = h.hotel;
     if (h.regimen && !String(dest.detalle).trim()) dest.detalle = h.regimen;
@@ -2038,7 +2053,7 @@ function toggleHab(i, on){
   } else {
     const conDatos = (s.habitaciones||[]).some(h => num(h.cantidad) || num(h.costo));
     if (conDatos && !confirm('Se descartan las líneas por tipo de habitación. El costo y el precio del hotel quedan con el total actual y se pueden editar a mano. ¿Continuar?')){ renderServicios(); return; }
-    s.habitaciones = [];
+    s.habitaciones = []; s.habBase = '';
   }
   sincHab(s);
   renderServicios(); renderTotales(); markDirty();
@@ -2066,7 +2081,7 @@ function refrescarHab(i){
         const inp = row.querySelector('.' + cls);
         if (inp && document.activeElement !== inp) inp.value = v;
       });
-      row.querySelector('.h-total').textContent = fmtMoney(habTotalPrecio(h), s.moneda || editing.data.moneda);
+      row.querySelector('.h-total').textContent = fmtMoney(habTotalPrecio(h, s), s.moneda || editing.data.moneda);
     });
   }
   renderServiciosFoot(); renderTotales(); markDirty();
@@ -2077,6 +2092,18 @@ function setHab(i, k, campo, v){
   h[campo] = num(v);
   if (campo === 'costo' || campo === 'markup') h.precio = habPrecio(h);
   if (campo === 'precio' && num(h.costo) > 0) h.markup = round2((h.precio / num(h.costo) - 1) * 100);
+  refrescarHab(i);
+}
+function setHabBase(i, v){
+  const s = editing.data.servicios[i];
+  s.habBase = v === 'noche' ? 'noche' : '';
+  if (habPorNoche(s) && !num(s.noches)) s.noches = nochesCotizacion(editing.data) || '';
+  sincHab(s);
+  renderServicios(); renderTotales(); markDirty();
+}
+function setHabNoches(i, v){
+  const s = editing.data.servicios[i];
+  s.noches = num(v) > 0 ? Math.round(num(v)) : '';
   refrescarHab(i);
 }
 function setHabTipo(i, k, v){
@@ -2226,7 +2253,7 @@ function convertirEnReserva(){
     const concepto = [s.concepto, s.vuelos ? rutaVuelos(s.vuelos) : '', s.detalle].filter(Boolean).join(' — ').slice(0, 300);
     // Hotel por tipo de habitación: un ítem cotizado y un costo por cada tipo, para ver el detalle en la reserva.
     const lineas = tieneHab(s)
-      ? s.habitaciones.filter(h => num(h.cantidad) > 0).map(h => ({ concepto: `${s.concepto || 'Hotel'} — ${fmtNum(num(h.cantidad))} × ${habNombre(h)}`.slice(0, 300), precio: habTotalPrecio(h), costo: habTotalCosto(h) }))
+      ? s.habitaciones.filter(h => num(h.cantidad) > 0).map(h => ({ concepto: `${s.concepto || 'Hotel'} — ${fmtNum(num(h.cantidad))} × ${habNombre(h)}${habPorNoche(s) ? ' × ' + habNoches(s) + ' noche' + (habNoches(s) === 1 ? '' : 's') : ''}`.slice(0, 300), precio: habTotalPrecio(h, s), costo: habTotalCosto(h, s) }))
       : [{ concepto, precio: num(s.precio), costo: num(s.costo) }];
     lineas.forEach(l => {
       cotizado[RESERVAS_REF.push().key] = { tipo: s.tipo||'Otro', concepto: l.concepto, monto: l.precio, moneda: m, tipoCambio: tc };
@@ -2442,7 +2469,7 @@ function buildSlides(c){
         ${x.concepto ? `<div class="srv-concepto">${escHtml(x.concepto)}</div>` : ''}
         ${x.detalle ? `<div class="srv-detalle">${escHtml(x.detalle.trim())}</div>` : ''}
         ${tieneHab(x) ? `<div class="srv-hab">${x.habitaciones.filter(h => num(h.cantidad) > 0).map(h => `<div class="srv-hab-row"><b>${fmtNum(num(h.cantidad))} ×</b><span>${escHtml(habNombre(h))}</span></div>`).join('')}
-          <div class="srv-hab-tot">${fmtNum(habResumen(x).habitaciones)} habitaciones en total</div></div>` : ''}
+          <div class="srv-hab-tot">${fmtNum(habResumen(x).habitaciones)} habitaciones en total${habPorNoche(x) && num(x.noches) > 0 ? ` · ${fmtNum(num(x.noches))} noche${num(x.noches) === 1 ? '' : 's'}` : ''}</div></div>` : ''}
       </div>`;
   const tarjetaHTML = b => {
     const nom = String(c.nombresOpciones[b.opcion] || '').trim();
@@ -2494,8 +2521,8 @@ function buildSlides(c){
       if (!tieneHab(s)){ filas.push({ k:'f', tipo:s.tipo, concepto: s.concepto || s.tipo, monto: v }); return; }
       filas.push({ k:'f', tipo:s.tipo, concepto: s.concepto || s.tipo, monto: null });
       s.habitaciones.filter(h => num(h.cantidad) > 0).forEach(h => {
-        const mon = s.moneda || m, tot = convertir(habTotalPrecio(h), mon, m, c.tipoCambio), unit = convertir(num(h.precio), mon, m, c.tipoCambio);
-        if (tot.ok && unit.ok) filas.push({ k:'h', txt: `${fmtNum(num(h.cantidad))} × ${habNombre(h)} · ${fmtMoney(unit.value, m)} c/u`, monto: tot.value });
+        const mon = s.moneda || m, tot = convertir(habTotalPrecio(h, s), mon, m, c.tipoCambio), unit = convertir(num(h.precio), mon, m, c.tipoCambio);
+        if (tot.ok && unit.ok) filas.push({ k:'h', txt: `${fmtNum(num(h.cantidad))} × ${habNombre(h)} · ${fmtMoney(unit.value, m)} ${habPorNoche(s) ? 'por noche × ' + habNoches(s) + ' noche' + (habNoches(s) === 1 ? '' : 's') : 'c/u'}`, monto: tot.value });
       });
     });
     const pushTotal = (txt, tt) => { filas.push({ k:'t', txt, monto: tt.precio }); if (ppLinea(tt)) filas.push({ k:'pp', txt: ppLinea(tt) }); };
