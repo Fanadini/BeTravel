@@ -1592,17 +1592,26 @@ function soltarCaptura(e, i){
   const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
   if (f) procesarCaptura(i, f);
 }
-// Ctrl + V con una imagen en el portapapeles mientras se está dentro de un servicio Aéreo.
+// Ctrl + V dentro de un servicio: una imagen en un Aéreo (vuelos) o, en un Hotel, celdas de Excel,
+// texto de un proveedor o una imagen (habitaciones). El texto solo se toma si el foco no está en un
+// campo editable, para no pisar el pegado normal; una imagen sin texto se toma desde cualquier lugar de la tarjeta.
 document.addEventListener('paste', e => {
-  const items = (e.clipboardData && e.clipboardData.items) ? [...e.clipboardData.items] : [];
+  if (!editing) return;
+  const cd = e.clipboardData;
+  const items = (cd && cd.items) ? [...cd.items] : [];
   const it = items.find(x => x.kind === 'file' && /^image\//.test(x.type));
-  if (!it || !editing) return;
-  const card = document.activeElement && document.activeElement.closest ? document.activeElement.closest('[data-srv]') : null;
+  const act = document.activeElement;
+  const card = act && act.closest ? act.closest('[data-srv]') : null;
   const i = card ? Number(card.dataset.srv) : -1;
   const s = i >= 0 ? editing.data.servicios[i] : null;
-  if (!s || s.tipo !== 'Aéreo') return;
-  e.preventDefault();
-  procesarCaptura(i, it.getAsFile());
+  if (!s) return;
+  if (s.tipo === 'Aéreo' && it){ e.preventDefault(); procesarCaptura(i, it.getAsFile()); return; }
+  if (s.tipo === 'Hotel'){
+    const texto = cd ? cd.getData('text/plain') : '';
+    const editable = act.matches && act.matches('input,textarea,select,[contenteditable="true"]');
+    if (texto.trim() && !editable){ e.preventDefault(); procesarHabitaciones(i, { texto }); }
+    else if (it && !texto.trim()){ e.preventDefault(); procesarHabitaciones(i, { file: it.getAsFile() }); }
+  }
 });
 const DIAS3 = ['dom','lun','mar','mie','jue','vie','sab'];
 // "25/1" + "lunes" + hora → "AAAA-MM-DDTHH:MM". La captura no trae el año. Se toma la fecha más
@@ -1780,6 +1789,7 @@ function renderServicios(){
       <div><label class="fl">Proveedor (interno)</label><input class="fi" list="dl-proveedores" value="${escHtml(s.proveedor)}" placeholder="Proveedor" oninput="setServicio(${i},'proveedor',this.value)"></div>
     </div>
     ${s.tipo === 'Hotel' ? `<label class="check-row hab-toggle"><input type="checkbox" ${tieneHab(s)?'checked':''} onchange="toggleHab(${i},this.checked)"> Cotizar por tipo de habitación (single, doble, triple…)</label>` : ''}
+    ${s.tipo === 'Hotel' ? habCapturaBox(s, i) : ''}
     ${tieneHab(s) ? habEditor(s, i) : `<div class="grid g4">
       <div><label class="fl">Costo neto</label><input class="fi" type="number" step="0.01" value="${escHtml(s.costo)}" oninput="onCosto(${i},this.value)"></div>
       <div><label class="fl">Moneda</label><select class="fsel" onchange="setServicio(${i},'moneda',this.value);renderServiciosFoot();renderTotales()">${selOpts(['USD','ARS'],['USD','ARS'],s.moneda||c.moneda)}</select></div>
@@ -1872,6 +1882,143 @@ function habEditor(s, i){
     </div></div>
     <button class="add-item-btn" onclick="agregarHab(${i})">+ Agregar tipo de habitación</button>
   </div>`;
+}
+// ── Completar las habitaciones desde una cotización pegada (Excel, mail del proveedor o captura) ──
+// Se manda al servicio de IA (mismo Worker que los vuelos). Lo leído se carga como líneas editables; lo pegado
+// queda al lado para revisar, y se avisa si cantidad × precio no coincide con el total que decía el documento.
+const CAPTURA_HAB = new WeakMap();   // servicio → { img | texto, msg, avisos }
+const MODO_PEGADO = new WeakMap();   // servicio → 'costo' | 'venta'
+function habCapturaBox(s, i){
+  const cap = CAPTURA_HAB.get(s), modo = MODO_PEGADO.get(s) || 'costo';
+  return `<div class="captura" tabindex="0" data-captura-hab="${i}" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="soltarHab(event,${i})">
+      <div><b>${tieneHab(s) ? 'Volver a leer las habitaciones desde otra cotización' : 'Completar las habitaciones desde una cotización'}</b></div>
+      <div class="captura-ayuda">Copiá las celdas del Excel o el texto del proveedor, hacé clic acá y pegá con Ctrl + V (en Mac, Cmd + V). También sirve pegar una captura de pantalla, arrastrar un archivo (imagen, .csv o .txt) o <label class="captura-link">elegir un archivo<input type="file" accept="image/*,.csv,.tsv,.txt,text/plain" hidden onchange="elegirHab(this,${i})"></label>.</div>
+      <div class="captura-estado" aria-live="polite"></div>
+    </div>
+    <label class="captura-ayuda" style="display:block;margin:4px 0 8px">Los precios que pegás son:
+      <select class="fsel" style="width:auto;display:inline-block;padding:3px 8px;font-size:11.5px" onchange="MODO_PEGADO.set(editing.data.servicios[${i}],this.value)">
+        <option value="costo" ${modo==='costo'?'selected':''}>costo del proveedor (se les suma el markup)</option>
+        <option value="venta" ${modo==='venta'?'selected':''}>precio de venta final</option>
+      </select></label>
+    ${cap ? `<div class="captura-nota">${escHtml(cap.msg)}${cap.avisos.map(a => `<span class="warn">⚠ ${escHtml(a)}</span>`).join('')}</div>
+    <details class="captura-img"><summary>Lo que pegaste: revisá que los datos cargados coincidan</summary>${cap.img ? `<img src="${cap.img}" alt="Captura de la cotización">` : `<pre style="white-space:pre-wrap;font-size:11px;max-height:240px;overflow:auto;background:var(--white);border:1px solid var(--beige-d);border-radius:6px;padding:8px">${escHtml(cap.texto)}</pre>`}</details>` : ''}`;
+}
+function setHabEstado(s, txt, error){
+  const i = editing ? editing.data.servicios.indexOf(s) : -1;
+  const el = i >= 0 && document.querySelector(`[data-srv="${i}"] [data-captura-hab] .captura-estado`);
+  if (el){ el.textContent = txt; el.classList.toggle('err', !!error); }
+}
+function elegirHab(input, i){ const f = input.files && input.files[0]; input.value = ''; if (f) procesarHabitaciones(i, { file: f }); }
+function soltarHab(e, i){
+  e.preventDefault(); e.currentTarget.classList.remove('drag');
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) procesarHabitaciones(i, { file: f });
+}
+function tipoHabDesde(raw){
+  const x = normTxt(raw);
+  if (/\b(single|sgl|individual|simple)\b/.test(x)) return 'Single';
+  if (/\b(doble|dbl|double|twin|matrimonial)\b/.test(x)) return 'Doble';
+  if (/\b(triple|tpl|trpl)\b/.test(x)) return 'Triple';
+  if (/\b(cuadruple|cuadr|quad|qdp|qdl)\b/.test(x)) return 'Cuádruple';
+  return 'Otra';
+}
+// "PREMIUM JUNIOR SUITE" → "Premium Junior Suite" (solo si está todo en mayúsculas).
+function capitalizarSiGrita(txt){
+  const s = String(txt||'').trim();
+  return s && s === s.toUpperCase() && /[A-ZÁÉÍÓÚÑ]{2}/.test(s) ? s.toLowerCase().replace(/(^|[\s\-\/(])([a-záéíóúñ])/g, (m, a, b) => a + b.toUpperCase()) : s;
+}
+function nochesCotizacion(c){
+  const a = parseISO(c.fechaInicio), z = parseISO(c.fechaFin);
+  return a && z && z > a ? Math.round((z - a) / 86400000) : 0;
+}
+// Arma las líneas de un hotel leído. Devuelve { lineas, avisos }.
+function lineasDesdeLectura(h, s, c, modo){
+  const avisos = [], nombre = h.hotel || 'el hotel';
+  const persona = /^persona/.test(h.base), porNoche = /noche$/.test(h.base);
+  const noches = h.noches || (porNoche ? nochesCotizacion(c) : 0);
+  if (porNoche && !noches) avisos.push(`Los precios de ${nombre} están por noche y no se sabe cuántas noches son: cargá las fechas de la cotización y volvé a leer, o ajustá los precios a mano.`);
+  else if (porNoche) avisos.push(`Los precios de ${nombre} estaban por noche: se multiplicaron por ${noches} noche${noches === 1 ? '' : 's'}.`);
+  if (persona) avisos.push(`Los precios de ${nombre} estaban por persona: se multiplicaron por los ocupantes de cada tipo de habitación.`);
+  const markup = num(s.markup) || num(c.markupDefault);
+  let suma = 0;
+  const lineas = h.habitaciones.map(l => {
+    const tipo = tipoHabDesde(l.tipo), ocupantes = ocupantesDe(tipo);
+    const unit = round2(num(l.precio) * (persona ? ocupantes : 1) * (porNoche ? (noches || 1) : 1));
+    suma += unit * l.cantidad;
+    const esperado = round2(unit * l.cantidad);
+    if (l.total != null && Math.abs(l.total - esperado) > Math.max(1, esperado * 0.005) && !(porNoche && !noches))
+      avisos.push(`${nombre}, ${l.tipo || 'habitación'}${l.categoria ? ' (' + l.categoria + ')' : ''}: ${l.cantidad} × ${fmtNum(unit)} da ${fmtNum(esperado)} y el documento dice ${fmtNum(l.total)}. Revisá cantidad y precio.`);
+    const categoria = [tipo === 'Otra' ? capitalizarSiGrita(l.tipo) : '', capitalizarSiGrita(l.categoria)].filter(Boolean).join(' · ');
+    const base = { tipo, categoria, cantidad: l.cantidad, ocupantes };
+    return modo === 'venta'
+      ? { ...base, costo: 0, markup: 0, precio: unit }
+      : { ...base, costo: unit, markup, precio: round2(unit * (1 + markup/100)) };
+  });
+  if (h.totalHotel != null && Math.abs(h.totalHotel - suma) > Math.max(1, suma * 0.005) && !(porNoche && !noches))
+    avisos.push(`${nombre}: la suma de las líneas (${fmtNum(round2(suma))}) no coincide con el total que decía el documento (${fmtNum(h.totalHotel)}). Puede haber líneas sin leer o impuestos aparte.`);
+  return { lineas, avisos };
+}
+function aplicarHabitaciones(s, hoteles, origen){
+  const c = editing.data, modo = MODO_PEGADO.get(s) || 'costo';
+  const avisos = [];
+  let lineasTotal = 0;
+  hoteles.forEach((h, n) => {
+    const { lineas, avisos: av } = lineasDesdeLectura(h, s, c, modo);
+    avisos.push(...av);
+    lineasTotal += lineas.length;
+    let dest = s;
+    if (n > 0){
+      dest = { tipo:'Hotel', concepto:'', detalle:'', proveedor: s.proveedor, costo:0, moneda: s.moneda || c.moneda, markup: s.markup, precio:0, activo:true, modo: s.modo };
+      c.servicios.splice(c.servicios.indexOf(s) + n, 0, dest);
+      MODO_PEGADO.set(dest, modo);
+    }
+    dest.habitaciones = lineas;
+    if (h.moneda) dest.moneda = h.moneda;
+    if (h.hotel && !String(dest.concepto).trim()) dest.concepto = h.hotel;
+    if (h.regimen && !String(dest.detalle).trim()) dest.detalle = h.regimen;
+    sincHab(dest);
+  });
+  if (modo === 'venta') avisos.push('Los precios se cargaron como precio de venta y el costo quedó en 0: completá los costos para ver la ganancia.');
+  if (hoteles.length > 1) avisos.push(`La cotización tenía ${hoteles.length} hoteles: el primero se cargó acá y los demás como servicios nuevos, justo debajo (con el mismo "En la propuesta"). Revisá a cuál opción corresponde cada uno.`);
+  if (hoteles.some(h => h.moneda && h.moneda !== c.moneda) && !num(c.tipoCambio)) avisos.push(`Hay precios en ${hoteles.find(h => h.moneda !== c.moneda).moneda}, distinta de la moneda de la propuesta: cargá el tipo de cambio de referencia para que se sumen.`);
+  CAPTURA_HAB.set(s, { img: origen.img || '', texto: origen.texto || '', avisos,
+    msg: `Se cargaron ${lineasTotal} tipo${lineasTotal === 1 ? '' : 's'} de habitación${hoteles.length > 1 ? ' en ' + hoteles.length + ' hoteles' : ''}. La lectura automática puede equivocarse: revisá cantidades y precios contra lo que pegaste antes de enviar la propuesta.` });
+  renderServicios(); renderTotales(); markDirty();
+}
+async function procesarHabitaciones(i, { file, texto }){
+  const s = editing.data.servicios[i];
+  if (!s) return;
+  if (!REDACTOR_URL){ alert('Leer cotizaciones necesita el servicio de IA: falta configurarlo (ver infra/redactor/LEEME.md).'); return; }
+  try {
+    if (file && !/^image\//.test(file.type)){ texto = await file.text(); file = null; }
+    if (texto != null){
+      texto = String(texto).replace(/\r/g, '').trim();
+      if (!texto){ setHabEstado(s, 'Lo que pegaste está vacío.', true); return; }
+      if (texto.length > 30000){ setHabEstado(s, 'El texto es demasiado largo: pegá solo la parte de las habitaciones y los precios.', true); return; }
+    } else if (!file){ return; }
+    const hayPrecios = tieneHab(s) ? s.habitaciones.some(h => num(h.cantidad) || num(h.costo)) : num(s.costo) > 0;
+    if (hayPrecios && !confirm('Este hotel ya tiene precios cargados. ¿Reemplazarlos con los de la cotización que pegaste?')) return;
+    setHabEstado(s, 'Leyendo la cotización… puede tardar hasta un minuto.');
+    let img = '';
+    if (file){
+      let im = await reducirImagen(file, 1800, 0.9);
+      if (im.dataUrl.length > 3500000) im = await reducirImagen(file, 1400, 0.8);
+      img = im.dataUrl;
+    }
+    const token = await auth.currentUser.getIdToken();
+    const resp = await fetch(REDACTOR_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(img ? { accion: 'habitaciones', imagen: img } : { accion: 'habitaciones', texto }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || 'No se pudo leer la cotización. Probá de nuevo.');
+    if (editing.data.servicios.indexOf(s) < 0) return;   // el servicio se eliminó mientras tanto
+    aplicarHabitaciones(s, data.hoteles || [], { img, texto: texto || '' });
+  } catch (err){
+    const m = err && err.message && !/Failed to fetch|Load failed/i.test(err.message) ? err.message : 'No se pudo conectar con el servicio de IA. Revisá la conexión.';
+    setHabEstado(s, m, true);
+  }
 }
 function habNueva(s){
   const c = editing.data, usados = (s.habitaciones||[]).map(h => h.tipo);

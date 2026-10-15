@@ -37,10 +37,22 @@ En el Cotizador, dentro de un servicio de tipo Aéreo, se puede pegar una captur
 - Con `IA_PROVEEDOR=claude`, la lectura la hace Claude (más precisa, con costo por uso).
 - **La lectura automática puede equivocarse.** El cotizador deja la captura al lado de los datos, compara la duración total que dice la captura con la calculada a partir de los horarios cargados, y avisa si no coinciden. Aun así, hay que revisar horarios, códigos y números de vuelo antes de enviar la propuesta.
 
+## Leer habitaciones y precios desde una cotización pegada
+
+En el Cotizador, dentro de un servicio de tipo Hotel, se puede pegar la cotización de un proveedor o una planilla de Excel y las habitaciones se completan solas (tipo, categoría, cantidad y precio por habitación). Usa el mismo Worker y el mismo enlace `AI`, sin configuración extra, pero **hay que volver a pegar `worker.js` en Cloudflare** (paso 1 de la configuración) para que exista esta función.
+
+- Se puede pegar texto (celdas de Excel, el mail o el PDF del proveedor), una captura de pantalla, o elegir un archivo de imagen, `.csv` o `.txt`. El texto es más confiable que la captura: si copiás celdas de Excel, se usa el texto aunque el portapapeles también traiga la imagen.
+- Texto: usa Llama 3.3 70B. Captura: usa los mismos modelos con visión que los vuelos. Un pedido usa unas 100 a 400 neuronas del cupo gratuito diario.
+- El selector "Los precios que pegás son" define si el precio pegado es el costo del proveedor (se le suma el markup) o el precio de venta final (el costo queda en 0).
+- Si el documento indica que el precio es por noche, el cotizador lo multiplica por las noches (las del documento o, si no figuran, las de las fechas de la cotización). Si es por persona, lo multiplica por los ocupantes de cada tipo de habitación. Ambos casos se avisan.
+- Si el documento trae varios hoteles, el primero se carga en el servicio actual y los demás como servicios nuevos debajo.
+- **La lectura puede equivocarse.** Lo pegado queda al lado de los datos, y el cotizador avisa si cantidad × precio no coincide con el total que decía el documento o si la suma no coincide con el total del hotel. Aun así, hay que revisar cantidades y precios antes de enviar la propuesta.
+
 ## Si algo falla
 
 - "Falta vincular Workers AI": falta el paso 2 o el nombre no es exactamente `AI`.
 - "Se alcanzó el límite gratuito diario": se usó el cupo del día; vuelve a las 21 h.
 - "Tu cuenta no está habilitada": el email no está en `finanzas/meta/usuarios`.
+- "No encontré habitaciones con precio": lo pegado no tenía tipo de habitación, cantidad y precio. Pegá la parte de la tabla con esas columnas.
 - "No se pudo leer la captura": ningún modelo con visión respondió. Probá de nuevo, con una captura más nítida, o revisá en Logs el error del modelo.
 - Para ver errores: en el Worker → **Observabilidad** / **Logs**.
