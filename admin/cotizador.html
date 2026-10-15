@@ -1811,14 +1811,15 @@ function renderServicios(){
     </div>
     ${s.tipo === 'Hotel' ? `<label class="check-row hab-toggle"><input type="checkbox" ${tieneHab(s)?'checked':''} onchange="toggleHab(${i},this.checked)"> Cotizar por tipo de habitación (single, doble, triple…)</label>` : ''}
     ${s.tipo === 'Hotel' ? habCapturaBox(s, i) : ''}
-    ${tieneHab(s) ? habEditor(s, i) : `<div class="grid" style="grid-template-columns:1.3fr 1fr 1fr 1fr 1.2fr">
+    ${tieneHab(s) ? habEditor(s, i) : `<div class="grid" style="grid-template-columns:${s.costoModo==='persona' ? '1.2fr 1fr .9fr .9fr 1.1fr 1.1fr' : '1.3fr 1fr 1fr 1fr 1.2fr'}">
       <div><label class="fl">${s.costoModo==='persona' ? 'Costo neto por persona' : 'Costo neto (total)'}</label>${s.costoModo==='persona'
         ? `<input class="fi srv-costopp" type="number" step="0.01" value="${escHtml(s.costoPP||'')}" oninput="onCostoPP(${i},this.value)">`
         : `<input class="fi" type="number" step="0.01" value="${escHtml(s.costo)}" oninput="onCosto(${i},this.value)">`}</div>
       <div><label class="fl">Cargar el costo</label><select class="fsel" onchange="setCostoModo(${i},this.value)">${selOpts(['total','persona'],['Total','Por persona'],s.costoModo==='persona'?'persona':'total')}</select></div>
       <div><label class="fl">Moneda</label><select class="fsel" onchange="setServicio(${i},'moneda',this.value);renderServiciosFoot();renderTotales()">${selOpts(['USD','ARS'],['USD','ARS'],s.moneda||c.moneda)}</select></div>
       <div><label class="fl">Markup %</label><input class="fi srv-markup" type="number" step="0.1" value="${escHtml(s.markup)}" oninput="onMarkup(${i},this.value)"></div>
-      <div><label class="fl">Precio de venta</label><input class="fi srv-precio" type="number" step="0.01" value="${escHtml(s.precio)}" oninput="onPrecio(${i},this.value)"></div>
+      ${s.costoModo==='persona' ? `<div><label class="fl">Venta por persona</label><input class="fi srv-preciopp" type="number" step="0.01" value="${escHtml(precioPP(s, c))}" oninput="onPrecioPP(${i},this.value)"></div>` : ''}
+      <div><label class="fl">${s.costoModo==='persona' ? 'Venta total' : 'Precio de venta'}</label><input class="fi srv-precio" type="number" step="0.01" value="${escHtml(s.precio)}" oninput="onPrecio(${i},this.value)"></div>
     </div>`}
     ${s.tipo === 'Aéreo' ? vuelosEditor(s, i) : ''}
     <div class="item-foot srv-foot"></div>
@@ -1849,6 +1850,8 @@ function renderServiciosFoot(){
         ? `<span>Costo total: <b>${fmtMoney(num(s.costo), m)}</b> (${fmtMoney(num(s.costoPP), m)} × ${fmtNum(pax)} pasajero${pax === 1 ? '' : 's'})</span>`
         : `<span class="warn">Cargá la cantidad de pasajeros de la cotización: el costo total es el costo por persona × pasajeros.</span>`;
     }
+    const paxS = parseInt(c.pasajeros, 10) || 0;
+    if (!tieneHab(s) && s.costoModo !== 'persona' && paxS > 0 && num(s.precio) > 0) html += `<span>Venta por persona: <b>${fmtMoney(num(s.precio) / paxS, m)}</b></span>`;
     html += `<span>Ganancia: <b>${fmtMoney(ganancia, m)}</b></span>`;
     if (m !== c.moneda){
       const conv = convertir(num(s.precio), m, c.moneda, c.tipoCambio);
@@ -1880,11 +1883,18 @@ function sincPP(s, c){
   s.costo = round2(num(s.costoPP) * (parseInt(c.pasajeros, 10) || 0));
   s.precio = precioDe(s);
 }
+function precioPP(s, c){
+  const pax = parseInt(c.pasajeros, 10) || 0;
+  return pax > 0 ? round2(num(s.precio) / pax) : '';
+}
+// Actualiza precio total, markup y precio por persona de la tarjeta sin pisar el campo que se está editando.
 function refrescarPP(i){
-  const s = editing.data.servicios[i], card = document.querySelector(`[data-srv="${i}"]`);
+  const c = editing.data, s = c.servicios[i], card = document.querySelector(`[data-srv="${i}"]`);
   if (!card) return;
-  const pr = card.querySelector('.srv-precio');
-  if (pr && document.activeElement !== pr) pr.value = s.precio;
+  [['.srv-precio', s.precio], ['.srv-markup', s.markup], ['.srv-preciopp', precioPP(s, c)]].forEach(([sel, v]) => {
+    const inp = card.querySelector(sel);
+    if (inp && document.activeElement !== inp) inp.value = v;
+  });
 }
 function setCostoModo(i, v){
   const c = editing.data, s = c.servicios[i], pax = parseInt(c.pasajeros, 10) || 0;
@@ -1905,6 +1915,14 @@ function onCostoPP(i, v){
   renderServiciosFoot(); renderTotales(); markDirty();
 }
 // Al cambiar la cantidad de pasajeros se recalculan los servicios cargados por persona.
+function onPrecioPP(i, v){
+  const c = editing.data, s = c.servicios[i], pax = parseInt(c.pasajeros, 10) || 0;
+  if (pax <= 0){ renderServiciosFoot(); return; }
+  s.precio = round2(num(v) * pax);
+  if (num(s.costo) > 0) s.markup = round2((s.precio / num(s.costo) - 1) * 100);
+  refrescarPP(i);
+  renderServiciosFoot(); renderTotales(); markDirty();
+}
 function onPasajeros(v){
   const c = editing.data;
   c.pasajeros = v;
@@ -1917,6 +1935,7 @@ function onCosto(i, v){
   s.precio = precioDe(s);
   const card = document.querySelector(`[data-srv="${i}"]`);
   if (card) card.querySelector('.srv-precio').value = s.precio;
+  refrescarPP(i);
   renderServiciosFoot(); renderTotales(); markDirty();
 }
 function onMarkup(i, v){
@@ -1925,6 +1944,7 @@ function onMarkup(i, v){
   s.precio = precioDe(s);
   const card = document.querySelector(`[data-srv="${i}"]`);
   if (card) card.querySelector('.srv-precio').value = s.precio;
+  refrescarPP(i);
   renderServiciosFoot(); renderTotales(); markDirty();
 }
 function onPrecio(i, v){
@@ -1935,6 +1955,7 @@ function onPrecio(i, v){
     const card = document.querySelector(`[data-srv="${i}"]`);
     if (card) card.querySelector('.srv-markup').value = s.markup;
   }
+  refrescarPP(i);
   renderServiciosFoot(); renderTotales(); markDirty();
 }
 // Editor de habitaciones por tipo. Las celdas se actualizan sin redibujar la tarjeta, para no perder el foco al tipear.
