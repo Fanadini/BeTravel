@@ -65,6 +65,22 @@ Reglas:
 - Si un dato no se ve con claridad, dejalo como texto vacío en lugar de adivinar: una hora o un código mal copiados son peores que un campo vacío.
 Respondé solo con el JSON.`;
 
+const SYSTEM_HAB = `Sos un asistente que transcribe cotizaciones de hoteles para una agencia de viajes. El texto o la imagen es una cotización de un proveedor (mail, PDF, sistema de reservas) o una planilla de Excel armada por la agencia. Tu trabajo es transcribir, no interpretar: copiá solo lo que figura y no inventes ningún dato.
+
+Reglas:
+- Devolvé un objeto por cada hotel. Si hay varios hoteles, incluilos todos en el orden en que aparecen.
+- Dentro de cada hotel, una línea por tipo de habitación: tipo (single, doble, triple, cuádruple u otro tal como figura, por ejemplo "Junior Suite" o "Familiar"), categoría o descripción de la habitación (por ejemplo "Deluxe Poolside"), cantidad de habitaciones, precio y total de la fila.
+- Una fila rotulada "Hotel X - SINGLE" es una habitación single del hotel X: el nombre del hotel va en "hotel" y "SINGLE" en el tipo.
+- Cantidad, precio y total: copiá los números tal como figuran, con sus puntos y comas (por ejemplo "1.164,00" o "2,754"), sin símbolos de moneda. "precio" es el precio unitario de esa fila (por habitación, por persona o por noche según indique el documento); "total" es el importe total de la fila si figura, y vacío si no.
+- base: a qué se refiere el precio unitario. "habitacion-estadia" si es por habitación por toda la estadía; "habitacion-noche" si es por habitación por noche; "persona-estadia" si es por persona por toda la estadía; "persona-noche" si es por persona por noche. Si el documento no lo aclara, dejalo vacío.
+- noches: cantidad de noches si figura; vacío si no.
+- moneda: "USD" si los importes están en dólares (US$, USD, U$S, dólares) o "ARS" si están en pesos argentinos (ARS, pesos); vacío si no queda claro. Un "$" solo es ambiguo: dejalo vacío.
+- regimen: lo que dice la cotización sobre comidas (por ejemplo "All inclusive", "Desayuno incluido"); vacío si no figura.
+- totalHotel: el total del hotel si figura de forma explícita; vacío si no.
+- Ignorá porcentajes, filas de "por persona", impuestos, políticas de cancelación y cualquier texto que no sea de habitaciones y precios.
+- Si un dato no se ve con claridad, dejalo vacío en lugar de adivinar: un número mal copiado es peor que un campo vacío.
+Respondé solo con el JSON.`;
+
 const _str = { type: 'string' };
 const TRAMO_PROPS = ['vuelo', 'clase', 'origen', 'origenCiudad', 'origenAeropuerto', 'salidaFecha', 'salidaDiaSemana', 'salidaHora',
   'destino', 'destinoCiudad', 'destinoAeropuerto', 'llegadaFecha', 'llegadaDiaSemana', 'llegadaHora'];
@@ -75,6 +91,15 @@ const SCHEMA_VUELOS = {
     properties: { sentido: _str, aerolinea: _str, duracionTotal: _str,
       tramos: { type: 'array', items: { type: 'object', additionalProperties: false, required: TRAMO_PROPS,
         properties: Object.fromEntries(TRAMO_PROPS.map(k => [k, _str])) } } } } } },
+};
+
+const SCHEMA_HAB = {
+  type: 'object', additionalProperties: false, required: ['hoteles'],
+  properties: { hoteles: { type: 'array', items: {
+    type: 'object', additionalProperties: false, required: ['hotel', 'regimen', 'moneda', 'base', 'noches', 'totalHotel', 'habitaciones'],
+    properties: { hotel: _str, regimen: _str, moneda: _str, base: _str, noches: _str, totalHotel: _str,
+      habitaciones: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['tipo', 'categoria', 'cantidad', 'precio', 'total'],
+        properties: { tipo: _str, categoria: _str, cantidad: _str, precio: _str, total: _str } } } } } } },
 };
 
 export default {
@@ -116,6 +141,7 @@ export default {
     let body;
     try { body = JSON.parse(raw); } catch { return json(400, { error: 'Pedido inválido.' }); }
     if (body && body.accion === 'vuelos') return extraerVuelos(body, env, usarClaude, json);
+    if (body && body.accion === 'habitaciones') return extraerHabitaciones(body, env, usarClaude, json);
     if (raw.length > 60000) return json(413, { error: 'La cotización tiene demasiado texto para redactarla de una vez.' });
     const cot = limpiarCotizacion(body && body.cotizacion);
     const tareas = { introduccion: !!(body.tareas && body.tareas.introduccion), dias: !!(body.tareas && body.tareas.dias) && cot.dias.length > 0 };
@@ -160,14 +186,14 @@ export default {
 };
 
 // Workers AI (Cloudflare): sin API key, cuenta contra las neuronas diarias gratuitas.
-async function redactarConWorkersAI(env, schema, contenido) {
+async function redactarConWorkersAI(env, schema, contenido, opts = {}) {
   let res;
   try {
     res = await env.AI.run(MODELO_CF, {
-      messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: contenido }],
+      messages: [{ role: 'system', content: opts.system || SYSTEM }, { role: 'user', content: contenido }],
       response_format: { type: 'json_schema', json_schema: schema },
-      max_tokens: 4096,
-      temperature: 0.4,
+      max_tokens: opts.maxTokens || 4096,
+      temperature: opts.temperature == null ? 0.4 : opts.temperature,
     });
   } catch (e) {
     const m = String((e && e.message) || e);
@@ -258,7 +284,7 @@ function parsearJSON(v) {
   return null;
 }
 
-async function leerCapturaConWorkersAI(env, imagen, instruccion) {
+async function leerCapturaConWorkersAI(env, imagen, instruccion, system = SYSTEM_VUELOS, schema = SCHEMA_VUELOS) {
   const modelos = [env.MODELO_VISION || MODELO_VISION, MODELO_VISION_2].filter((x, i, a) => x && a.indexOf(x) === i);
   let ultimo = 'sin respuesta';
   for (const modelo of modelos) {
@@ -267,10 +293,10 @@ async function leerCapturaConWorkersAI(env, imagen, instruccion) {
       try {
         const res = await env.AI.run(modelo, {
           messages: [
-            { role: 'system', content: SYSTEM_VUELOS },
+            { role: 'system', content: system },
             { role: 'user', content: [{ type: 'text', text: instruccion }, { type: 'image_url', image_url: { url: imagen } }] },
           ],
-          ...(conJson ? { response_format: { type: 'json_schema', json_schema: SCHEMA_VUELOS } } : {}),
+          ...(conJson ? { response_format: { type: 'json_schema', json_schema: schema } } : {}),
           max_tokens: 3000,
           temperature: 0,
         });
@@ -316,6 +342,84 @@ function normalizarVuelos(out) {
       }).filter(t => t.origen || t.destino || t.salidaHora || t.llegadaHora),
     };
   }).filter(l => l.tramos.length);
+}
+
+// ── Cotizaciones de hoteles por tipo de habitación (texto pegado o captura) ──
+async function extraerHabitaciones(body, env, usarClaude, json) {
+  const texto = typeof body.texto === 'string' ? body.texto.trim() : '';
+  const img = String(body.imagen || '');
+  let r;
+  if (texto) {
+    if (texto.length > 30000) return json(413, { error: 'El texto es demasiado largo. Pegá solo la parte de las habitaciones y los precios.' });
+    const instruccion = 'Extraé los hoteles, las habitaciones y los precios de esta cotización:\n\n' + texto;
+    r = usarClaude
+      ? await redactarConClaude(env, SCHEMA_HAB, instruccion, { system: SYSTEM_HAB })
+      : await redactarConWorkersAI(env, SCHEMA_HAB, instruccion, { system: SYSTEM_HAB, temperature: 0, maxTokens: 3000 });
+  } else {
+    const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(img);
+    if (!m) return json(400, { error: 'No llegó texto ni una imagen válida. Pegá las celdas o una captura en formato JPG, PNG o WebP.' });
+    if (img.length > 5000000) return json(413, { error: 'La imagen es demasiado pesada. Probá con una captura más chica.' });
+    const instruccion = 'Extraé los hoteles, las habitaciones y los precios de esta imagen.';
+    r = usarClaude
+      ? await redactarConClaude(env, SCHEMA_HAB, instruccion, { system: SYSTEM_HAB, imagen: { mediaType: m[1], data: m[2] } })
+      : await leerCapturaConWorkersAI(env, img, instruccion, SYSTEM_HAB, SCHEMA_HAB);
+  }
+  if (r.error) return json(r.status, { error: r.error });
+  const hoteles = normalizarHabitaciones(r.out);
+  if (!hoteles.length) return json(422, { error: 'No encontré habitaciones con precio. Probá incluyendo en lo que pegás el tipo de habitación, la cantidad y el precio.' });
+  return json(200, { hoteles });
+}
+
+// "1.164,00", "1,164.00", "2754", "US$ 1.164" → número. Con un solo separador seguido de exactamente
+// tres dígitos se entiende como miles ("2.754"); si no, como decimal. Devuelve null si no hay número.
+function numero(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  const m = /-?\d[\d.,\s]*/.exec(String(v == null ? '' : v));
+  if (!m) return null;
+  let x = m[0].replace(/\s+/g, '').replace(/[.,]+$/, '');
+  const pto = x.lastIndexOf('.'), com = x.lastIndexOf(',');
+  if (pto >= 0 && com >= 0) {
+    const dec = pto > com ? '.' : ',';
+    x = x.split(dec === '.' ? ',' : '.').join('').replace(dec, '.');
+  } else if (pto >= 0 || com >= 0) {
+    const sep = pto >= 0 ? '.' : ',';
+    const partes = x.split(sep);
+    if (partes.length > 2 || (partes.length === 2 && /^\d{3}$/.test(partes[1]) && partes[0].length <= 3 && partes[0] !== '0')) x = partes.join('');
+    else x = x.replace(sep, '.');
+  }
+  const n = parseFloat(x);
+  return isFinite(n) ? n : null;
+}
+
+function normalizarHabitaciones(out) {
+  const lista = Array.isArray(out && out.hoteles) ? out.hoteles : [];
+  const s = (v, n = 120) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
+  const monto = v => { const n = numero(v); return n != null && n >= 0 && n < 1e9 ? Math.round(n * 100) / 100 : null; };
+  const moneda = v => { const x = String(v || '').toUpperCase(); return /USD|U\$S|US\$|D[OÓ]LAR/.test(x) ? 'USD' : /ARS|PESO/.test(x) ? 'ARS' : ''; };
+  const base = v => {
+    const x = String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const persona = /persona|pax/.test(x), noche = /noche/.test(x), hab = /habitacion|hab\b/.test(x);
+    if (!persona && !hab && !noche && !/estadia/.test(x)) return '';
+    return (persona ? 'persona' : 'habitacion') + '-' + (noche ? 'noche' : 'estadia');
+  };
+  return lista.slice(0, 8).map(h => {
+    h = h || {};
+    const noches = numero(h.noches);
+    return {
+      hotel: s(h.hotel, 120), regimen: s(h.regimen, 120), moneda: moneda(h.moneda), base: base(h.base),
+      noches: noches != null && noches >= 1 && noches <= 60 && Number.isInteger(noches) ? noches : 0,
+      totalHotel: monto(h.totalHotel),
+      habitaciones: (Array.isArray(h.habitaciones) ? h.habitaciones : []).slice(0, 12).map(l => {
+        l = l || {};
+        const cant = numero(l.cantidad);
+        return {
+          tipo: s(l.tipo, 40), categoria: s(l.categoria, 100),
+          cantidad: cant != null && cant >= 0 && cant < 1000 ? Math.round(cant) : 0,
+          precio: monto(l.precio), total: monto(l.total),
+        };
+      }).filter(l => (l.tipo || l.categoria) && l.precio != null && l.cantidad > 0),
+    };
+  }).filter(h => h.habitaciones.length);
 }
 
 // Traduce los errores más comunes de la API de Claude a qué hay que revisar.
