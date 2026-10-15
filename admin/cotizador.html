@@ -120,6 +120,16 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .srv-check{display:flex;align-items:center;gap:7px;cursor:pointer}
 .srv-check input{width:15px;height:15px;accent-color:var(--teal);cursor:pointer}
 .modo-tag{font-size:9.5px;font-weight:600;padding:2px 7px;border-radius:99px;background:rgba(176,138,90,.18);color:var(--bronze);letter-spacing:.3px}
+.hab-toggle{margin:2px 0 8px}
+.hab-ed{margin-bottom:8px}
+.hab-hint{font-size:11px;color:rgba(43,43,43,.55);align-self:end;padding-bottom:8px}
+.hab-scroll{overflow-x:auto;margin-bottom:8px}
+.hab-tabla{min-width:760px}
+.hab-fila{display:grid;grid-template-columns:104px minmax(130px,1fr) 58px 58px 88px 70px 88px 96px 24px;gap:6px;align-items:center;margin-bottom:6px}
+.hab-fila .fi,.hab-fila .fsel{min-width:0}
+.hab-cab{font-size:10px;font-weight:600;color:rgba(43,43,43,.55);margin-bottom:4px}
+.h-total{font-size:12px;text-align:right;white-space:nowrap}
+.srv-foot a{color:var(--teal);font-weight:600}
 .opc-block{border:1px solid var(--beige-d);border-radius:8px;padding:8px 10px;margin-bottom:8px}
 .opc-block .fi{font-size:11.5px;padding:5px 8px;margin:4px 0 6px}
 .opc-titulo{font-size:10px;font-weight:600;color:var(--teal);letter-spacing:.5px;text-transform:uppercase}
@@ -264,6 +274,10 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .srv-card-nom{font-size:9pt;color:rgba(43,43,43,.7);margin-bottom:1.5mm}
 .srv-card .srv{margin-bottom:3.5mm}
 .srv-card .srv:last-child{margin-bottom:0}
+.srv-hab{margin-top:1.8mm;font-size:9pt;line-height:1.45}
+.srv-hab-row{display:grid;grid-template-columns:13mm 1fr;gap:0 2mm;padding:.5mm 0}
+.srv-hab-row b{color:#0F3D3E;font-weight:600}
+.srv-hab-tot{margin-top:1mm;font-size:8.5pt;color:rgba(43,43,43,.7)}
 
 /* Vuelos */
 .vuelo{margin-bottom:4mm}
@@ -319,6 +333,8 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .inv-table td{padding:2.3mm 0;border-bottom:.2mm solid rgba(15,61,62,.15);vertical-align:top}
 .inv-table td.r,.inv-table th.r{text-align:right;white-space:nowrap}
 .inv-table tr.total td{border-bottom:none;border-top:.4mm solid #0F3D3E;font-weight:600;font-size:12pt;color:#0F3D3E;padding-top:3mm}
+.inv-table tr.hab td{font-size:9pt;padding:1.3mm 0;border-bottom:.2mm solid rgba(15,61,62,.1);color:rgba(43,43,43,.85)}
+.inv-table tr.hab td:nth-child(2){padding-left:4mm}
 .inv-table tr.pp td{border-bottom:none;font-size:10pt;color:rgba(43,43,43,.75);padding-top:1mm}
 
 /* Condiciones */
@@ -779,7 +795,10 @@ function normalizar(raw){
   c.servicios = Array.isArray(c.servicios) ? c.servicios.filter(Boolean) : Object.values(c.servicios||{});
   c.dias = c.dias.map(d => ({ titulo:'', descripcion:'', ...d }));
   c.servicios = c.servicios.map(s => ({ tipo:'Otro', concepto:'', detalle:'', proveedor:'', costo:0, moneda:c.moneda, markup:0, precio:0, activo:true, modo:'incluido', ...s }));
-  c.servicios.forEach(s => { s.vuelos = normVuelos(s.vuelos); });
+  c.servicios.forEach(s => {
+    s.vuelos = normVuelos(s.vuelos);
+    if (s.habitaciones !== undefined){ s.habitaciones = normHab(s.habitaciones); sincHab(s); }
+  });
   c.nombresOpciones = { ...(c.nombresOpciones||{}) };
   if (raw && raw.noIncluye === undefined) c.noIncluye = '';
   if (raw && raw.condiciones === undefined) c.condiciones = '';
@@ -819,6 +838,32 @@ function sumarServicios(c, lista){
   return { costo, precio, margen, margenPct: precio>0 ? margen/precio*100 : 0, porPersona: pax>0 ? precio/pax : null, pax, faltaTC, huboConversion };
 }
 function precioDe(s){ return round2(num(s.costo) * (1 + num(s.markup)/100)); }
+
+// ── HABITACIONES POR TIPO (servicio Hotel) ─────────────────────────────────
+// Un hotel puede cotizarse por tipo de habitación: cada línea tiene cantidad, ocupantes y
+// precio por habitación (estadía completa). El costo y el precio del servicio se derivan de
+// las líneas, así que totales, márgenes y conversión de moneda siguen leyendo s.costo / s.precio.
+const HAB_TIPOS = [['Single',1],['Doble',2],['Triple',3],['Cuádruple',4],['Otra',1]];
+function ocupantesDe(tipo){ const t = HAB_TIPOS.find(x => x[0] === tipo); return t ? t[1] : 1; }
+function normHab(v){
+  const lista = Array.isArray(v) ? v.filter(Boolean) : Object.values(v || {});
+  return lista.map(h => ({ tipo:'Doble', categoria:'', cantidad:0, ocupantes:2, costo:0, markup:0, precio:0, ...h }));
+}
+function tieneHab(s){ return s.tipo === 'Hotel' && Array.isArray(s.habitaciones) && s.habitaciones.length > 0; }
+function habPrecio(h){ return round2(num(h.costo) * (1 + num(h.markup)/100)); }
+function habTotalCosto(h){ return round2(num(h.cantidad) * num(h.costo)); }
+function habTotalPrecio(h){ return round2(num(h.cantidad) * num(h.precio)); }
+function sincHab(s){
+  if (!tieneHab(s)) return;
+  s.costo = round2(s.habitaciones.reduce((a, h) => a + habTotalCosto(h), 0));
+  s.precio = round2(s.habitaciones.reduce((a, h) => a + habTotalPrecio(h), 0));
+  if (s.costo > 0) s.markup = round2((s.precio / s.costo - 1) * 100);
+}
+function habResumen(s){
+  const hs = tieneHab(s) ? s.habitaciones : [];
+  return { habitaciones: hs.reduce((a, h) => a + num(h.cantidad), 0), pax: hs.reduce((a, h) => a + num(h.cantidad) * num(h.ocupantes), 0) };
+}
+function habNombre(h){ return (h.tipo === 'Otra' ? 'Habitación' : h.tipo) + (String(h.categoria||'').trim() ? ' · ' + String(h.categoria).trim() : ''); }
 
 // ── LISTA ──────────────────────────────────────────────────────────────────
 function renderList(){
@@ -955,7 +1000,7 @@ function renderEditor(){
           <div class="grid g4">
             <div><label class="fl">Fecha de inicio</label><input class="fi" type="date" value="${escHtml(c.fechaInicio)}" onchange="setCampo('fechaInicio',this.value);renderDias()"></div>
             <div><label class="fl">Fecha de fin</label><input class="fi" type="date" value="${escHtml(c.fechaFin)}" onchange="setCampo('fechaFin',this.value)"></div>
-            <div><label class="fl">Pasajeros</label><input class="fi" type="number" min="0" step="1" value="${escHtml(c.pasajeros)}" placeholder="Ej: 40" oninput="setCampo('pasajeros',this.value);renderTotales()"></div>
+            <div><label class="fl">Pasajeros</label><input class="fi" type="number" min="0" step="1" value="${escHtml(c.pasajeros)}" placeholder="Ej: 40" oninput="setCampo('pasajeros',this.value);renderTotales();renderServiciosFoot()" id="f-pasajeros"></div>
             <div><label class="fl">Válida hasta</label><input class="fi" type="date" value="${escHtml(c.validezHasta)}" onchange="setCampo('validezHasta',this.value)"></div>
           </div>
           <div class="grid g2" style="margin-bottom:0">
@@ -1110,7 +1155,7 @@ function datosParaIA(c){
     fechaInicio: c.fechaInicio, fechaFin: c.fechaFin, pasajeros: c.pasajeros,
     introduccion: c.introduccion,
     dias: c.dias.map((d, i) => ({ n: i + 1, fecha: c.fechaInicio ? fmtDiaLabel(addDays(c.fechaInicio, i)) : '', titulo: d.titulo, descripcion: d.descripcion })),
-    servicios: srvActivos(c).map(s => ({ tipo: s.tipo, concepto: s.concepto, detalle: s.detalle, en_la_propuesta: lbl(s) })),
+    servicios: srvActivos(c).map(s => ({ tipo: s.tipo, concepto: s.concepto, detalle: [s.detalle, tieneHab(s) ? s.habitaciones.filter(h => num(h.cantidad) > 0).map(h => `${num(h.cantidad)} × ${habNombre(h)}`).join('; ') : ''].filter(Boolean).join(' · '), en_la_propuesta: lbl(s) })),
   };
 }
 async function generarIA(){
@@ -1734,12 +1779,13 @@ function renderServicios(){
       <div><label class="fl">Detalle (visible en la propuesta)</label><textarea class="fta" rows="2" placeholder="Horarios, categoría de habitación, equipaje…" oninput="setServicio(${i},'detalle',this.value)">${escHtml(s.detalle)}</textarea></div>
       <div><label class="fl">Proveedor (interno)</label><input class="fi" list="dl-proveedores" value="${escHtml(s.proveedor)}" placeholder="Proveedor" oninput="setServicio(${i},'proveedor',this.value)"></div>
     </div>
-    <div class="grid g4">
+    ${s.tipo === 'Hotel' ? `<label class="check-row hab-toggle"><input type="checkbox" ${tieneHab(s)?'checked':''} onchange="toggleHab(${i},this.checked)"> Cotizar por tipo de habitación (single, doble, triple…)</label>` : ''}
+    ${tieneHab(s) ? habEditor(s, i) : `<div class="grid g4">
       <div><label class="fl">Costo neto</label><input class="fi" type="number" step="0.01" value="${escHtml(s.costo)}" oninput="onCosto(${i},this.value)"></div>
       <div><label class="fl">Moneda</label><select class="fsel" onchange="setServicio(${i},'moneda',this.value);renderServiciosFoot();renderTotales()">${selOpts(['USD','ARS'],['USD','ARS'],s.moneda||c.moneda)}</select></div>
       <div><label class="fl">Markup %</label><input class="fi srv-markup" type="number" step="0.1" value="${escHtml(s.markup)}" oninput="onMarkup(${i},this.value)"></div>
       <div><label class="fl">Precio de venta</label><input class="fi srv-precio" type="number" step="0.01" value="${escHtml(s.precio)}" oninput="onPrecio(${i},this.value)"></div>
-    </div>
+    </div>`}
     ${s.tipo === 'Aéreo' ? vuelosEditor(s, i) : ''}
     <div class="item-foot srv-foot"></div>
   </div>`).join('');
@@ -1754,7 +1800,14 @@ function renderServiciosFoot(){
     if (!s) return;
     const m = s.moneda || c.moneda;
     const ganancia = num(s.precio) - num(s.costo);
-    let html = `<span>Ganancia: <b>${fmtMoney(ganancia, m)}</b></span>`;
+    let html = '';
+    if (tieneHab(s)){
+      const r = habResumen(s), pax = parseInt(c.pasajeros, 10) || 0;
+      html += `<span>${fmtNum(r.habitaciones)} ${r.habitaciones===1?'habitación':'habitaciones'} · aloja a <b>${fmtNum(r.pax)}</b> pasajero${r.pax===1?'':'s'}</span>`;
+      if (r.pax > 0) html += `<span>Hotel por persona: <b>${fmtMoney(num(s.precio) / r.pax, m)}</b></span>`;
+      if (r.pax > 0 && r.pax !== pax) html += `<span class="warn">${pax ? `La cotización tiene ${fmtNum(pax)} pasajeros.` : 'La cotización no tiene cantidad de pasajeros.'} <a href="#" onclick="usarPaxHab(${Number(card.dataset.srv)});return false">Usar ${fmtNum(r.pax)}</a></span>`;
+    }
+    html += `<span>Ganancia: <b>${fmtMoney(ganancia, m)}</b></span>`;
     if (m !== c.moneda){
       const conv = convertir(num(s.precio), m, c.moneda, c.tipoCambio);
       html += conv.ok
@@ -1792,6 +1845,109 @@ function onPrecio(i, v){
     const card = document.querySelector(`[data-srv="${i}"]`);
     if (card) card.querySelector('.srv-markup').value = s.markup;
   }
+  renderServiciosFoot(); renderTotales(); markDirty();
+}
+// Editor de habitaciones por tipo. Las celdas se actualizan sin redibujar la tarjeta, para no perder el foco al tipear.
+function habEditor(s, i){
+  const c = editing.data;
+  return `<div class="hab-ed">
+    <div class="grid" style="grid-template-columns:140px 190px 1fr">
+      <div><label class="fl">Moneda</label><select class="fsel" onchange="setServicio(${i},'moneda',this.value);refrescarHab(${i})">${selOpts(['USD','ARS'],['USD','ARS'],s.moneda||c.moneda)}</select></div>
+      <div><label class="fl">Markup % para todas</label><input class="fi" type="number" step="0.1" placeholder="Aplicar a todas" onchange="setMarkupHabs(${i},this.value)"></div>
+      <div class="hab-hint">Precio por habitación, por toda la estadía. El precio total del hotel es la suma de las líneas. Para mostrar cada precio en la propuesta, activá "Mostrar desglose por servicio".</div>
+    </div>
+    <div class="hab-scroll"><div class="hab-tabla">
+      <div class="hab-fila hab-cab"><span>Tipo</span><span>Categoría (visible en la propuesta)</span><span>Cant.</span><span>Ocup.</span><span>Costo c/u</span><span>Markup %</span><span>Venta c/u</span><span>Total venta</span><span></span></div>
+      ${s.habitaciones.map((h, k) => `<div class="hab-fila" data-hab="${k}">
+        <select class="fsel" onchange="setHabTipo(${i},${k},this.value)">${selOpts(HAB_TIPOS.map(x=>x[0]),HAB_TIPOS.map(x=>x[0]),h.tipo)}</select>
+        <input class="fi" value="${escHtml(h.categoria)}" placeholder="Ej: Junior Suite Pool Access" oninput="setHab(${i},${k},'categoria',this.value)">
+        <input class="fi h-cantidad" type="number" min="0" step="1" value="${escHtml(h.cantidad)}" oninput="setHab(${i},${k},'cantidad',this.value)">
+        <input class="fi h-ocupantes" type="number" min="1" step="1" value="${escHtml(h.ocupantes)}" oninput="setHab(${i},${k},'ocupantes',this.value)">
+        <input class="fi h-costo" type="number" step="0.01" value="${escHtml(h.costo)}" oninput="setHab(${i},${k},'costo',this.value)">
+        <input class="fi h-markup" type="number" step="0.1" value="${escHtml(h.markup)}" oninput="setHab(${i},${k},'markup',this.value)">
+        <input class="fi h-precio" type="number" step="0.01" value="${escHtml(h.precio)}" oninput="setHab(${i},${k},'precio',this.value)">
+        <b class="h-total">${fmtMoney(habTotalPrecio(h), s.moneda || c.moneda)}</b>
+        <button class="icon-btn danger" title="Quitar esta línea" onclick="quitarHab(${i},${k})">✕</button>
+      </div>`).join('')}
+    </div></div>
+    <button class="add-item-btn" onclick="agregarHab(${i})">+ Agregar tipo de habitación</button>
+  </div>`;
+}
+function habNueva(s){
+  const c = editing.data, usados = (s.habitaciones||[]).map(h => h.tipo);
+  const tipo = HAB_TIPOS.map(x => x[0]).find(t => t !== 'Otra' && !usados.includes(t)) || 'Otra';
+  const ult = (s.habitaciones||[]).slice(-1)[0];
+  const h = { tipo, categoria:'', cantidad:0, ocupantes: ocupantesDe(tipo), costo:0, markup: ult ? num(ult.markup) : num(c.markupDefault), precio:0 };
+  return h;
+}
+function toggleHab(i, on){
+  const s = editing.data.servicios[i];
+  if (on){
+    // Si ya tenía un precio cargado, pasa a ser la primera línea para no perderlo.
+    const h = habNueva(s);
+    h.tipo = 'Doble'; h.ocupantes = 2; h.cantidad = 1;
+    if (num(s.costo) || num(s.precio)){ h.costo = num(s.costo); h.markup = num(s.markup); h.precio = num(s.precio); }
+    s.habitaciones = [h];
+  } else {
+    const conDatos = (s.habitaciones||[]).some(h => num(h.cantidad) || num(h.costo));
+    if (conDatos && !confirm('Se descartan las líneas por tipo de habitación. El costo y el precio del hotel quedan con el total actual y se pueden editar a mano. ¿Continuar?')){ renderServicios(); return; }
+    s.habitaciones = [];
+  }
+  sincHab(s);
+  renderServicios(); renderTotales(); markDirty();
+}
+function agregarHab(i){
+  const s = editing.data.servicios[i];
+  s.habitaciones.push(habNueva(s));
+  renderServicios(); renderTotales(); markDirty();
+}
+function quitarHab(i, k){
+  const s = editing.data.servicios[i];
+  if (s.habitaciones.length <= 1){ alert('Queda una sola línea. Para volver al precio único, destildá "Cotizar por tipo de habitación".'); return; }
+  s.habitaciones.splice(k, 1);
+  sincHab(s);
+  renderServicios(); renderTotales(); markDirty();
+}
+function refrescarHab(i){
+  const s = editing.data.servicios[i], card = document.querySelector(`[data-srv="${i}"]`);
+  sincHab(s);
+  if (card){
+    card.querySelectorAll('[data-hab]').forEach(row => {
+      const h = s.habitaciones[Number(row.dataset.hab)];
+      if (!h) return;
+      [['h-precio', h.precio], ['h-markup', h.markup], ['h-ocupantes', h.ocupantes]].forEach(([cls, v]) => {
+        const inp = row.querySelector('.' + cls);
+        if (inp && document.activeElement !== inp) inp.value = v;
+      });
+      row.querySelector('.h-total').textContent = fmtMoney(habTotalPrecio(h), s.moneda || editing.data.moneda);
+    });
+  }
+  renderServiciosFoot(); renderTotales(); markDirty();
+}
+function setHab(i, k, campo, v){
+  const h = editing.data.servicios[i].habitaciones[k];
+  if (campo === 'categoria'){ h.categoria = v; markDirty(); return; }
+  h[campo] = num(v);
+  if (campo === 'costo' || campo === 'markup') h.precio = habPrecio(h);
+  if (campo === 'precio' && num(h.costo) > 0) h.markup = round2((h.precio / num(h.costo) - 1) * 100);
+  refrescarHab(i);
+}
+function setHabTipo(i, k, v){
+  const h = editing.data.servicios[i].habitaciones[k];
+  h.tipo = v; h.ocupantes = ocupantesDe(v);
+  refrescarHab(i);
+}
+function setMarkupHabs(i, v){
+  if (String(v).trim() === '') return;
+  const s = editing.data.servicios[i];
+  s.habitaciones.forEach(h => { h.markup = num(v); h.precio = habPrecio(h); });
+  refrescarHab(i);
+}
+function usarPaxHab(i){
+  const c = editing.data, r = habResumen(c.servicios[i]);
+  c.pasajeros = String(r.pax);
+  const inp = document.getElementById('f-pasajeros');
+  if (inp) inp.value = c.pasajeros;
   renderServiciosFoot(); renderTotales(); markDirty();
 }
 function agregarServicio(){
@@ -1921,11 +2077,17 @@ function convertirEnReserva(){
     const m = s.moneda || c.moneda;
     const tc = m !== c.moneda ? (num(c.tipoCambio) || '') : '';
     const concepto = [s.concepto, s.vuelos ? rutaVuelos(s.vuelos) : '', s.detalle].filter(Boolean).join(' — ').slice(0, 300);
-    cotizado[RESERVAS_REF.push().key] = { tipo: s.tipo||'Otro', concepto, monto: num(s.precio), moneda: m, tipoCambio: tc };
-    costos[RESERVAS_REF.push().key] = {
-      tipo: s.tipo||'Otro', proveedor: s.proveedor||'', concepto, monto: num(s.costo), moneda: m, tipoCambio: tc,
-      medio:'otro', fechaEmision:'', fechaVencimiento:'', fechaPago:'', pagado:false,
-    };
+    // Hotel por tipo de habitación: un ítem cotizado y un costo por cada tipo, para ver el detalle en la reserva.
+    const lineas = tieneHab(s)
+      ? s.habitaciones.filter(h => num(h.cantidad) > 0).map(h => ({ concepto: `${s.concepto || 'Hotel'} — ${fmtNum(num(h.cantidad))} × ${habNombre(h)}`.slice(0, 300), precio: habTotalPrecio(h), costo: habTotalCosto(h) }))
+      : [{ concepto, precio: num(s.precio), costo: num(s.costo) }];
+    lineas.forEach(l => {
+      cotizado[RESERVAS_REF.push().key] = { tipo: s.tipo||'Otro', concepto: l.concepto, monto: l.precio, moneda: m, tipoCambio: tc };
+      costos[RESERVAS_REF.push().key] = {
+        tipo: s.tipo||'Otro', proveedor: s.proveedor||'', concepto: l.concepto, monto: l.costo, moneda: m, tipoCambio: tc,
+        medio:'otro', fechaEmision:'', fechaVencimiento:'', fechaPago:'', pagado:false,
+      };
+    });
   });
   const nueva = {
     codigo:'', cliente: String(c.cliente).trim(), concepto: c.titulo || c.destino || '',
@@ -2111,7 +2273,7 @@ function buildSlides(c){
   // cada opción → Adicionales.
   const ops = opcionesDe(c);
   const adicionales = srvActivos(c).filter(s => modoDe(s) === 'adicional');
-  const activos = c.servicios.map((x, i) => ({ ...x, _i:i })).filter(x => x.activo !== false && (x.concepto || x.detalle));
+  const activos = c.servicios.map((x, i) => ({ ...x, _i:i })).filter(x => x.activo !== false && (x.concepto || x.detalle || tieneHab(x)));
   const esHotel = x => x.tipo === 'Hotel';
   const porTipo = (a, b) => (SERVICIO_TIPOS.indexOf(a.tipo) - SERVICIO_TIPOS.indexOf(b.tipo)) || (a._i - b._i);
   const hayHoteles = activos.some(x => esHotel(x) && modoDe(x) !== 'adicional');
@@ -2132,6 +2294,8 @@ function buildSlides(c){
         ${conTipo ? `<div class="srv-tipo">${escHtml(x.tipo)}</div>` : ''}
         ${x.concepto ? `<div class="srv-concepto">${escHtml(x.concepto)}</div>` : ''}
         ${x.detalle ? `<div class="srv-detalle">${escHtml(x.detalle.trim())}</div>` : ''}
+        ${tieneHab(x) ? `<div class="srv-hab">${x.habitaciones.filter(h => num(h.cantidad) > 0).map(h => `<div class="srv-hab-row"><b>${fmtNum(num(h.cantidad))} ×</b><span>${escHtml(habNombre(h))}</span></div>`).join('')}
+          <div class="srv-hab-tot">${fmtNum(habResumen(x).habitaciones)} habitaciones en total</div></div>` : ''}
       </div>`;
   const tarjetaHTML = b => {
     const nom = String(c.nombresOpciones[b.opcion] || '').trim();
@@ -2176,7 +2340,17 @@ function buildSlides(c){
     }).join('')}</div>` : '';
   if (c.mostrarDesglose && srvActivos(c).length){
     const filas = [];
-    const pushSrv = lista => lista.forEach(s => { const v = precioConv(s); if (v != null) filas.push({ k:'f', tipo:s.tipo, concepto: s.concepto || s.tipo, monto: v }); });
+    // Hotel por tipo de habitación: la fila del hotel va sin importe y cada tipo lleva el suyo (cantidad × precio c/u).
+    const pushSrv = lista => lista.forEach(s => {
+      const v = precioConv(s);
+      if (v == null) return;
+      if (!tieneHab(s)){ filas.push({ k:'f', tipo:s.tipo, concepto: s.concepto || s.tipo, monto: v }); return; }
+      filas.push({ k:'f', tipo:s.tipo, concepto: s.concepto || s.tipo, monto: null });
+      s.habitaciones.filter(h => num(h.cantidad) > 0).forEach(h => {
+        const mon = s.moneda || m, tot = convertir(habTotalPrecio(h), mon, m, c.tipoCambio), unit = convertir(num(h.precio), mon, m, c.tipoCambio);
+        if (tot.ok && unit.ok) filas.push({ k:'h', txt: `${fmtNum(num(h.cantidad))} × ${habNombre(h)} · ${fmtMoney(unit.value, m)} c/u`, monto: tot.value });
+      });
+    });
     const pushTotal = (txt, tt) => { filas.push({ k:'t', txt, monto: tt.precio }); if (ppLinea(tt)) filas.push({ k:'pp', txt: ppLinea(tt) }); };
     const incluidos = srvActivos(c).filter(s => modoDe(s) === 'incluido');
     if (ops.length && incluidos.length) filas.push({ k:'sec', txt:'Incluido en todas las opciones' });
@@ -2199,7 +2373,8 @@ function buildSlides(c){
     const filaHtml = f => f.k === 'sec' ? `<tr class="sec"><td colspan="3">${escHtml(f.txt)}</td></tr>`
       : f.k === 't' ? `<tr class="total"><td></td><td>${escHtml(f.txt)}</td><td class="r">${fmtMoney(f.monto, m)}</td></tr>`
       : f.k === 'pp' ? `<tr class="pp"><td></td><td colspan="2">${escHtml(f.txt)}</td></tr>`
-      : `<tr><td>${escHtml(f.tipo)}</td><td>${escHtml(f.concepto)}</td><td class="r">${fmtMoney(f.monto, m)}</td></tr>`;
+      : f.k === 'h' ? `<tr class="hab"><td></td><td>${escHtml(f.txt)}</td><td class="r">${fmtMoney(f.monto, m)}</td></tr>`
+      : `<tr><td>${escHtml(f.tipo)}</td><td>${escHtml(f.concepto)}</td><td class="r">${f.monto == null ? '' : fmtMoney(f.monto, m)}</td></tr>`;
     const renderInv = (pag, p) => `${tituloPaginado('Inversión', p.n, p.total)}
         <table class="inv-table">
           <thead><tr><th style="width:22%">Tipo</th><th>Servicio</th><th class="r">Importe</th></tr></thead>
