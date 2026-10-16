@@ -68,6 +68,14 @@
       "imagenesData": {
         ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
         ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()"
+      },
+      "anexosMeta": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()"
+      },
+      "anexosData": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
+        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()"
       }
     },
 

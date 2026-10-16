@@ -347,6 +347,12 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .inv-table tr.pp td{border-bottom:none;font-size:10pt;color:rgba(43,43,43,.75);padding-top:1mm}
 
 /* Condiciones */
+.anexo-file{display:flex;align-items:center;gap:10px;background:var(--white);border:1px solid var(--beige-d);border-radius:6px;padding:6px 8px;margin-top:6px;font-size:12px}
+.anexo-file .muted{font-size:11px;color:rgba(43,43,43,.55)}
+.anexo-thumb{width:44px;height:58px;object-fit:cover;background:var(--beige-d);border-radius:3px;flex-shrink:0}
+.anexo-cap{font-size:8.5pt;color:rgba(43,43,43,.65);margin:0 0 3mm}
+.anexo-img{display:flex;justify-content:center;align-items:flex-start}
+.anexo-img img{max-width:100%;max-height:222mm;object-fit:contain;display:block}
 .anexo-p{font-size:10pt;line-height:1.55;white-space:pre-line;margin:0 0 3mm}
 .anexo-h{font-size:10.5pt;font-weight:600;color:#0F3D3E;margin:4mm 0 1.5mm;break-after:avoid}
 .anexo-ul{list-style:none;margin:0 0 3mm;padding:0}
@@ -518,6 +524,8 @@ const ESTADOS_COT = { borrador:'Borrador', enviada:'Enviada', aceptada:'Aceptada
 // Las imágenes genéricas del sitio que usaban las primeras cotizaciones pasan a 'auto'.
 const PORTADAS_SITIO = ['../betravel-editorial.jpg','../becorporate-hero.jpg','../becommunity-hero.jpg','../vacacional-paris.jpg'];
 const IMG_META_REF = db.ref('finanzas/imagenesMeta');   // destino + miniatura (liviano, se escucha siempre)
+const ANEXO_META_REF = db.ref('finanzas/anexosMeta');   // archivos de anexos: nombre + miniatura
+const ANEXO_DATA_REF = db.ref('finanzas/anexosData');   // cada página como imagen (se baja solo al armar la propuesta)
 const IMG_DATA_REF = db.ref('finanzas/imagenesData');   // imagen completa (se baja solo al usarla)
 // Servicios: incluido en todas las opciones, parte de una opción alternativa
 // (ej: dos hoteles para las mismas noches) o adicional que no suma al total.
@@ -801,6 +809,11 @@ function contactoDe(c){
   const propia = c.creadoPor && CURRENT_USER.email && String(c.creadoPor).toLowerCase() === CURRENT_USER.email.toLowerCase();
   return (propia ? miContacto() : (c.creadoPorEmail || c.creadoPor)) || 'info@betravel.com.ar';
 }
+// Archivos de un anexo: [{ id, nombre, kind:'pdf'|'imagen', paginas:[idDePagina…] }]. Firebase puede devolver objetos en lugar de arrays.
+function normArchivos(v){
+  const lista = Array.isArray(v) ? v.filter(Boolean) : Object.values(v || {});
+  return lista.map(f => ({ nombre:'', kind:'imagen', ...f, paginas: Array.isArray(f.paginas) ? f.paginas.filter(Boolean) : Object.values(f.paginas || {}) })).filter(f => f.paginas.length);
+}
 // Firebase no guarda arrays vacíos ni campos vacíos: al leer se completan los defaults.
 function normalizar(raw){
   const base = blankCotizacion();
@@ -814,7 +827,7 @@ function normalizar(raw){
     sincPP(s, c);
     if (s.habitaciones !== undefined){ s.habitaciones = normHab(s.habitaciones); sincHab(s); }
   });
-  c.anexos = (Array.isArray(c.anexos) ? c.anexos.filter(Boolean) : Object.values(c.anexos||{})).map(a => ({ titulo:'', texto:'', activo:true, ...a }));
+  c.anexos = (Array.isArray(c.anexos) ? c.anexos.filter(Boolean) : Object.values(c.anexos||{})).map(a => ({ titulo:'', texto:'', activo:true, ...a, archivos: normArchivos(a.archivos) }));
   c.nombresOpciones = { ...(c.nombresOpciones||{}) };
   if (raw && raw.noIncluye === undefined) c.noIncluye = '';
   if (raw && raw.condiciones === undefined) c.condiciones = '';
@@ -2271,7 +2284,183 @@ function renderAnexos(){
     </div>
     <div class="grid" style="grid-template-columns:1fr"><div><label class="fl">Título (visible en la propuesta)</label><input class="fi" value="${escHtml(a.titulo)}" placeholder="Ej: Coberturas de la asistencia al viajero" oninput="setAnexo(${i},'titulo',this.value)"></div></div>
     <div><label class="fl">Contenido</label><textarea class="fta" rows="9" placeholder="Párrafos separados por una línea en blanco.&#10;- Una viñeta por línea" oninput="setAnexo(${i},'texto',this.value)">${escHtml(a.texto)}</textarea></div>
+    <div class="anexo-files">
+      <label class="fl" style="margin-top:8px">Archivos (imágenes o PDF)</label>
+      <div class="captura" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="soltarArchivos(event,${i})">
+        <div><b>Agregar archivos al anexo</b></div>
+        <div class="captura-ayuda">Arrastrá imágenes o PDF acá, o <label class="captura-link">elegí archivos<input type="file" multiple accept="image/*,application/pdf,.pdf" hidden onchange="elegirArchivos(this,${i})"></label>. Cada página de un PDF se muestra como una página de la propuesta (máximo ${MAX_PAGINAS_PDF} páginas por PDF). Word y Excel: guardalos como PDF antes de subirlos.</div>
+        <div class="captura-estado" aria-live="polite"></div>
+      </div>
+      ${a.archivos.map((f, k) => `<div class="anexo-file">
+        <img class="anexo-thumb" data-pid="${escHtml(f.paginas[0])}" alt="">
+        <div style="flex:1;min-width:0"><b style="overflow-wrap:anywhere">${escHtml(f.nombre || 'Archivo')}</b><div class="muted">${f.kind === 'pdf' ? 'PDF · ' + f.paginas.length + ' página' + (f.paginas.length === 1 ? '' : 's') : 'Imagen'}</div></div>
+        <div class="item-actions">
+          <button class="icon-btn" title="Subir" ${k===0?'disabled':''} onclick="moverArchivo(${i},${k},-1)">▲</button>
+          <button class="icon-btn" title="Bajar" ${k===a.archivos.length-1?'disabled':''} onclick="moverArchivo(${i},${k},1)">▼</button>
+          <button class="icon-btn danger" title="Quitar archivo" onclick="quitarArchivo(${i},${k})">✕</button>
+        </div>
+      </div>`).join('')}
+    </div>
   </div>`).join('');
+  cargarMiniaturasAnexos();
+}
+// ── Archivos de los anexos (imágenes y PDF) ──
+// Cada archivo se guarda como imágenes por página en anexosData (con miniatura en anexosMeta), fuera del
+// documento de la cotización para no hacer pesada la lista. Un PDF se convierte a imágenes en el navegador con pdf.js.
+const ANEXO_THUMB = {}, ANEXO_FULL = {};
+const MAX_PAGINAS_PDF = 30, MAX_BYTES_ARCHIVO = 25 * 1024 * 1024, MAX_CHARS_ARCHIVO = 9 * 1024 * 1024;
+const PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+const PDFJS_SRI = 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e';
+const PDFJS_WORKER_SRI = 'sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2';
+let _pdfjsP = null;
+function cargarPdfJs(){
+  if (_pdfjsP) return _pdfjsP;
+  _pdfjsP = (async () => {
+    if (!window.pdfjsLib){
+      await new Promise((ok, err) => {
+        const s = document.createElement('script');
+        s.src = PDFJS_BASE + 'pdf.min.js'; s.integrity = PDFJS_SRI; s.crossOrigin = 'anonymous';
+        s.onload = ok; s.onerror = () => err(new Error('No se pudo cargar el lector de PDF. Revisá la conexión e intentá de nuevo.'));
+        document.head.appendChild(s);
+      });
+    }
+    const r = await fetch(PDFJS_BASE + 'pdf.worker.min.js');
+    const buf = await r.arrayBuffer();
+    const h = new Uint8Array(await crypto.subtle.digest('SHA-384', buf));
+    if ('sha384-' + btoa(String.fromCharCode(...h)) !== PDFJS_WORKER_SRI) throw new Error('El lector de PDF no pasó la verificación de seguridad.');
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([buf], { type: 'text/javascript' }));
+    return window.pdfjsLib;
+  })().catch(e => { _pdfjsP = null; throw e; });
+  return _pdfjsP;
+}
+function miniatura(canvas, lado){
+  const k = Math.min(1, lado / Math.max(canvas.width, canvas.height));
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(canvas.width * k)); cv.height = Math.max(1, Math.round(canvas.height * k));
+  cv.getContext('2d').drawImage(canvas, 0, 0, cv.width, cv.height);
+  return cv.toDataURL('image/jpeg', 0.6);
+}
+// PDF → [{ dataUrl, thumb? }] (la miniatura solo de la primera página).
+async function paginasDePdf(file, avance){
+  const lib = await cargarPdfJs();
+  const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const n = Math.min(doc.numPages, MAX_PAGINAS_PDF), out = [];
+  for (let k = 1; k <= n; k++){
+    avance(k, n);
+    const pg = await doc.getPage(k);
+    const v1 = pg.getViewport({ scale: 1 });
+    const vp = pg.getViewport({ scale: Math.min(4, 1754 / Math.max(v1.width, v1.height)) });
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+    await pg.render({ canvasContext: ctx, viewport: vp }).promise;
+    out.push({ dataUrl: cv.toDataURL('image/jpeg', 0.82), ...(k === 1 ? { thumb: miniatura(cv, 240) } : {}) });
+  }
+  return { paginas: out, total: doc.numPages };
+}
+function setArchivoEstado(a, txt, error){
+  const i = editing ? editing.data.anexos.indexOf(a) : -1;
+  const el = i >= 0 && document.querySelector(`[data-anexo="${i}"] .anexo-files .captura-estado`);
+  if (el){ el.textContent = txt; el.classList.toggle('err', !!error); }
+}
+function elegirArchivos(input, i){ const fs = [...(input.files || [])]; input.value = ''; if (fs.length) subirArchivos(i, fs); }
+function soltarArchivos(e, i){
+  e.preventDefault(); e.currentTarget.classList.remove('drag');
+  const fs = [...((e.dataTransfer && e.dataTransfer.files) || [])];
+  if (fs.length) subirArchivos(i, fs);
+}
+async function subirArchivos(i, files){
+  const a = editing.data.anexos[i];
+  if (!a) return;
+  const avisos = [];
+  for (const file of files){
+    const esPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    const esImg = /^image\//.test(file.type);
+    if (!esPdf && !esImg){ avisos.push(`"${file.name}": solo se pueden subir imágenes y PDF (Word o Excel: guardalo como PDF).`); continue; }
+    if (file.size > MAX_BYTES_ARCHIVO){ avisos.push(`"${file.name}" pesa más de 25 MB.`); continue; }
+    const escritos = [];
+    try {
+      setArchivoEstado(a, `Procesando ${file.name}…`);
+      let paginas;
+      if (esPdf){
+        const r = await paginasDePdf(file, (k, n) => setArchivoEstado(a, `Procesando ${file.name}: página ${k} de ${n}…`));
+        paginas = r.paginas;
+        if (r.total > paginas.length) avisos.push(`"${file.name}" tiene ${r.total} páginas: se cargaron las primeras ${paginas.length}.`);
+      } else {
+        const full = await reducirImagen(file, 1800, 0.85);
+        const th = await reducirImagen(file, 240, 0.6);
+        paginas = [{ dataUrl: full.dataUrl, thumb: th.dataUrl }];
+      }
+      if (paginas.reduce((s, p) => s + p.dataUrl.length, 0) > MAX_CHARS_ARCHIVO) throw new Error(`"${file.name}" queda demasiado pesado: probá con menos páginas o una imagen más chica.`);
+      setArchivoEstado(a, `Guardando ${file.name}…`);
+      const ids = [];
+      for (const p of paginas){
+        const pid = ANEXO_META_REF.push().key;
+        await ANEXO_DATA_REF.child(pid).set({ dataUrl: p.dataUrl });
+        await ANEXO_META_REF.child(pid).set({ nombre: file.name.slice(0, 120), ...(p.thumb ? { thumb: p.thumb } : {}), creadoPor: CURRENT_USER.email, fecha: Date.now() });
+        escritos.push(pid); ids.push(pid);
+        ANEXO_FULL[pid] = p.dataUrl; if (p.thumb) ANEXO_THUMB[pid] = p.thumb;
+      }
+      if (editing.data.anexos.indexOf(a) < 0){ borrarArchivosAnexo(escritos); return; }   // el anexo se eliminó mientras tanto
+      a.archivos.push({ id: ids[0], nombre: file.name.slice(0, 120), kind: esPdf ? 'pdf' : 'imagen', paginas: ids });
+      markDirty(); renderAnexos();
+    } catch (err){
+      borrarArchivosAnexo(escritos);
+      console.error(err);
+      const permiso = String(err && (err.code || err.message)).toUpperCase().includes('PERMISSION');
+      avisos.push(permiso ? 'Firebase rechazó el guardado: faltan publicar las reglas actualizadas (database.rules.json). Ver admin/SEGURIDAD_FIREBASE.md.'
+        : (err && err.message && !/Failed to fetch|Load failed/i.test(err.message) ? err.message : `No se pudo procesar "${file.name}".`));
+    }
+  }
+  setArchivoEstado(a, avisos.join(' '), avisos.length > 0);
+}
+function borrarArchivosAnexo(pids){
+  (pids || []).forEach(pid => {
+    delete ANEXO_FULL[pid]; delete ANEXO_THUMB[pid];
+    ANEXO_DATA_REF.child(pid).remove().catch(() => {}); ANEXO_META_REF.child(pid).remove().catch(() => {});
+  });
+}
+// Páginas que ya no usa ninguna cotización (por si una copia de la cotización comparte los mismos archivos).
+function paginasHuerfanas(pids, excluirId){
+  const usados = new Set();
+  const recolectar = c => (c.anexos || []).forEach(a => (a.archivos || []).forEach(f => (f.paginas || []).forEach(p => usados.add(p))));
+  COTS.forEach(c => { if (c.id !== excluirId && !(editing && c.id === editing.id)) recolectar(c); });
+  if (editing && editing.id !== excluirId) recolectar(editing.data);
+  return pids.filter(p => !usados.has(p));
+}
+function quitarArchivo(i, k){
+  const a = editing.data.anexos[i], f = a.archivos[k];
+  if (!confirm(`¿Quitar "${f.nombre || 'el archivo'}" del anexo?`)) return;
+  a.archivos.splice(k, 1);
+  markDirty(); renderAnexos();
+  flushSave().then(() => borrarArchivosAnexo(paginasHuerfanas(f.paginas))).catch(() => {});
+}
+function moverArchivo(i, k, dir){
+  const fs = editing.data.anexos[i].archivos, j = k + dir;
+  if (j < 0 || j >= fs.length) return;
+  [fs[k], fs[j]] = [fs[j], fs[k]];
+  markDirty(); renderAnexos();
+}
+function cargarMiniaturasAnexos(){
+  document.querySelectorAll('img.anexo-thumb[data-pid]').forEach(img => {
+    const pid = img.dataset.pid;
+    if (ANEXO_THUMB[pid]){ img.src = ANEXO_THUMB[pid]; return; }
+    ANEXO_META_REF.child(pid).once('value').then(s => {
+      const v = s.val();
+      if (v && v.thumb){ ANEXO_THUMB[pid] = v.thumb; img.src = v.thumb; }
+    }).catch(() => {});
+  });
+}
+// Antes de armar la propuesta se bajan las páginas que faltan.
+function paginasDeAnexos(c){
+  return (c.anexos || []).filter(a => a.activo !== false).flatMap(a => (a.archivos || []).flatMap(f => f.paginas || []));
+}
+function cargarArchivosAnexos(c){
+  return Promise.all(paginasDeAnexos(c).filter(pid => !ANEXO_FULL[pid]).map(pid => ANEXO_DATA_REF.child(pid).once('value').then(s => {
+    const v = s.val();
+    if (v && v.dataUrl) ANEXO_FULL[pid] = v.dataUrl;
+  }).catch(err => console.error(err))));
 }
 function setAnexo(i, campo, v){
   editing.data.anexos[i][campo] = v; markDirty();
@@ -2280,7 +2469,7 @@ function setAnexo(i, campo, v){
     if (lbl) lbl.textContent = 'Anexo ' + (i + 1) + (String(v).trim() ? ' - ' + String(v).trim() : '');
   }
 }
-function agregarAnexo(){ editing.data.anexos.push({ titulo:'', texto:'', activo:true }); renderAnexos(); markDirty(); }
+function agregarAnexo(){ editing.data.anexos.push({ titulo:'', texto:'', activo:true, archivos:[] }); renderAnexos(); markDirty(); }
 function moverAnexo(i, dir){
   const a = editing.data.anexos, j = i + dir;
   if (j < 0 || j >= a.length) return;
@@ -2289,8 +2478,10 @@ function moverAnexo(i, dir){
 }
 function eliminarAnexo(i){
   const a = editing.data.anexos[i];
-  if ((String(a.titulo).trim() || String(a.texto).trim()) && !confirm(`¿Eliminar el anexo ${i+1}${String(a.titulo).trim() ? ' (' + String(a.titulo).trim() + ')' : ''}?`)) return;
+  if ((String(a.titulo).trim() || String(a.texto).trim() || (a.archivos || []).length) && !confirm(`¿Eliminar el anexo ${i+1}${String(a.titulo).trim() ? ' (' + String(a.titulo).trim() + ')' : ''}?`)) return;
   editing.data.anexos.splice(i, 1); renderAnexos(); markDirty();
+  const pids = (a.archivos || []).flatMap(f => f.paginas || []);
+  if (pids.length) flushSave().then(() => borrarArchivosAnexo(paginasHuerfanas(pids))).catch(() => {});
 }
 // Texto del anexo → bloques: párrafo (p), subtítulo (h: una línea corta que termina en ":") y viñeta (li).
 function bloquesAnexo(texto){
@@ -2364,8 +2555,10 @@ function eliminarCotizacion(){
   if (!confirm(`¿Eliminar la cotización ${c.codigo}? No se puede deshacer.${aviso}`)) return;
   clearTimeout(saveTimer); saveTimer = null;
   const id = editing.id;
+  const pids = (c.anexos || []).flatMap(a => (a.archivos || []).flatMap(f => f.paginas || []));
   COT_REF.child(id).remove().then(() => {
     COTS = COTS.filter(x => x.id !== id);
+    if (pids.length) borrarArchivosAnexo(paginasHuerfanas(pids, id));
     editing = null;
     document.getElementById('view-editor').style.display = 'none';
     document.getElementById('view-list').style.display = '';
@@ -2769,7 +2962,7 @@ function buildSlides(c){
   }
 
   // Anexos: una o más páginas por anexo, antes del cierre.
-  const anexosActivos = (c.anexos || []).filter(a => a.activo !== false && (String(a.titulo).trim() || String(a.texto).trim()));
+  const anexosActivos = (c.anexos || []).filter(a => a.activo !== false && (String(a.titulo).trim() || String(a.texto).trim() || (a.archivos || []).length));
   anexosActivos.forEach((a, n) => {
     const rotulo = `Anexo ${n + 1}`, titulo = String(a.titulo).trim();
     const bl = bloquesAnexo(a.texto);
@@ -2785,8 +2978,15 @@ function buildSlides(c){
       return html;
     };
     const renderAx = (chunk, p) => tituloPaginado(escHtml(rotulo + (titulo ? ' · ' + titulo : '')), p.n, p.total) + `<div class="anexo">${cuerpo(chunk)}</div>`;
-    const paginas = paginar(bl.length ? bl : [{ t:'p', txt:'' }], renderAx);
-    paginas.forEach((chunk, idx) => slides.push(slideInterior(rotulo, renderAx(chunk, { n: idx + 1, total: paginas.length }))));
+    const conArchivos = (a.archivos || []).length > 0;
+    if (bl.length || !conArchivos){   // un anexo solo de archivos no lleva página de texto vacía
+      const paginas = paginar(bl.length ? bl : [{ t:'p', txt:'' }], renderAx);
+      paginas.forEach((chunk, idx) => slides.push(slideInterior(rotulo, renderAx(chunk, { n: idx + 1, total: paginas.length }))));
+    }
+    (a.archivos || []).forEach(f => (f.paginas || []).forEach((pid, k) => {
+      const cap = [rotulo + (titulo ? ' · ' + titulo : ''), f.nombre, f.paginas.length > 1 ? `página ${k + 1} de ${f.paginas.length}` : ''].filter(Boolean).join(' · ');
+      slides.push(slideInterior(rotulo, `<div class="anexo-cap">${escHtml(cap)}</div><div class="anexo-img">${ANEXO_FULL[pid] ? `<img src="${ANEXO_FULL[pid]}" alt="">` : '<p class="anexo-p">No se pudo cargar este archivo.</p>'}</div>`));
+    }));
   });
 
   // Cierre
@@ -2842,6 +3042,7 @@ async function abrirDeck(imprimir){
   if (sumarServicios(c, srvActivos(c)).faltaTC && !confirm('Hay servicios en otra moneda sin T.C. de referencia: quedan fuera del total de la propuesta. ¿Continuar igual?')) return;
   flushSave().catch(()=>{});
   await cargarImagenFull(portadaId(c));
+  await cargarArchivosAnexos(c);
   // La paginación mide texto real: hay que esperar a que la tipografía esté cargada.
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
   const deck = document.getElementById('deck');
@@ -2853,6 +3054,7 @@ async function abrirDeck(imprimir){
   document.getElementById('deck-warn').textContent = [
     DESBORDES.length ? `⚠ ${uno?'La página':'Las páginas'} ${DESBORDES.join(', ')} ${uno?'tiene':'tienen'} más texto del que entra y se ${uno?'va':'van'} a cortar: acortá ese contenido.` : '',
     !portadaSrc(c) ? '⚠ La portada no tiene imagen del destino: cargala en "Imagen de portada".' : '',
+    paginasDeAnexos(c).some(pid => !ANEXO_FULL[pid]) ? '⚠ No se pudieron cargar algunas páginas de los archivos de los anexos: cerrá la vista previa y probá de nuevo.' : '',
   ].filter(Boolean).join(' ');
   ajustarZoomDeck();
   if (imprimir) imprimirDeck();
