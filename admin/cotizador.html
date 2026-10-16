@@ -2704,21 +2704,17 @@ function paginar(items, render){
   if (cur.length) pages.push(cur);
   return pages;
 }
-// Como paginar(), pero una imagen que no entra se prueba achicada (85 % y 70 %) antes de pasar a otra página.
+// Como paginar(), pero con las imágenes del anexo todas del mismo tamaño: se prueba el anexo entero con las imágenes
+// al 100 %, 85 % y 70 % del ancho y se queda la escala más grande con la que el anexo ocupa menos páginas.
 function paginarAnexo(items, render){
-  const body = probeBody();
-  const pages = []; let cur = [];
-  items.forEach(it => {
-    let puesto = false;
-    for (const esc of (it.t === 'img' ? [1, 0.85, 0.7] : [1])){
-      it.esc = esc;
-      body.innerHTML = render(cur.concat([it]), { n:1, total:9, ultima:true });
-      if (!cur.length || !desborda(body)){ cur.push(it); puesto = true; break; }
-    }
-    if (!puesto){ pages.push(cur); it.esc = 1; cur = [it]; }
+  let mejor = null;
+  [1, 0.85, 0.7].forEach(esc => {
+    items.forEach(it => { if (it.t === 'img') it.esc = esc; });
+    const pages = paginar(items, render);
+    if (!mejor || pages.length < mejor.pages.length) mejor = { esc, pages };
   });
-  if (cur.length) pages.push(cur);
-  return pages;
+  items.forEach(it => { if (it.t === 'img') it.esc = mejor.esc; });
+  return mejor.pages;
 }
 function tituloPaginado(txt, n, total){
   return `<div class="s-title">${txt}${total>1 ? ` <span style="font-weight:400;font-size:14pt;color:rgba(15,61,62,.55)">${n}/${total}</span>` : ''}</div>`;
@@ -2992,8 +2988,8 @@ function buildSlides(c){
   const anexosActivos = (c.anexos || []).filter(a => a.activo !== false && (String(a.titulo).trim() || String(a.texto).trim() || (a.archivos || []).length));
   anexosActivos.forEach((a, n) => {
     const rotulo = `Anexo ${n + 1}`, titulo = String(a.titulo).trim(), nombreAx = rotulo + (titulo ? ' · ' + titulo : '');
-    // Texto e imágenes se acomodan juntos: cada imagen va a continuación de lo anterior si entra en la página
-    // (achicándola hasta un 70 % si hace falta) y recién si no entra pasa a la página siguiente.
+    // Texto e imágenes se acomodan juntos: cada imagen va a continuación de lo anterior si entra en la página y
+    // recién si no entra pasa a la siguiente. Todas las imágenes del anexo tienen el mismo ancho.
     const items = bloquesAnexo(a.texto);
     (a.archivos || []).forEach(f => (f.paginas || []).forEach((pid, k) => {
       items.push({ t:'img', pid, esc:1, cap: [f.nombre, f.paginas.length > 1 ? `página ${k + 1} de ${f.paginas.length}` : ''].filter(Boolean).join(' · ') });
