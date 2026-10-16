@@ -347,6 +347,11 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .inv-table tr.pp td{border-bottom:none;font-size:10pt;color:rgba(43,43,43,.75);padding-top:1mm}
 
 /* Condiciones */
+.anexo-p{font-size:10pt;line-height:1.55;white-space:pre-line;margin:0 0 3mm}
+.anexo-h{font-size:10.5pt;font-weight:600;color:#0F3D3E;margin:4mm 0 1.5mm;break-after:avoid}
+.anexo-ul{list-style:none;margin:0 0 3mm;padding:0}
+.anexo-ul li{font-size:10pt;line-height:1.5;padding:1.2mm 0 1.2mm 4.5mm;position:relative}
+.anexo-ul li::before{content:'';position:absolute;left:0;top:3.3mm;width:1.6mm;height:.3mm;background:#0F3D3E}
 .cond{display:grid;grid-template-columns:1fr;gap:9mm}
 .cond h4{font-size:8pt;font-weight:600;letter-spacing:1.4pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin-bottom:3mm}
 .cond ul{list-style:none}
@@ -783,7 +788,7 @@ function blankCotizacion(){
     portada:'auto', portadaUrl:'', nombresOpciones:{}, opcionElegida:'',
     introduccion:'', dias:[], servicios:[], markupDefault: MARKUP_DEFAULT,
     mostrarDesglose:false, mostrarPorPersona:true,
-    noIncluye: DEFAULT_NO_INCLUYE, condiciones: DEFAULT_CONDICIONES,
+    noIncluye: DEFAULT_NO_INCLUYE, condiciones: DEFAULT_CONDICIONES, anexos: [],
     reservaId:'', fechaCreacion: todayISO(),
     creadoPor: CURRENT_USER.email, creadoPorNombre: CURRENT_USER.nombre, creadoPorEmail: '',
     updatedAt: Date.now(), updatedBy: CURRENT_USER.email,
@@ -809,6 +814,7 @@ function normalizar(raw){
     sincPP(s, c);
     if (s.habitaciones !== undefined){ s.habitaciones = normHab(s.habitaciones); sincHab(s); }
   });
+  c.anexos = (Array.isArray(c.anexos) ? c.anexos.filter(Boolean) : Object.values(c.anexos||{})).map(a => ({ titulo:'', texto:'', activo:true, ...a }));
   c.nombresOpciones = { ...(c.nombresOpciones||{}) };
   if (raw && raw.noIncluye === undefined) c.noIncluye = '';
   if (raw && raw.condiciones === undefined) c.condiciones = '';
@@ -1066,6 +1072,13 @@ function renderEditor(){
             <div><label class="fl">Condiciones</label><textarea class="fta" rows="5" oninput="setCampo('condiciones',this.value)">${escHtml(c.condiciones)}</textarea></div>
           </div>
         </div>
+
+        <div class="card">
+          <h3>Anexos</h3>
+          <p class="card-hint">Información adicional que se agrega al final de la propuesta, antes del cierre, cada anexo en su propia página (por ejemplo: coberturas de la asistencia al viajero, detalle de un hotel o cronograma de pagos). Separá los párrafos con una línea en blanco y empezá con "- " las líneas que quieras como viñetas; una línea corta que termina en ":" se muestra como subtítulo.</p>
+          <div id="anexos-list"></div>
+          <button class="add-item-btn" onclick="agregarAnexo()">+ Agregar anexo</button>
+        </div>
       </div>
 
       <div class="side">
@@ -1104,6 +1117,7 @@ function renderEditor(){
   renderPortadaGrid();
   renderDias();
   renderServicios();
+  renderAnexos();
   renderTotales();
 }
 
@@ -2237,6 +2251,64 @@ function eliminarServicio(i){
   editing.data.servicios.splice(i,1); renderServicios(); renderTotales(); markDirty();
 }
 
+// ── ANEXOS ─────────────────────────────────────────────────────────────────
+function renderAnexos(){
+  const el = document.getElementById('anexos-list');
+  if (!el) return;
+  const an = editing.data.anexos;
+  if (!an.length){ el.innerHTML = `<p class="card-hint" style="margin:0 0 10px">Todavía no hay anexos.</p>`; return; }
+  el.innerHTML = an.map((a, i) => `<div class="item-card ${a.activo===false?'off':''}" data-anexo="${i}">
+    <div class="item-head">
+      <label class="srv-check" title="Destildado: queda guardado pero no se incluye en la propuesta">
+        <input type="checkbox" ${a.activo!==false?'checked':''} onchange="setAnexo(${i},'activo',this.checked);renderAnexos()">
+        <span class="item-label srv-titulo">Anexo ${i+1}${String(a.titulo).trim() ? ' - ' + escHtml(String(a.titulo).trim()) : ''}</span>
+      </label>
+      <div class="item-actions">
+        <button class="icon-btn" title="Subir" ${i===0?'disabled':''} onclick="moverAnexo(${i},-1)">▲</button>
+        <button class="icon-btn" title="Bajar" ${i===an.length-1?'disabled':''} onclick="moverAnexo(${i},1)">▼</button>
+        <button class="icon-btn danger" title="Eliminar anexo" onclick="eliminarAnexo(${i})">✕</button>
+      </div>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr"><div><label class="fl">Título (visible en la propuesta)</label><input class="fi" value="${escHtml(a.titulo)}" placeholder="Ej: Coberturas de la asistencia al viajero" oninput="setAnexo(${i},'titulo',this.value)"></div></div>
+    <div><label class="fl">Contenido</label><textarea class="fta" rows="9" placeholder="Párrafos separados por una línea en blanco.&#10;- Una viñeta por línea" oninput="setAnexo(${i},'texto',this.value)">${escHtml(a.texto)}</textarea></div>
+  </div>`).join('');
+}
+function setAnexo(i, campo, v){
+  editing.data.anexos[i][campo] = v; markDirty();
+  if (campo === 'titulo'){
+    const lbl = document.querySelector(`[data-anexo="${i}"] .srv-titulo`);
+    if (lbl) lbl.textContent = 'Anexo ' + (i + 1) + (String(v).trim() ? ' - ' + String(v).trim() : '');
+  }
+}
+function agregarAnexo(){ editing.data.anexos.push({ titulo:'', texto:'', activo:true }); renderAnexos(); markDirty(); }
+function moverAnexo(i, dir){
+  const a = editing.data.anexos, j = i + dir;
+  if (j < 0 || j >= a.length) return;
+  [a[i], a[j]] = [a[j], a[i]];
+  renderAnexos(); markDirty();
+}
+function eliminarAnexo(i){
+  const a = editing.data.anexos[i];
+  if ((String(a.titulo).trim() || String(a.texto).trim()) && !confirm(`¿Eliminar el anexo ${i+1}${String(a.titulo).trim() ? ' (' + String(a.titulo).trim() + ')' : ''}?`)) return;
+  editing.data.anexos.splice(i, 1); renderAnexos(); markDirty();
+}
+// Texto del anexo → bloques: párrafo (p), subtítulo (h: una línea corta que termina en ":") y viñeta (li).
+function bloquesAnexo(texto){
+  const out = [];
+  String(texto || '').replace(/\r/g, '').split(/\n[ \t]*\n/).forEach(grupo => {
+    let parr = [];
+    const cerrar = () => { if (parr.length){ out.push({ t:'p', txt: parr.join('\n') }); parr = []; } };
+    grupo.split('\n').map(l => l.trim()).filter(Boolean).forEach(l => {
+      const m = /^[-•*]\s+(.*)$/.exec(l);
+      if (m){ cerrar(); out.push({ t:'li', txt: m[1] }); }
+      else if (l.length <= 80 && /:$/.test(l) && !parr.length){ out.push({ t:'h', txt: l }); }
+      else parr.push(l);
+    });
+    cerrar();
+  });
+  return out;
+}
+
 function renderTotales(){
   const el = document.getElementById('totales');
   if (!el) return;
@@ -2695,6 +2767,27 @@ function buildSlides(c){
         </div>
       </div>`));
   }
+
+  // Anexos: una o más páginas por anexo, antes del cierre.
+  const anexosActivos = (c.anexos || []).filter(a => a.activo !== false && (String(a.titulo).trim() || String(a.texto).trim()));
+  anexosActivos.forEach((a, n) => {
+    const rotulo = `Anexo ${n + 1}`, titulo = String(a.titulo).trim();
+    const bl = bloquesAnexo(a.texto);
+    const cuerpo = chunk => {
+      let html = '', ul = [];
+      const cerrar = () => { if (ul.length){ html += `<ul class="anexo-ul">${ul.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>`; ul = []; } };
+      chunk.forEach(b => {
+        if (b.t === 'li') { ul.push(b.txt); return; }
+        cerrar();
+        html += b.t === 'h' ? `<div class="anexo-h">${escHtml(b.txt)}</div>` : `<p class="anexo-p">${escHtml(b.txt)}</p>`;
+      });
+      cerrar();
+      return html;
+    };
+    const renderAx = (chunk, p) => tituloPaginado(escHtml(rotulo + (titulo ? ' · ' + titulo : '')), p.n, p.total) + `<div class="anexo">${cuerpo(chunk)}</div>`;
+    const paginas = paginar(bl.length ? bl : [{ t:'p', txt:'' }], renderAx);
+    paginas.forEach((chunk, idx) => slides.push(slideInterior(rotulo, renderAx(chunk, { n: idx + 1, total: paginas.length }))));
+  });
 
   // Cierre
   slides.push({ cover:true, html: `
