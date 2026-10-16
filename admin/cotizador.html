@@ -350,9 +350,11 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .anexo-file{display:flex;align-items:center;gap:10px;background:var(--white);border:1px solid var(--beige-d);border-radius:6px;padding:6px 8px;margin-top:6px;font-size:12px}
 .anexo-file .muted{font-size:11px;color:rgba(43,43,43,.55)}
 .anexo-thumb{width:44px;height:58px;object-fit:cover;background:var(--beige-d);border-radius:3px;flex-shrink:0}
-.anexo-cap{font-size:8.5pt;color:rgba(43,43,43,.65);margin:0 0 3mm}
+.anexo-cap{font-size:8pt;color:rgba(43,43,43,.65);margin-top:1.5mm;text-align:center}
+.anexo-cont{font-size:9pt;color:rgba(43,43,43,.65);margin:0 0 4mm}
+.anexo-fig{margin:0 0 4mm;break-inside:avoid}
 .anexo-img{display:flex;justify-content:center;align-items:flex-start}
-.anexo-img img{max-width:100%;max-height:222mm;object-fit:contain;display:block}
+.anexo-img img{object-fit:contain;display:block;border:.2mm solid rgba(15,61,62,.15)}
 .anexo-p{font-size:10pt;line-height:1.55;white-space:pre-line;margin:0 0 3mm}
 .anexo-h{font-size:10.5pt;font-weight:600;color:#0F3D3E;margin:4mm 0 1.5mm;break-after:avoid}
 .anexo-ul{list-style:none;margin:0 0 3mm;padding:0}
@@ -2307,7 +2309,7 @@ function renderAnexos(){
 // ── Archivos de los anexos (imágenes y PDF) ──
 // Cada archivo se guarda como imágenes por página en anexosData (con miniatura en anexosMeta), fuera del
 // documento de la cotización para no hacer pesada la lista. Un PDF se convierte a imágenes en el navegador con pdf.js.
-const ANEXO_THUMB = {}, ANEXO_FULL = {};
+const ANEXO_THUMB = {}, ANEXO_FULL = {}, ANEXO_DIM = {};   // ANEXO_DIM: { w, h } de cada página, para reservar su lugar al medir la paginación
 const MAX_PAGINAS_PDF = 30, MAX_BYTES_ARCHIVO = 25 * 1024 * 1024, MAX_CHARS_ARCHIVO = 9 * 1024 * 1024;
 const PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 const PDFJS_SRI = 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e';
@@ -2456,11 +2458,20 @@ function cargarMiniaturasAnexos(){
 function paginasDeAnexos(c){
   return (c.anexos || []).filter(a => a.activo !== false).flatMap(a => (a.archivos || []).flatMap(f => f.paginas || []));
 }
+function medirImagen(pid){
+  if (ANEXO_DIM[pid] || !ANEXO_FULL[pid]) return Promise.resolve();
+  return new Promise(ok => {
+    const im = new Image();
+    im.onload = () => { ANEXO_DIM[pid] = { w: im.naturalWidth, h: im.naturalHeight }; ok(); };
+    im.onerror = () => ok();
+    im.src = ANEXO_FULL[pid];
+  });
+}
 function cargarArchivosAnexos(c){
-  return Promise.all(paginasDeAnexos(c).filter(pid => !ANEXO_FULL[pid]).map(pid => ANEXO_DATA_REF.child(pid).once('value').then(s => {
+  return Promise.all(paginasDeAnexos(c).map(pid => (ANEXO_FULL[pid] ? Promise.resolve() : ANEXO_DATA_REF.child(pid).once('value').then(s => {
     const v = s.val();
     if (v && v.dataUrl) ANEXO_FULL[pid] = v.dataUrl;
-  }).catch(err => console.error(err))));
+  }).catch(err => console.error(err))).then(() => medirImagen(pid))));
 }
 function setAnexo(i, campo, v){
   editing.data.anexos[i][campo] = v; markDirty();
@@ -2689,6 +2700,22 @@ function paginar(items, render){
     body.innerHTML = render(prueba, { n:1, total:9, ultima:true });
     if (cur.length && desborda(body)){ pages.push(cur); cur = [it]; }
     else cur = prueba;
+  });
+  if (cur.length) pages.push(cur);
+  return pages;
+}
+// Como paginar(), pero una imagen que no entra se prueba achicada (85 % y 70 %) antes de pasar a otra página.
+function paginarAnexo(items, render){
+  const body = probeBody();
+  const pages = []; let cur = [];
+  items.forEach(it => {
+    let puesto = false;
+    for (const esc of (it.t === 'img' ? [1, 0.85, 0.7] : [1])){
+      it.esc = esc;
+      body.innerHTML = render(cur.concat([it]), { n:1, total:9, ultima:true });
+      if (!cur.length || !desborda(body)){ cur.push(it); puesto = true; break; }
+    }
+    if (!puesto){ pages.push(cur); it.esc = 1; cur = [it]; }
   });
   if (cur.length) pages.push(cur);
   return pages;
@@ -2964,29 +2991,32 @@ function buildSlides(c){
   // Anexos: una o más páginas por anexo, antes del cierre.
   const anexosActivos = (c.anexos || []).filter(a => a.activo !== false && (String(a.titulo).trim() || String(a.texto).trim() || (a.archivos || []).length));
   anexosActivos.forEach((a, n) => {
-    const rotulo = `Anexo ${n + 1}`, titulo = String(a.titulo).trim();
-    const bl = bloquesAnexo(a.texto);
+    const rotulo = `Anexo ${n + 1}`, titulo = String(a.titulo).trim(), nombreAx = rotulo + (titulo ? ' · ' + titulo : '');
+    // Texto e imágenes se acomodan juntos: cada imagen va a continuación de lo anterior si entra en la página
+    // (achicándola hasta un 70 % si hace falta) y recién si no entra pasa a la página siguiente.
+    const items = bloquesAnexo(a.texto);
+    (a.archivos || []).forEach(f => (f.paginas || []).forEach((pid, k) => {
+      items.push({ t:'img', pid, esc:1, cap: [f.nombre, f.paginas.length > 1 ? `página ${k + 1} de ${f.paginas.length}` : ''].filter(Boolean).join(' · ') });
+    }));
     const cuerpo = chunk => {
       let html = '', ul = [];
       const cerrar = () => { if (ul.length){ html += `<ul class="anexo-ul">${ul.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>`; ul = []; } };
       chunk.forEach(b => {
         if (b.t === 'li') { ul.push(b.txt); return; }
         cerrar();
-        html += b.t === 'h' ? `<div class="anexo-h">${escHtml(b.txt)}</div>` : `<p class="anexo-p">${escHtml(b.txt)}</p>`;
+        if (b.t === 'img'){
+          html += `<figure class="anexo-fig"><div class="anexo-img">${ANEXO_FULL[b.pid]
+            ? `<img src="${ANEXO_FULL[b.pid]}" ${ANEXO_DIM[b.pid] ? `width="${ANEXO_DIM[b.pid].w}" height="${ANEXO_DIM[b.pid].h}"` : ''} alt="" style="width:auto;height:auto;max-width:${Math.round(b.esc * 100)}%;max-height:${Math.round(222 * b.esc)}mm">`
+            : '<p class="anexo-p">No se pudo cargar este archivo.</p>'}</div><figcaption class="anexo-cap">${escHtml(b.cap)}</figcaption></figure>`;
+        } else html += b.t === 'h' ? `<div class="anexo-h">${escHtml(b.txt)}</div>` : `<p class="anexo-p">${escHtml(b.txt)}</p>`;
       });
       cerrar();
       return html;
     };
-    const renderAx = (chunk, p) => tituloPaginado(escHtml(rotulo + (titulo ? ' · ' + titulo : '')), p.n, p.total) + `<div class="anexo">${cuerpo(chunk)}</div>`;
-    const conArchivos = (a.archivos || []).length > 0;
-    if (bl.length || !conArchivos){   // un anexo solo de archivos no lleva página de texto vacía
-      const paginas = paginar(bl.length ? bl : [{ t:'p', txt:'' }], renderAx);
-      paginas.forEach((chunk, idx) => slides.push(slideInterior(rotulo, renderAx(chunk, { n: idx + 1, total: paginas.length }))));
-    }
-    (a.archivos || []).forEach(f => (f.paginas || []).forEach((pid, k) => {
-      const cap = [rotulo + (titulo ? ' · ' + titulo : ''), f.nombre, f.paginas.length > 1 ? `página ${k + 1} de ${f.paginas.length}` : ''].filter(Boolean).join(' · ');
-      slides.push(slideInterior(rotulo, `<div class="anexo-cap">${escHtml(cap)}</div><div class="anexo-img">${ANEXO_FULL[pid] ? `<img src="${ANEXO_FULL[pid]}" alt="">` : '<p class="anexo-p">No se pudo cargar este archivo.</p>'}</div>`));
-    }));
+    // La primera página lleva el título grande; las siguientes, una línea chica, para dejar más lugar. Se mide siempre la primera (peor caso).
+    const renderAx = (chunk, p) => (p.n === 1 ? tituloPaginado(escHtml(nombreAx), 1, p.total) : `<div class="anexo-cont">${escHtml(nombreAx)} · ${p.n}/${p.total}</div>`) + `<div class="anexo">${cuerpo(chunk)}</div>`;
+    const paginas = paginarAnexo(items.length ? items : [{ t:'p', txt:'' }], renderAx);
+    paginas.forEach((chunk, idx) => slides.push(slideInterior(rotulo, renderAx(chunk, { n: idx + 1, total: paginas.length }))));
   });
 
   // Cierre
