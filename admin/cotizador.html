@@ -3010,7 +3010,7 @@ function buildSlides(c){
       return html;
     };
     // La primera página lleva el título grande; las siguientes, una línea chica, para dejar más lugar. Se mide siempre la primera (peor caso).
-    const renderAx = (chunk, p) => (p.n === 1 ? tituloPaginado(escHtml(nombreAx), 1, p.total) : `<div class="anexo-cont">${escHtml(nombreAx)} · ${p.n}/${p.total}</div>`) + `<div class="anexo">${cuerpo(chunk)}</div>`;
+    const renderAx = (chunk, p) => (p.n === 1 ? `<div class="s-title">${escHtml(nombreAx)}</div>` : `<div class="anexo-cont">${escHtml(nombreAx)} · ${p.n}/${p.total}</div>`) + `<div class="anexo">${cuerpo(chunk)}</div>`;
     const paginas = paginarAnexo(items.length ? items : [{ t:'p', txt:'' }], renderAx);
     paginas.forEach((chunk, idx) => slides.push(slideInterior(rotulo, renderAx(chunk, { n: idx + 1, total: paginas.length }))));
   });
