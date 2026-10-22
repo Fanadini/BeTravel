@@ -37,6 +37,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 .nav-btn{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:6px 12px;border-radius:6px;border:1px solid rgba(230,225,216,.2);background:rgba(255,255,255,.08);color:rgba(230,225,216,.75);cursor:pointer;transition:all .18s;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center}
 .nav-btn:hover{background:rgba(255,255,255,.16);color:var(--beige);border-color:rgba(230,225,216,.4)}
+@media (max-width:760px){.nav{height:auto;min-height:50px;flex-wrap:wrap;padding:8px 12px;row-gap:6px}.nav-right{flex-wrap:wrap;justify-content:flex-end;flex-shrink:1}.nav-user{display:none}}
 .nav-btn.accent{background:var(--bronze);color:#fff;border-color:var(--bronze)}
 .nav-btn.accent:hover{background:#9a7648;border-color:#9a7648}
 .nav-btn.active-filter{background:rgba(176,138,90,.3);border-color:var(--bronze);color:var(--beige)}
