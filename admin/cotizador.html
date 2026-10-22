@@ -163,6 +163,8 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .hab-cab{font-size:10px;font-weight:600;color:rgba(43,43,43,.55);margin-bottom:4px}
 .h-total{font-size:12px;text-align:right;white-space:nowrap}
 .srv-foot a{color:var(--teal);font-weight:600}
+.tot-tit{font-size:10px;font-weight:600;color:var(--teal);letter-spacing:.5px;text-transform:uppercase;margin:4px 0 2px}
+.tot-sub{font-size:11px;color:rgba(43,43,43,.55);margin-top:-2px}
 .opc-block{border:1px solid var(--beige-d);border-radius:8px;padding:8px 10px;margin-bottom:8px}
 .opc-block .fi{font-size:11.5px;padding:5px 8px;margin:4px 0 6px}
 .opc-titulo{font-size:10px;font-weight:600;color:var(--teal);letter-spacing:.5px;text-transform:uppercase}
@@ -948,6 +950,20 @@ function sincTar(s){
   if (s.costo > 0) s.markup = round2((s.precio / s.costo - 1) * 100);
 }
 function tarPasajeros(s){ return tieneTar(s) ? s.tarifas.reduce((a, x) => a + num(x.cantidad), 0) : 0; }
+// Total de venta de los aéreos por tipo de pasajero (ADT, CHD, INF) de una lista de servicios, en la moneda de la
+// propuesta. pasajeros es la mayor cantidad de ese tipo en un mismo aéreo (si hay ida y vuelta por separado, son los mismos).
+function resumenTipos(c, lista){
+  const g = {};
+  lista.filter(tieneTar).forEach(s => s.tarifas.forEach(x => {
+    if (!num(x.cantidad)) return;
+    const mon = s.moneda || c.moneda;
+    const pv = convertir(tarTotalPrecio(x), mon, c.moneda, c.tipoCambio);
+    if (!pv.ok) return;
+    const a = g[x.tipo] = g[x.tipo] || { tipo: x.tipo, pasajeros: 0, precio: 0 };
+    a.pasajeros = Math.max(a.pasajeros, num(x.cantidad)); a.precio += pv.value;
+  }));
+  return PAX_TIPOS.map(a => g[a[0]]).filter(Boolean);
+}
 function habNombre(h){ return (h.tipo === 'Otra' ? 'Habitación' : h.tipo) + (String(h.categoria||'').trim() ? ' · ' + String(h.categoria).trim() : ''); }
 
 // ── LISTA ──────────────────────────────────────────────────────────────────
@@ -2750,14 +2766,22 @@ function renderTotales(){
     <div class="tot-sep"></div>
     <div class="tot-line big"><span>Precio total</span><b>${fmtMoney(t.precio, m)}</b></div>
     <div class="tot-line"><span>Por persona</span><b>${t.porPersona!=null ? fmtMoney(t.porPersona, m) : '—'}</b></div>`;
+  // Aéreos con tarifa por tipo de pasajero: total de venta de cada tipo.
+  const tiposTot = lista => {
+    const r = resumenTipos(c, lista);
+    if (!r.length) return '';
+    return `<div class="tot-sep"></div><div class="tot-tit">Aéreo por tipo de pasajero</div>` + r.map(x => `
+      <div class="tot-line"><span>${escHtml(x.tipo)} · ${fmtNum(x.pasajeros)} pax</span><b>${fmtMoney(x.precio, m)}</b></div>
+      <div class="tot-line tot-sub"><span>por pasajero</span><span>${fmtMoney(x.precio / x.pasajeros, m)}</span></div>`).join('');
+  };
   const ops = opcionesDe(c);
   let html = ops.length
     ? ops.map(o => `<div class="opc-block">
         <div class="opc-titulo">Opción ${o}</div>
         <input class="fi" value="${escHtml(c.nombresOpciones[o]||'')}" placeholder="Nombre (opcional), ej: Hotel Llao Llao" oninput="setNombreOpcion('${o}',this.value)">
-        ${lineas(totales(c, o))}
+        ${lineas(totales(c, o))}${tiposTot(srvActivos(c).filter(s => modoDe(s) === 'incluido' || modoDe(s) === o))}
       </div>`).join('')
-    : lineas(totales(c));
+    : lineas(totales(c)) + tiposTot(srvActivos(c).filter(s => modoDe(s) === 'incluido'));
   const adic = srvActivos(c).filter(s => modoDe(s) === 'adicional');
   if (adic.length){
     const ta = sumarServicios(c, adic);
@@ -3147,6 +3171,12 @@ function buildSlides(c){
   const ppCorto = tt => c.mostrarPorPersona && tt.porPersona != null ? `${fmtMoney(tt.porPersona, m)} por persona` : '';
   const ppLinea = tt => ppCorto(tt) ? `${ppCorto(tt)}, ${basePax}.` : '';
   const precioConv = s => { const conv = convertir(num(s.precio), s.moneda || m, m, c.tipoCambio); return conv.ok ? conv.value : null; };
+  // Aéreo por tipo de pasajero (ADT, CHD, INF): total de venta y tarifa por pasajero de cada tipo.
+  const tiposInv = (lista, titulo) => {
+    const r = resumenTipos(c, lista);
+    if (!r.length) return '';
+    return `<div class="inv-adic inv-tipos"><h4>${escHtml(titulo)}</h4>${r.map(x => `<div class="inv-adic-row"><span>${escHtml(paxEtiqueta(x.tipo))} · ${fmtNum(x.pasajeros)} pasajero${x.pasajeros === 1 ? '' : 's'}</span><span>${fmtMoney(x.precio, m)} · ${fmtMoney(x.precio / x.pasajeros, m)} por pasajero</span></div>`).join('')}</div>`;
+  };
   const adicHtml = adicionales.length ? `<div class="inv-adic"><h4>Adicionales opcionales · no incluidos en el total</h4>${adicionales.map(s => {
       const v = precioConv(s);
       if (v == null) return '';
@@ -3228,10 +3258,12 @@ function buildSlides(c){
             <div class="inv-opcion-monto">${fmtMoney(tt.precio, m)}</div>
             ${ppCorto(tt) ? `<div class="inv-opcion-pp">${escHtml(ppCorto(tt))}</div>` : ''}
             ${hotelesDeOpcion(o)}
+            ${tiposInv(srvActivos(c).filter(s => modoDe(s) === o), 'Aéreo por tipo de pasajero')}
           </div>`;
         }).join('')}
       </div>
       <div class="inv-note" style="margin-top:4mm">${escHtml([ppCorto(totales(c, ops[0])) && basePax ? `Valores por persona ${basePax}.` : '', notaMoneda].filter(Boolean).join(' '))}</div>
+      ${tiposInv(srvActivos(c).filter(s => modoDe(s) === 'incluido'), 'Aéreo por tipo de pasajero · incluido en todas las opciones')}
       ${adicHtml}`));
   } else {
     const tt = totales(c);
@@ -3240,6 +3272,7 @@ function buildSlides(c){
         <div class="inv-label">Inversión total</div>
         <div class="inv-amount">${fmtMoney(tt.precio, m)}</div>
         ${ppLinea(tt) ? `<div class="inv-pp">${escHtml(ppLinea(tt))}</div>` : ''}
+        ${tiposInv(srvActivos(c).filter(s => modoDe(s) === 'incluido'), 'Aéreo por tipo de pasajero')}
         <div class="inv-note">${escHtml(notaMoneda)}</div>
         ${adicHtml}
       </div>`));
