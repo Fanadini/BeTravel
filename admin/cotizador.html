@@ -151,6 +151,9 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .srv-check{display:flex;align-items:center;gap:7px;cursor:pointer}
 .srv-check input{width:15px;height:15px;accent-color:var(--teal);cursor:pointer}
 .modo-tag{font-size:9.5px;font-weight:600;padding:2px 7px;border-radius:99px;background:rgba(176,138,90,.18);color:var(--bronze);letter-spacing:.3px}
+.neg-bar{position:fixed;z-index:450;display:none;gap:4px}
+.neg-bar button{width:28px;height:26px;border-radius:6px;border:1px solid var(--beige-d);background:var(--white);color:var(--teal);font:700 13px 'Inter',sans-serif;cursor:pointer;box-shadow:var(--shadow-s);padding:0}
+.neg-bar button:hover{background:var(--teal);color:var(--white)}
 .hab-toggle{margin:2px 0 8px}
 .hab-ed{margin-bottom:8px}
 .hab-hint{font-size:11px;color:rgba(43,43,43,.55);align-self:end;padding-bottom:8px}
@@ -273,6 +276,7 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .s-title{font-size:24pt;font-weight:600;color:#0F3D3E;letter-spacing:-.4pt;margin-bottom:6mm;line-height:1.15}
 .s-body{flex:1;min-height:0;overflow:hidden}
 .s-foot{display:flex;justify-content:space-between;font-size:7.5pt;color:rgba(43,43,43,.5);padding-top:4mm;border-top:.3mm solid rgba(15,61,62,.15);margin-top:5mm}
+.slide strong{font-weight:700}
 .s-text{font-size:11.5pt;line-height:1.65;white-space:pre-line;max-width:165mm}
 
 /* Portada */
@@ -786,6 +790,11 @@ function openFromParam(){
 
 // ── HELPERS ────────────────────────────────────────────────────────────────
 function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Negrita en los textos: **así** se ve en negrita en la propuesta. negrita() escapa el texto y convierte las marcas;
+// sinNegrita() las saca (para la IA y para las reservas).
+const RE_NEGRITA = /\*\*(\S(?:[^\n]*?\S)?)\*\*/g;
+function negrita(s){ return escHtml(s).replace(RE_NEGRITA, '<strong>$1</strong>'); }
+function sinNegrita(s){ return String(s == null ? '' : s).replace(RE_NEGRITA, '$1'); }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function round2(n){ return Math.round((Number(n)||0)*100)/100; }
 function num(v){ const n = parseFloat(v); return isFinite(n) ? n : 0; }
@@ -1223,8 +1232,8 @@ function renderEditor(){
 
         <div class="card">
           <div class="card-head"><h3>Presentación</h3><button class="ia-btn" onclick="abrirIA({introduccion:true})">Redactar con IA</button></div>
-          <p class="card-hint">Texto opcional que abre la propuesta. Si queda vacío, esa página no se incluye.</p>
-          <textarea class="fta" id="f-introduccion" rows="4" placeholder="Ej: Compartimos la propuesta para el encuentro anual de su equipo, pensada para…" oninput="setCampo('introduccion',this.value)">${escHtml(c.introduccion)}</textarea>
+          <p class="card-hint">Texto opcional que abre la propuesta. Si queda vacío, esa página no se incluye. Para poner algo en negrita, seleccionalo y tocá la B (o Ctrl + B).</p>
+          <textarea class="fta" data-neg id="f-introduccion" rows="4" placeholder="Ej: Compartimos la propuesta para el encuentro anual de su equipo, pensada para…" oninput="setCampo('introduccion',this.value)">${escHtml(c.introduccion)}</textarea>
         </div>
 
         <div class="card">
@@ -1251,14 +1260,14 @@ function renderEditor(){
           <h3>No incluye y condiciones</h3>
           <p class="card-hint">Un ítem por línea. Son borradores editables: revisalos antes de enviar la propuesta.</p>
           <div class="grid g2" style="margin-bottom:0">
-            <div><label class="fl">No incluye</label><textarea class="fta" rows="5" oninput="setCampo('noIncluye',this.value)">${escHtml(c.noIncluye)}</textarea></div>
-            <div><label class="fl">Condiciones</label><textarea class="fta" rows="5" oninput="setCampo('condiciones',this.value)">${escHtml(c.condiciones)}</textarea></div>
+            <div><label class="fl">No incluye</label><textarea class="fta" data-neg rows="5" oninput="setCampo('noIncluye',this.value)">${escHtml(c.noIncluye)}</textarea></div>
+            <div><label class="fl">Condiciones</label><textarea class="fta" data-neg rows="5" oninput="setCampo('condiciones',this.value)">${escHtml(c.condiciones)}</textarea></div>
           </div>
         </div>
 
         <div class="card">
           <h3>Anexos</h3>
-          <p class="card-hint">Información adicional que se agrega al final de la propuesta, antes del cierre, cada anexo en su propia página (por ejemplo: coberturas de la asistencia al viajero, detalle de un hotel o cronograma de pagos). Separá los párrafos con una línea en blanco y empezá con "- " las líneas que quieras como viñetas; una línea corta que termina en ":" se muestra como subtítulo.</p>
+          <p class="card-hint">Información adicional que se agrega al final de la propuesta, antes del cierre, cada anexo en su propia página (por ejemplo: coberturas de la asistencia al viajero, detalle de un hotel o cronograma de pagos). Separá los párrafos con una línea en blanco y empezá con "- " las líneas que quieras como viñetas; una línea corta que termina en ":" se muestra como subtítulo. Para negrita, seleccioná el texto y tocá la B (o Ctrl + B).</p>
           <div id="anexos-list"></div>
           <button class="add-item-btn" onclick="agregarAnexo()">+ Agregar anexo</button>
         </div>
@@ -1434,9 +1443,9 @@ function datosParaIA(c){
   return {
     titulo: c.titulo, cliente: c.cliente, destino: c.destino,
     fechaInicio: c.fechaInicio, fechaFin: c.fechaFin, pasajeros: c.pasajeros,
-    introduccion: c.introduccion,
-    dias: c.dias.map((d, i) => ({ n: i + 1, fecha: c.fechaInicio ? fmtDiaLabel(addDays(c.fechaInicio, i)) : '', titulo: d.titulo, descripcion: d.descripcion })),
-    servicios: srvActivos(c).map(s => ({ tipo: s.tipo, concepto: s.concepto, detalle: [s.detalle, tieneHab(s) ? s.habitaciones.filter(h => num(h.cantidad) > 0).map(h => `${num(h.cantidad)} × ${habNombre(h)}`).join('; ') : ''].filter(Boolean).join(' · '), en_la_propuesta: lbl(s) })),
+    introduccion: sinNegrita(c.introduccion),
+    dias: c.dias.map((d, i) => ({ n: i + 1, fecha: c.fechaInicio ? fmtDiaLabel(addDays(c.fechaInicio, i)) : '', titulo: d.titulo, descripcion: sinNegrita(d.descripcion) })),
+    servicios: srvActivos(c).map(s => ({ tipo: s.tipo, concepto: s.concepto, detalle: [sinNegrita(s.detalle), tieneHab(s) ? s.habitaciones.filter(h => num(h.cantidad) > 0).map(h => `${num(h.cantidad)} × ${habNombre(h)}`).join('; ') : ''].filter(Boolean).join(' · '), en_la_propuesta: lbl(s) })),
   };
 }
 async function generarIA(){
@@ -1615,7 +1624,7 @@ function renderDias(){
         </div>
       </div>
       <div class="frow" style="margin-bottom:8px"><input class="fi" value="${escHtml(d.titulo)}" placeholder="Título del día, ej: Llegada y check-in" oninput="setDia(${i},'titulo',this.value)"></div>
-      <textarea class="fta" rows="3" placeholder="Actividades, horarios, comidas incluidas…" oninput="setDia(${i},'descripcion',this.value)">${escHtml(d.descripcion)}</textarea>
+      <textarea class="fta" data-neg rows="3" placeholder="Actividades, horarios, comidas incluidas…" oninput="setDia(${i},'descripcion',this.value)">${escHtml(d.descripcion)}</textarea>
     </div>`;
   }).join('');
 }
@@ -2080,7 +2089,7 @@ function renderServicios(){
       <div><label class="fl">En la propuesta</label><select class="fsel" onchange="setModo(${i},this.value)">${selOpts(MODOS_SRV.map(x=>x[0]),MODOS_SRV.map(x=>x[1]),modoDe(s))}</select></div>
     </div>
     <div class="grid" style="grid-template-columns:1fr 200px">
-      <div><label class="fl">Detalle (visible en la propuesta)</label><textarea class="fta" rows="2" placeholder="Horarios, categoría de habitación, equipaje…" oninput="setServicio(${i},'detalle',this.value)">${escHtml(s.detalle)}</textarea></div>
+      <div><label class="fl">Detalle (visible en la propuesta)</label><textarea class="fta" data-neg rows="2" placeholder="Horarios, categoría de habitación, equipaje…" oninput="setServicio(${i},'detalle',this.value)">${escHtml(s.detalle)}</textarea></div>
       <div><label class="fl">Proveedor (interno)</label><input class="fi" list="dl-proveedores" value="${escHtml(s.proveedor)}" placeholder="Proveedor" oninput="setServicio(${i},'proveedor',this.value)"></div>
     </div>
     ${s.tipo === 'Hotel' ? `<label class="check-row hab-toggle"><input type="checkbox" ${tieneHab(s)?'checked':''} onchange="toggleHab(${i},this.checked)"> Cotizar por tipo de habitación (single, doble, triple…)</label>` : ''}
@@ -2623,6 +2632,61 @@ function eliminarServicio(i){
 }
 
 // ── ANEXOS ─────────────────────────────────────────────────────────────────
+// ── Negrita en los campos de texto ──
+// Al entrar a un campo de texto de la propuesta aparece una B arriba a la derecha (o Ctrl/Cmd + B): envuelve la selección
+// con ** **. En la propuesta, lo que está entre ** ** sale en negrita.
+let negCampo = null;
+function negBarra(){
+  let b = document.getElementById('neg-bar');
+  if (b) return b;
+  b = document.createElement('div'); b.id = 'neg-bar'; b.className = 'neg-bar';
+  b.innerHTML = '<button type="button" title="Negrita (Ctrl + B)" aria-label="Negrita">B</button>';
+  b.addEventListener('mousedown', e => e.preventDefault());       // para que el campo no pierda la selección
+  b.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+  b.querySelector('button').addEventListener('click', () => { if (negCampo) aplicarNegrita(negCampo); });
+  document.body.appendChild(b);
+  return b;
+}
+function posicionarNeg(){
+  const b = document.getElementById('neg-bar');
+  if (!b || !negCampo || !document.body.contains(negCampo)){ if (b) b.style.display = 'none'; return; }
+  const r = negCampo.getBoundingClientRect();
+  if (r.bottom < 60 || r.top > innerHeight){ b.style.display = 'none'; return; }
+  b.style.display = 'flex';
+  b.style.left = Math.max(4, r.right - 36) + 'px';
+  b.style.top = Math.max(58, Math.min(r.top - 30, innerHeight - 34)) + 'px';
+}
+function aplicarNegrita(t){
+  const v = t.value, s = t.selectionStart, e = t.selectionEnd;
+  let nuevo, ini, fin;
+  if (s === e){
+    nuevo = v.slice(0, s) + '****' + v.slice(s); ini = fin = s + 2;
+  } else {
+    const sel = v.slice(s, e);
+    if (v.slice(s - 2, s) === '**' && v.slice(e, e + 2) === '**'){            // ya estaba entre ** **: se saca
+      nuevo = v.slice(0, s - 2) + sel + v.slice(e + 2); ini = s - 2; fin = e - 2;
+    } else if (/^\*\*[\s\S]+\*\*$/.test(sel)){
+      nuevo = v.slice(0, s) + sel.slice(2, -2) + v.slice(e); ini = s; fin = e - 4;
+    } else {                                                                    // cada línea por separado, sin los espacios de los bordes
+      const envuelto = sel.split('\n').map(l => { const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(l); return m[2] ? m[1] + '**' + m[2] + '**' + m[3] : l; }).join('\n');
+      nuevo = v.slice(0, s) + envuelto + v.slice(e); ini = s; fin = s + envuelto.length;
+    }
+  }
+  t.value = nuevo; t.setSelectionRange(ini, fin);
+  t.dispatchEvent(new Event('input', { bubbles: true }));
+  t.focus();
+}
+document.addEventListener('focusin', e => {
+  const t = e.target;
+  if (t && t.matches && t.matches('textarea[data-neg]')){ negCampo = t; negBarra(); posicionarNeg(); }
+  else if (!(t && t.closest && t.closest('#neg-bar'))){ negCampo = null; posicionarNeg(); }
+});
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'b' && e.target.matches && e.target.matches('textarea[data-neg]')){ e.preventDefault(); aplicarNegrita(e.target); }
+});
+document.addEventListener('focusout', () => setTimeout(() => { const a = document.activeElement; if (!(a && a.matches && a.matches('textarea[data-neg]')) && !(a && a.closest && a.closest('#neg-bar'))){ negCampo = null; posicionarNeg(); } }, 120));
+window.addEventListener('scroll', posicionarNeg, true);
+window.addEventListener('resize', posicionarNeg);
 function renderAnexos(){
   const el = document.getElementById('anexos-list');
   if (!el) return;
@@ -2647,7 +2711,7 @@ function renderAnexos(){
       </div>
     </div>
     <div class="grid" style="grid-template-columns:1fr"><div><label class="fl">Título (visible en la propuesta)</label><input class="fi" value="${escHtml(a.titulo)}" placeholder="Ej: Coberturas de la asistencia al viajero" oninput="setAnexo(${i},'titulo',this.value)"></div></div>
-    <div><label class="fl">Contenido</label><textarea class="fta" rows="9" placeholder="Párrafos separados por una línea en blanco.&#10;- Una viñeta por línea" oninput="setAnexo(${i},'texto',this.value)">${escHtml(a.texto)}</textarea></div>
+    <div><label class="fl">Contenido</label><textarea class="fta" data-neg rows="9" placeholder="Párrafos separados por una línea en blanco.&#10;- Una viñeta por línea" oninput="setAnexo(${i},'texto',this.value)">${escHtml(a.texto)}</textarea></div>
     <div class="anexo-files">
       <label class="fl" style="margin-top:8px">Archivos (imágenes o PDF)</label>
       <div class="captura" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="soltarArchivos(event,${i})">
@@ -2927,7 +2991,7 @@ function bloquesAnexo(texto){
     grupo.split('\n').map(l => l.trim()).filter(Boolean).forEach(l => {
       const m = /^[-•*]\s+(.*)$/.exec(l);
       if (m){ cerrar(); out.push({ t:'li', txt: m[1] }); }
-      else if (l.length <= 80 && /:$/.test(l) && !parr.length){ out.push({ t:'h', txt: l }); }
+      else if (l.length <= 80 && /:(\*\*)?$/.test(l) && !parr.length){ out.push({ t:'h', txt: l }); }
       else parr.push(l);
     });
     cerrar();
@@ -3054,7 +3118,7 @@ function convertirEnReserva(){
   elegidos.forEach(s => {
     const m = s.moneda || c.moneda;
     const tc = m !== c.moneda ? (num(c.tipoCambio) || '') : '';
-    const concepto = [s.concepto, s.vuelos ? rutaVuelos(s.vuelos) : '', s.detalle].filter(Boolean).join(' — ').slice(0, 300);
+    const concepto = [s.concepto, s.vuelos ? rutaVuelos(s.vuelos) : '', sinNegrita(s.detalle)].filter(Boolean).join(' — ').slice(0, 300);
     // Hotel por tipo de habitación: un ítem cotizado y un costo por cada tipo, para ver el detalle en la reserva.
     const lineas = tieneHab(s)
       ? s.habitaciones.filter(h => num(h.cantidad) > 0).map(h => ({ concepto: `${s.concepto || 'Hotel'} — ${fmtNum(num(h.cantidad))} × ${habNombre(h)}${habPorNoche(s) ? ' × ' + habNoches(s) + ' noche' + (habNoches(s) === 1 ? '' : 's') : ''}`.slice(0, 300), precio: habTotalPrecio(h, s), costo: habTotalCosto(h, s) }))
@@ -3209,7 +3273,7 @@ function buildSlides(c){
 
   // Presentación
   if (String(c.introduccion).trim()){
-    slides.push(slideInterior('Presentación', `<div class="s-title">${escHtml(nombreProp)}</div><div class="s-text">${escHtml(c.introduccion.trim())}</div>`));
+    slides.push(slideInterior('Presentación', `<div class="s-title">${escHtml(nombreProp)}</div><div class="s-text">${negrita(c.introduccion.trim())}</div>`));
   }
 
   // Itinerario
@@ -3220,7 +3284,7 @@ function buildSlides(c){
         <div class="dia">
           <div class="dia-label">Día ${d.n}${d.fecha ? ' · ' + escHtml(fmtDiaLabel(d.fecha)) : ''}</div>
           ${d.titulo ? `<div class="dia-titulo">${escHtml(d.titulo)}</div>` : ''}
-          ${d.descripcion ? `<div class="dia-desc">${escHtml(d.descripcion.trim())}</div>` : ''}
+          ${d.descripcion ? `<div class="dia-desc">${negrita(d.descripcion.trim())}</div>` : ''}
         </div>`).join('')}
       </div>`;
   const paginasDias = paginar(dias, renderDias);
@@ -3310,7 +3374,7 @@ function buildSlides(c){
   const itemHTML = (x, conTipo) => `<div class="srv">
         ${conTipo ? `<div class="srv-tipo">${escHtml(x.tipo)}</div>` : ''}
         ${x.concepto ? `<div class="srv-concepto">${escHtml(x.concepto)}</div>` : ''}
-        ${x.detalle ? `<div class="srv-detalle">${escHtml(x.detalle.trim())}</div>` : ''}
+        ${x.detalle ? `<div class="srv-detalle">${negrita(x.detalle.trim())}</div>` : ''}
         ${tieneHab(x) ? `<div class="srv-hab">${x.habitaciones.filter(h => num(h.cantidad) > 0).map(h => `<div class="srv-hab-row"><b>${fmtNum(num(h.cantidad))} ×</b><span>${escHtml(habNombre(h))}</span></div>`).join('')}
           <div class="srv-hab-tot">${fmtNum(habResumen(x).habitaciones)} habitaciones en total${habPorNoche(x) && num(x.noches) > 0 ? ` · ${fmtNum(num(x.noches))} noche${num(x.noches) === 1 ? '' : 's'}` : ''}</div></div>` : ''}
         ${tieneTar(x) ? `<div class="srv-hab">${x.tarifas.filter(a => num(a.cantidad) > 0).map(a => `<div class="srv-hab-row"><b>${fmtNum(num(a.cantidad))} ×</b><span>${escHtml(paxEtiqueta(a.tipo))}</span></div>`).join('')}
@@ -3472,8 +3536,8 @@ function buildSlides(c){
     slides.push(slideInterior('Condiciones', `
       <div class="s-title">Condiciones de la propuesta</div>
       <div class="cond">
-        <div>${noInc.length ? `<h4>No incluye</h4><ul>${noInc.map(l => `<li>${escHtml(l)}</li>`).join('')}</ul>` : ''}</div>
-        <div>${cond.length ? `<h4>Condiciones</h4><ul>${cond.map(l => `<li>${escHtml(l)}</li>`).join('')}</ul>` : ''}
+        <div>${noInc.length ? `<h4>No incluye</h4><ul>${noInc.map(l => `<li>${negrita(l)}</li>`).join('')}</ul>` : ''}</div>
+        <div>${cond.length ? `<h4>Condiciones</h4><ul>${cond.map(l => `<li>${negrita(l)}</li>`).join('')}</ul>` : ''}
           ${c.validezHasta ? `<div class="validez">Propuesta válida hasta el ${escHtml(fmtDateLong(c.validezHasta))}.</div>` : ''}
         </div>
       </div>`));
@@ -3492,7 +3556,7 @@ function buildSlides(c){
     }));
     const cuerpo = chunk => {
       let html = '', ul = [];
-      const cerrar = () => { if (ul.length){ html += `<ul class="anexo-ul">${ul.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul>`; ul = []; } };
+      const cerrar = () => { if (ul.length){ html += `<ul class="anexo-ul">${ul.map(x => `<li>${negrita(x)}</li>`).join('')}</ul>`; ul = []; } };
       chunk.forEach(b => {
         if (b.t === 'li') { ul.push(b.txt); return; }
         cerrar();
@@ -3500,7 +3564,7 @@ function buildSlides(c){
           html += `<figure class="anexo-fig"><div class="anexo-img">${ANEXO_FULL[b.pid]
             ? `<img src="${ANEXO_FULL[b.pid]}" alt="" style="${tamanoImagenAnexo(b)}">`
             : '<p class="anexo-p">No se pudo cargar este archivo.</p>'}</div><figcaption class="anexo-cap">${escHtml(b.cap)}</figcaption></figure>`;
-        } else html += b.t === 'h' ? `<div class="anexo-h">${escHtml(b.txt)}</div>` : `<p class="anexo-p">${escHtml(b.txt)}</p>`;
+        } else html += b.t === 'h' ? `<div class="anexo-h">${negrita(b.txt)}</div>` : `<p class="anexo-p">${negrita(b.txt)}</p>`;
       });
       cerrar();
       return html;
