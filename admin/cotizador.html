@@ -753,6 +753,7 @@ function attachListeners(){
     const val = snap.val() || {};
     COTS = Object.keys(val).map(id => ({ id, ...normalizar(val[id]) }));
     renderList();
+    sincronizarRemoto();
     setSyncStatus('ok','Sincronizado');
     document.getElementById('lo').classList.add('hidden');
     openFromParam();
@@ -854,6 +855,74 @@ function normArchivos(v){
   const lista = Array.isArray(v) ? v.filter(Boolean) : Object.values(v || {});
   return lista.map(f => ({ nombre:'', kind:'imagen', ...f, paginas: Array.isArray(f.paginas) ? f.paginas.filter(Boolean) : Object.values(f.paginas || {}) })).filter(f => f.paginas.length);
 }
+// ── EDICIÓN EN EQUIPO ─────────────────────────────────────────────────────
+// Cada servicio, día, anexo, archivo, habitación y tarifa lleva un uid para reconocerlo aunque otra persona lo mueva
+// o agregue elementos. Lo guardado antes de existir los uid recibe "L0", "L1"… según su posición: es igual en todas
+// las computadoras, así que dos personas que abren la misma cotización vieja llegan a los mismos uid.
+function nuevoUid(){ return Math.random().toString(36).slice(2, 10); }
+function recorrerListas(c, fn){
+  fn(c.dias); fn(c.servicios); fn(c.anexos);
+  (c.servicios || []).forEach(s => { fn(s.habitaciones); fn(s.tarifas); });
+  (c.anexos || []).forEach(a => fn(a.archivos));
+}
+function uidsPorDefecto(c){ recorrerListas(c, l => { if (Array.isArray(l)) l.forEach((x, i) => { if (x && typeof x === 'object' && !x.uid) x.uid = 'L' + i; }); }); }
+function asegurarUids(c){ recorrerListas(c, l => { if (Array.isArray(l)) l.forEach(x => { if (x && typeof x === 'object' && !x.uid) x.uid = nuevoUid(); }); }); }
+function clonar(v){ return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+function ordenar(v){
+  if (Array.isArray(v)) return v.map(ordenar);
+  if (v && typeof v === 'object'){ const o = {}; Object.keys(v).sort().forEach(k => { if (v[k] !== undefined) o[k] = ordenar(v[k]); }); return o; }
+  return v;
+}
+function igual(a, b){ return JSON.stringify(ordenar(a)) === JSON.stringify(ordenar(b)); }
+const esObjeto = x => x && typeof x === 'object' && !Array.isArray(x);
+// Fusión de tres versiones: base (lo último que se sabía del servidor), local (lo que hay en pantalla) y remoto (lo que
+// hay en el servidor ahora). Cada dato toma el valor de quien lo cambió; si lo cambiaron los dos, gana lo local (lo que
+// se está escribiendo). Las listas se fusionan elemento por elemento, por uid. Modifica y devuelve el objeto local.
+function fusionar(b, l, r){
+  if (igual(l, r)) return l;
+  if (esObjeto(l) && esObjeto(r)){
+    const bb = esObjeto(b) ? b : {};
+    new Set([...Object.keys(l), ...Object.keys(r)]).forEach(k => {
+      const v = fusionar(bb[k], l[k], r[k]);
+      if (v === undefined) delete l[k]; else l[k] = v;
+    });
+    return l;
+  }
+  if (Array.isArray(l) && Array.isArray(r)) return fusionarLista(Array.isArray(b) ? b : [], l, r);
+  if (igual(l, b)) return clonar(r);   // acá no se tocó: se toma lo remoto
+  return l;                            // lo cambió el otro, o los dos: gana lo local
+}
+function fusionarLista(b, l, r){
+  const deObjetos = a => a.every(x => x && typeof x === 'object');
+  if (!(deObjetos(b) && deObjetos(l) && deObjetos(r))){   // listas de textos: se toma de quien la cambió
+    if (igual(l, b)) return clonar(r);
+    return l;
+  }
+  const clave = (x, i) => x.uid ? 'u:' + x.uid : 'i:' + i;
+  const mapa = a => { const m = new Map(); a.forEach((x, i) => m.set(clave(x, i), x)); return m; };
+  const mb = mapa(b), ml = mapa(l), mr = mapa(r);
+  const kl = [...ml.keys()], kr = [...mr.keys()];
+  const quedan = k => {
+    const enL = ml.has(k), enR = mr.has(k), enB = mb.has(k);
+    if (enL && enR) return true;
+    if (enL) return !enB || !igual(ml.get(k), mb.get(k));    // borrado por el otro: se pierde solo si acá no se tocó
+    if (enR) return !enB || !igual(mr.get(k), mb.get(k));    // borrado acá: se pierde solo si el otro no lo tocó
+    return false;
+  };
+  // El orden lo define quien lo cambió; los elementos nuevos del otro se acomodan después de su anterior.
+  const kb = [...mb.keys()];
+  const mismoOrden = (a, c) => { const x = a.filter(k => c.includes(k)), y = c.filter(k => a.includes(k)); return x.join() === y.join(); };
+  const localReordenada = !mismoOrden(kb, kl);
+  const [prim, sec] = localReordenada ? [kl, kr] : [kr, kl];
+  const out = prim.filter(quedan);
+  sec.forEach((k, i) => {
+    if (out.includes(k) || !quedan(k)) return;
+    let pos = 0;
+    for (let j = i - 1; j >= 0; j--){ const p = out.indexOf(sec[j]); if (p >= 0){ pos = p + 1; break; } }
+    out.splice(pos, 0, k);
+  });
+  return out.map(k => ml.has(k) && mr.has(k) ? fusionar(mb.get(k), ml.get(k), mr.get(k)) : ml.has(k) ? ml.get(k) : clonar(mr.get(k)));
+}
 // Firebase no guarda arrays vacíos ni campos vacíos: al leer se completan los defaults.
 function normalizar(raw){
   const base = blankCotizacion();
@@ -870,6 +939,7 @@ function normalizar(raw){
     if (s.reparteEntre !== undefined) s.reparteEntre = Array.isArray(s.reparteEntre) ? s.reparteEntre.filter(Boolean) : Object.values(s.reparteEntre || {});
   });
   c.anexos = (Array.isArray(c.anexos) ? c.anexos.filter(Boolean) : Object.values(c.anexos||{})).map(a => ({ titulo:'', texto:'', activo:true, ...a, archivos: normArchivos(a.archivos) }));
+  uidsPorDefecto(c);
   c.nombresOpciones = { ...(c.nombresOpciones||{}) };
   if (raw && raw.noIncluye === undefined) c.noIncluye = '';
   if (raw && raw.condiciones === undefined) c.condiciones = '';
@@ -1089,6 +1159,8 @@ function abrirCotizacion(id){
   if (!c) return;
   const { id:_, ...data } = c;
   editing = { id, data: normalizar(JSON.parse(JSON.stringify(data))) };
+  asegurarUids(editing.data);
+  editing.base = clonar(editing.data);   // lo último que se sabe del servidor, para fusionar con lo que cambien otras personas
   document.getElementById('view-list').style.display = 'none';
   document.getElementById('view-editor').style.display = '';
   setUrlCotizacion(id);
@@ -1114,6 +1186,7 @@ function refreshDatalists(){
 }
 
 function renderEditor(){
+  asegurarUids(editing.data);
   const c = editing.data;
   document.getElementById('view-editor').innerHTML = `
     <button class="back-link" onclick="volverALista()">← Volver a cotizaciones</button>
@@ -1258,19 +1331,78 @@ function markDirty(){
 }
 function saveNow(){
   if (!editing) return Promise.resolve();
+  if (editing.eliminada) return Promise.resolve();   // otra persona eliminó la cotización: no se vuelve a crear sola
   const { id, data } = editing;
   if (editing.cambios){
     data.updatedAt = Date.now();
     data.updatedBy = CURRENT_USER.email;
     editing.cambios = false;
   }
-  const limpio = JSON.parse(JSON.stringify(data));
-  return COT_REF.child(id).set(limpio).then(() => {
+  asegurarUids(data);
+  const local = clonar(data), base = clonar(editing.base);
+  // Transacción: se lee lo que hay en el servidor, se le suman SOLO los cambios de esta pantalla y se guarda. Así, si otra
+  // persona guardó en el medio, no se pisan sus cambios (se vuelve a intentar con lo nuevo).
+  return COT_REF.child(id).transaction(cur => {
+    if (cur === null || cur === undefined) return clonar(local);
+    return clonar(normalizar(fusionar(clonar(base), clonar(local), normalizar(cur))));
+  }, undefined, false).then(res => {
+    if (!res.committed) return;
+    const servidor = normalizar(res.snapshot.val());
     setSaveStatus('Guardado ✓');
     showBanner('');
     const i = COTS.findIndex(c => c.id === id);
-    if (i >= 0) COTS[i] = { id, ...normalizar(limpio) };
+    if (i >= 0) COTS[i] = { id, ...clonar(servidor) };
+    if (!editing || editing.id !== id) return;
+    // Lo que otras personas cambiaron mientras tanto se incorpora; lo que se escribió durante el guardado se conserva.
+    const antes = clonar(editing.data);
+    editing.data = fusionar(clonar(local), editing.data, servidor);
+    editing.base = clonar(servidor);
+    if (!igual(editing.data, antes)) avisarCambiosAjenos(servidor);
   }).catch(err => { handleWriteError(err); throw err; });
+}
+// Llega un cambio de otra computadora (por el mismo listener que arma la lista): se fusiona con lo que hay en pantalla.
+function sincronizarRemoto(){
+  if (!editing || !editing.base) return;
+  const r = COTS.find(x => x.id === editing.id);
+  if (!r){
+    if (!editing.eliminada){ editing.eliminada = true; showBanner('Esta cotización fue eliminada por otra persona. No se van a guardar más cambios: volvé a la lista.'); }
+    return;
+  }
+  if (editing.eliminada){ editing.eliminada = false; showBanner(''); }
+  const { id:_, ...remoto } = r;
+  if (igual(remoto, editing.base)) return;
+  const antes = clonar(editing.data);
+  editing.data = fusionar(editing.base, editing.data, remoto);
+  editing.base = clonar(remoto);
+  if (!igual(editing.data, antes)) avisarCambiosAjenos(remoto);
+}
+function avisarCambiosAjenos(remoto){
+  const quien = remoto.updatedBy && remoto.updatedBy !== CURRENT_USER.email ? String(remoto.updatedBy).split('@')[0] : '';
+  redibujarEditor();
+  setSaveStatus(quien ? `↻ Se actualizó con cambios de ${quien}` : '↻ Se actualizó');
+  clearTimeout(editing && editing._avisoTimer);
+  if (editing) editing._avisoTimer = setTimeout(() => { if (editing && !saveTimer) setSaveStatus('Sincronizado ✓'); }, 6000);
+}
+// Dibuja de nuevo el editor sin perder el lugar: la posición de la pantalla y el campo donde se está escribiendo
+// (se reconoce por el uid de su tarjeta y su posición dentro de ella).
+function redibujarEditor(){
+  const main = document.getElementById('main'), ed = document.getElementById('view-editor');
+  const top = main.scrollTop, a = document.activeElement;
+  let foco = null;
+  if (a && ed.contains(a) && a.matches('input,textarea,select')){
+    const card = a.closest('[data-uid]');
+    const grupo = card ? [...card.querySelectorAll('input,textarea,select')] : [...ed.querySelectorAll('input,textarea,select')].filter(x => !x.closest('[data-uid]'));
+    foco = { uid: card ? card.dataset.uid : null, i: grupo.indexOf(a), s: a.selectionStart, e: a.selectionEnd };
+  }
+  asegurarUids(editing.data);
+  renderEditor();
+  main.scrollTop = top;
+  if (foco && foco.i >= 0){
+    const card = foco.uid ? [...ed.querySelectorAll('[data-uid]')].find(x => x.dataset.uid === foco.uid) : null;
+    const grupo = foco.uid ? (card ? [...card.querySelectorAll('input,textarea,select')] : []) : [...ed.querySelectorAll('input,textarea,select')].filter(x => !x.closest('[data-uid]'));
+    const n = grupo[foco.i];
+    if (n){ n.focus(); try { if (foco.s != null && n.setSelectionRange) n.setSelectionRange(foco.s, foco.e); } catch (e) { /* tipos sin selección */ } }
+  }
 }
 function flushSave(){
   if (saveTimer){ clearTimeout(saveTimer); saveTimer = null; return saveNow(); }
@@ -1473,7 +1605,7 @@ function renderDias(){
   if (!c.dias.length){ el.innerHTML = `<p class="card-hint" style="margin:0 0 10px">Todavía no hay días cargados.</p>`; return; }
   el.innerHTML = c.dias.map((d,i) => {
     const f = c.fechaInicio ? addDays(c.fechaInicio, i) : null;
-    return `<div class="item-card">
+    return `<div class="item-card" data-uid="${escHtml(d.uid||'')}">
       <div class="item-head">
         <span class="item-label">Día ${i+1}${f ? ' · ' + escHtml(fmtDiaLabel(f)) : ''}</span>
         <div class="item-actions">
@@ -1925,7 +2057,7 @@ function renderServicios(){
   const barra = `<div class="srv-barra"><button class="captura-link" onclick="agruparServicios(${hayAbiertos})">${hayAbiertos ? 'Agrupar todos' : 'Desagrupar todos'}</button></div>`;
   el.innerHTML = barra + c.servicios.map((s,i) => {
     const grupo = !!s.agrupado;
-    return `<div class="item-card ${s.activo===false?'off':''} ${grupo?'colapsado':''}" data-srv="${i}">
+    return `<div class="item-card ${s.activo===false?'off':''} ${grupo?'colapsado':''}" data-srv="${i}" data-uid="${escHtml(s.uid||'')}">
     <div class="item-head">
       <div class="srv-izq">
       <button class="srv-toggle" aria-expanded="${grupo?'false':'true'}" title="${grupo?'Desagrupar: mostrar todos los datos del servicio':'Agrupar: ocultar los datos y dejar solo el título'}" onclick="toggleGrupo(${i})">${grupo?'▸':'▾'}</button>
@@ -2498,7 +2630,7 @@ function renderAnexos(){
   if (!an.length){ el.innerHTML = `<p class="card-hint" style="margin:0 0 10px">Todavía no hay anexos.</p>`; return; }
   const hayAbiertos = an.some(a => !a.agrupado);
   const barra = `<div class="srv-barra"><button class="captura-link" onclick="agruparAnexos(${hayAbiertos})">${hayAbiertos ? 'Agrupar todos' : 'Desagrupar todos'}</button></div>`;
-  el.innerHTML = barra + an.map((a, i) => `<div class="item-card ${a.activo===false?'off':''} ${a.agrupado?'colapsado':''}" data-anexo="${i}">
+  el.innerHTML = barra + an.map((a, i) => `<div class="item-card ${a.activo===false?'off':''} ${a.agrupado?'colapsado':''}" data-anexo="${i}" data-uid="${escHtml(a.uid||'')}">
     <div class="item-head">
       <div class="srv-izq">
       <button class="srv-toggle" aria-expanded="${a.agrupado?'false':'true'}" title="${a.agrupado?'Desagrupar: mostrar el contenido del anexo':'Agrupar: ocultar el contenido y dejar solo el título'}" onclick="toggleGrupoAnexo(${i})">${a.agrupado?'▸':'▾'}</button>
