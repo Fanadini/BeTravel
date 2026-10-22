@@ -3347,9 +3347,7 @@ function buildSlides(c){
     `Valores expresados en ${m === 'USD' ? 'dólares estadounidenses' : 'pesos argentinos'}.`,
     tTodos.huboConversion && num(c.tipoCambio) ? `Los servicios cotizados en otra moneda se convirtieron a un tipo de cambio de referencia de $ ${fmtNum(c.tipoCambio)} por US$ 1.` : '',
   ].filter(Boolean).join(' ');
-  const basePax = pax ? `en base a ${fmtNum(pax)} pasajero${pax===1?'':'s'}` : '';
   const ppCorto = tt => c.mostrarPorPersona && tt.porPersona != null ? `${fmtMoney(tt.porPersona, m)} por persona` : '';
-  const ppLinea = tt => ppCorto(tt) ? `${ppCorto(tt)}, ${basePax}.` : '';
   const precioConv = s => { const conv = convertir(num(s.precio), s.moneda || m, m, c.tipoCambio); return conv.ok ? conv.value : null; };
   // Total del paquete por tipo de pasajero (ADT, CHD, INF), cuando hay aéreos con tarifa por tipo.
   const tiposInv = (lista, titulo) => {
@@ -3386,7 +3384,7 @@ function buildSlides(c){
       });
     });
     const pushTotal = (txt, tt, lista) => {
-      filas.push({ k:'t', txt, monto: tt.precio }); if (ppLinea(tt)) filas.push({ k:'pp', txt: ppLinea(tt) });
+      filas.push({ k:'t', txt, monto: tt.precio });
       paqueteTipos(c, lista).forEach(x => filas.push({ k:'h', txt: `${paxEtiqueta(x.tipo)} · ${fmtNum(x.pasajeros)} pasajero${x.pasajeros === 1 ? '' : 's'} · ${fmtMoney(x.porPasajero, m)} por pasajero`, monto: x.precio }));
     };
     const incluidos = srvActivos(c).filter(s => modoDe(s) === 'incluido');
@@ -3418,8 +3416,17 @@ function buildSlides(c){
           <tbody>${pag.map(filaHtml).join('')}</tbody>
         </table>
         ${p.ultima ? `<div class="inv-note">${escHtml(notaMoneda)}</div>` : ''}`;
-    const paginasInv = paginar(filas, renderInv);
-    paginasInv.forEach((pag, idx) => slides.push(slideInterior('Inversión', renderInv(pag, { n: idx+1, total: paginasInv.length, ultima: idx === paginasInv.length-1 }))));
+    // Cada grupo (incluido en todas las opciones, Opción A, Opción B, adicionales) se mantiene junto: si no entra en lo que
+    // queda de la hoja, pasa entero a la siguiente. Solo un grupo que no entra ni solo en una hoja se parte por filas.
+    const grupos = [];
+    filas.forEach(f => { if (f.k === 'sec' || !grupos.length) grupos.push([]); grupos[grupos.length - 1].push(f); });
+    const probe = probeBody(), items = [];
+    grupos.forEach(g => {
+      probe.innerHTML = renderInv(g, { n:1, total:9, ultima:true });
+      if (desborda(probe) && g.length > 1) g.forEach(f => items.push([f])); else items.push(g);
+    });
+    const paginasInv = paginar(items, (pag, p) => renderInv(pag.flat(), p));
+    paginasInv.forEach((pag, idx) => slides.push(slideInterior('Inversión', renderInv(pag.flat(), { n: idx+1, total: paginasInv.length, ultima: idx === paginasInv.length-1 }))));
   } else if (ops.length){
     slides.push(slideInterior('Inversión', `
       <div class="s-title">Inversión</div>
@@ -3445,7 +3452,7 @@ function buildSlides(c){
           </div>`;
         }).join('')}
       </div>
-      <div class="inv-note" style="margin-top:4mm">${escHtml([ppCorto(totales(c, ops[0])) && basePax ? `Valores por persona ${basePax}.` : '', notaMoneda].filter(Boolean).join(' '))}</div>
+      <div class="inv-note" style="margin-top:4mm">${escHtml(notaMoneda)}</div>
       ${adicHtml}`));
   } else {
     const tt = totales(c);
@@ -3453,7 +3460,6 @@ function buildSlides(c){
       <div class="inv-total">
         <div class="inv-label">Inversión total</div>
         <div class="inv-amount">${fmtMoney(tt.precio, m)}</div>
-        ${ppLinea(tt) ? `<div class="inv-pp">${escHtml(ppLinea(tt))}</div>` : ''}
         ${tiposInv(srvActivos(c).filter(s => modoDe(s) === 'incluido'), 'Total por tipo de pasajero')}
         <div class="inv-note">${escHtml(notaMoneda)}</div>
         ${adicHtml}
