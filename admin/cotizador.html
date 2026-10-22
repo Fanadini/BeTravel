@@ -158,6 +158,8 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .hab-tabla{min-width:760px}
 .hab-fila{display:grid;grid-template-columns:104px minmax(130px,1fr) 58px 58px 88px 70px 88px 96px 24px;gap:6px;align-items:center;margin-bottom:6px}
 .hab-fila .fi,.hab-fila .fsel{min-width:0}
+.tar-tabla{min-width:640px}
+.tar-fila{grid-template-columns:150px 70px 110px 80px 110px 110px 24px}
 .hab-cab{font-size:10px;font-weight:600;color:rgba(43,43,43,.55);margin-bottom:4px}
 .h-total{font-size:12px;text-align:right;white-space:nowrap}
 .srv-foot a{color:var(--teal);font-weight:600}
@@ -855,6 +857,7 @@ function normalizar(raw){
     s.vuelos = normVuelos(s.vuelos);
     sincPP(s, c);
     if (s.habitaciones !== undefined){ s.habitaciones = normHab(s.habitaciones); sincHab(s); }
+    if (s.tarifas !== undefined){ s.tarifas = normTar(s.tarifas); sincTar(s); }
   });
   c.anexos = (Array.isArray(c.anexos) ? c.anexos.filter(Boolean) : Object.values(c.anexos||{})).map(a => ({ titulo:'', texto:'', activo:true, ...a, archivos: normArchivos(a.archivos) }));
   c.nombresOpciones = { ...(c.nombresOpciones||{}) };
@@ -924,6 +927,27 @@ function habResumen(s){
   const hs = tieneHab(s) ? s.habitaciones : [];
   return { habitaciones: hs.reduce((a, h) => a + num(h.cantidad), 0), pax: hs.reduce((a, h) => a + num(h.cantidad) * num(h.ocupantes), 0) };
 }
+// ── TARIFAS POR TIPO DE PASAJERO (servicio Aéreo) ─────────────────────────
+// Un aéreo puede cotizarse con una tarifa distinta para cada tipo de pasajero: ADT (adulto), CHD (menor) e INF
+// (infante). Cada línea tiene cantidad, costo neto, markup y venta por pasajero; el costo y el precio del servicio
+// son la suma de las líneas, así que totales, márgenes y conversión de moneda no cambian.
+const PAX_TIPOS = [['ADT','Adulto'],['CHD','Menor'],['INF','Infante']];
+function paxEtiqueta(tipo){ const x = PAX_TIPOS.find(a => a[0] === tipo); return x ? `${x[1]} (${x[0]})` : tipo; }
+function normTar(v){
+  const lista = Array.isArray(v) ? v.filter(Boolean) : Object.values(v || {});
+  return lista.map(x => ({ tipo:'ADT', cantidad:0, costo:0, markup:0, precio:0, ...x }));
+}
+function tieneTar(s){ return s.tipo === 'Aéreo' && Array.isArray(s.tarifas) && s.tarifas.length > 0; }
+function tarPrecio(x){ return round2(num(x.costo) * (1 + num(x.markup)/100)); }
+function tarTotalCosto(x){ return round2(num(x.cantidad) * num(x.costo)); }
+function tarTotalPrecio(x){ return round2(num(x.cantidad) * num(x.precio)); }
+function sincTar(s){
+  if (!tieneTar(s)) return;
+  s.costo = round2(s.tarifas.reduce((a, x) => a + tarTotalCosto(x), 0));
+  s.precio = round2(s.tarifas.reduce((a, x) => a + tarTotalPrecio(x), 0));
+  if (s.costo > 0) s.markup = round2((s.precio / s.costo - 1) * 100);
+}
+function tarPasajeros(s){ return tieneTar(s) ? s.tarifas.reduce((a, x) => a + num(x.cantidad), 0) : 0; }
 function habNombre(h){ return (h.tipo === 'Otra' ? 'Habitación' : h.tipo) + (String(h.categoria||'').trim() ? ' · ' + String(h.categoria).trim() : ''); }
 
 // ── LISTA ──────────────────────────────────────────────────────────────────
@@ -1885,7 +1909,8 @@ function renderServicios(){
     </div>
     ${s.tipo === 'Hotel' ? `<label class="check-row hab-toggle"><input type="checkbox" ${tieneHab(s)?'checked':''} onchange="toggleHab(${i},this.checked)"> Cotizar por tipo de habitación (single, doble, triple…)</label>` : ''}
     ${s.tipo === 'Hotel' ? habCapturaBox(s, i) : ''}
-    ${tieneHab(s) ? habEditor(s, i) : `<div class="grid" style="grid-template-columns:${s.costoModo==='persona' ? '1.2fr 1fr .9fr .9fr 1.1fr 1.1fr' : '1.3fr 1fr 1fr 1fr 1.2fr'}">
+    ${s.tipo === 'Aéreo' ? `<label class="check-row hab-toggle"><input type="checkbox" ${tieneTar(s)?'checked':''} onchange="toggleTar(${i},this.checked)"> Cotizar por tipo de pasajero (ADT, CHD, INF): cada uno tiene su tarifa</label>` : ''}
+    ${tieneHab(s) ? habEditor(s, i) : tieneTar(s) ? tarEditor(s, i) : `<div class="grid" style="grid-template-columns:${s.costoModo==='persona' ? '1.2fr 1fr .9fr .9fr 1.1fr 1.1fr' : '1.3fr 1fr 1fr 1fr 1.2fr'}">
       <div><label class="fl">${s.costoModo==='persona' ? 'Costo neto por persona' : 'Costo neto (total)'}</label>${s.costoModo==='persona'
         ? `<input class="fi srv-costopp" type="number" step="0.01" value="${escHtml(s.costoPP||'')}" oninput="onCostoPP(${i},this.value)">`
         : `<input class="fi" type="number" step="0.01" value="${escHtml(s.costo)}" oninput="onCosto(${i},this.value)">`}</div>
@@ -1918,14 +1943,19 @@ function renderServiciosFoot(){
       if (r.pax > 0) html += `<span>Hotel por persona: <b>${fmtMoney(num(s.precio) / r.pax, m)}</b></span>`;
       if (r.pax > 0 && r.pax !== pax) html += `<span class="warn">${pax ? `La cotización tiene ${fmtNum(pax)} pasajeros.` : 'La cotización no tiene cantidad de pasajeros.'} <a href="#" onclick="usarPaxHab(${Number(card.dataset.srv)});return false">Usar ${fmtNum(r.pax)}</a></span>`;
     }
-    if (s.costoModo === 'persona' && !tieneHab(s)){
+    if (tieneTar(s)){
+      const n = tarPasajeros(s), pax = parseInt(c.pasajeros, 10) || 0;
+      html += `<span><b>${fmtNum(n)}</b> pasajero${n === 1 ? '' : 's'}: ${s.tarifas.filter(x => num(x.cantidad) > 0).map(x => fmtNum(num(x.cantidad)) + ' ' + x.tipo).join(' · ') || '—'}</span>`;
+      if (n > 0 && n !== pax) html += `<span class="warn">${pax ? `La cotización tiene ${fmtNum(pax)} pasajeros.` : 'La cotización no tiene cantidad de pasajeros.'} <a href="#" onclick="usarPaxTar(${Number(card.dataset.srv)});return false">Usar ${fmtNum(n)}</a></span>`;
+    }
+    if (s.costoModo === 'persona' && !tieneHab(s) && !tieneTar(s)){
       const pax = parseInt(c.pasajeros, 10) || 0;
       html += pax > 0
         ? `<span>Costo total: <b>${fmtMoney(num(s.costo), m)}</b> (${fmtMoney(num(s.costoPP), m)} × ${fmtNum(pax)} pasajero${pax === 1 ? '' : 's'})</span>`
         : `<span class="warn">Cargá la cantidad de pasajeros de la cotización: el costo total es el costo por persona × pasajeros.</span>`;
     }
     const paxS = parseInt(c.pasajeros, 10) || 0;
-    if (!tieneHab(s) && s.costoModo !== 'persona' && paxS > 0 && num(s.precio) > 0) html += `<span>Venta por persona: <b>${fmtMoney(num(s.precio) / paxS, m)}</b></span>`;
+    if (!tieneHab(s) && s.costoModo !== 'persona' && paxS > 0 && num(s.precio) > 0) html += `<span>${tieneTar(s) ? 'Venta promedio por persona' : 'Venta por persona'}: <b>${fmtMoney(num(s.precio) / paxS, m)}</b></span>`;
     html += `<span>Ganancia: <b>${fmtMoney(ganancia, m)}</b></span>`;
     if (m !== c.moneda){
       const conv = convertir(num(s.precio), m, c.moneda, c.tipoCambio);
@@ -1953,7 +1983,7 @@ function setModo(i, v){ editing.data.servicios[i].modo = v; renderServicios(); r
 function setNombreOpcion(o, v){ editing.data.nombresOpciones[o] = v; markDirty(); }
 // Costo cargado por persona: el costo total del servicio es costo por persona × pasajeros de la cotización.
 function sincPP(s, c){
-  if (s.costoModo !== 'persona' || tieneHab(s)) return;
+  if (s.costoModo !== 'persona' || tieneHab(s) || tieneTar(s)) return;
   s.costo = round2(num(s.costoPP) * (parseInt(c.pasajeros, 10) || 0));
   s.precio = precioDe(s);
 }
@@ -2205,6 +2235,91 @@ async function procesarHabitaciones(i, { file, texto }){
     const m = err && err.message && !/Failed to fetch|Load failed/i.test(err.message) ? err.message : 'No se pudo conectar con el servicio de IA. Revisá la conexión.';
     setHabEstado(s, m, true);
   }
+}
+// Editor de tarifas por tipo de pasajero. Las celdas se actualizan sin redibujar la tarjeta, para no perder el foco al tipear.
+function tarEditor(s, i){
+  const c = editing.data;
+  return `<div class="hab-ed">
+    <div class="grid" style="grid-template-columns:140px 190px 1fr">
+      <div><label class="fl">Moneda</label><select class="fsel" onchange="setServicio(${i},'moneda',this.value);refrescarTar(${i})">${selOpts(['USD','ARS'],['USD','ARS'],s.moneda||c.moneda)}</select></div>
+      <div><label class="fl">Markup % para todos</label><input class="fi" type="number" step="0.1" placeholder="Aplicar a todos" onchange="setMarkupTars(${i},this.value)"></div>
+      <div class="hab-hint">Tarifa por pasajero (impuestos incluidos, si el proveedor los suma). El precio del aéreo es la suma de las líneas. Para mostrar cada tarifa en la propuesta, activá "Mostrar desglose por servicio".</div>
+    </div>
+    <div class="hab-scroll"><div class="hab-tabla tar-tabla">
+      <div class="hab-fila tar-fila hab-cab"><span>Tipo</span><span>Cant.</span><span>Costo neto c/u</span><span>Markup %</span><span>Venta c/u</span><span>Total venta</span><span></span></div>
+      ${s.tarifas.map((x, k) => `<div class="hab-fila tar-fila" data-tar="${k}">
+        <select class="fsel" onchange="setTarTipo(${i},${k},this.value)">${selOpts(PAX_TIPOS.map(a=>a[0]),PAX_TIPOS.map(a=>a[0] + ' · ' + a[1]),x.tipo)}</select>
+        <input class="fi t-cantidad" type="number" min="0" step="1" value="${escHtml(x.cantidad)}" oninput="setTar(${i},${k},'cantidad',this.value)">
+        <input class="fi t-costo" type="number" step="0.01" value="${escHtml(x.costo)}" oninput="setTar(${i},${k},'costo',this.value)">
+        <input class="fi t-markup" type="number" step="0.1" value="${escHtml(x.markup)}" oninput="setTar(${i},${k},'markup',this.value)">
+        <input class="fi t-precio" type="number" step="0.01" value="${escHtml(x.precio)}" oninput="setTar(${i},${k},'precio',this.value)">
+        <b class="h-total">${fmtMoney(tarTotalPrecio(x), s.moneda || c.moneda)}</b>
+        <button class="icon-btn danger" title="Quitar esta línea" onclick="quitarTar(${i},${k})">✕</button>
+      </div>`).join('')}
+    </div></div>
+    <button class="add-item-btn" onclick="agregarTar(${i})">+ Agregar tipo de pasajero</button>
+  </div>`;
+}
+function tarNueva(s){
+  const usados = (s.tarifas || []).map(x => x.tipo);
+  const tipo = PAX_TIPOS.map(a => a[0]).find(a => !usados.includes(a)) || 'ADT';
+  const ult = (s.tarifas || []).slice(-1)[0];
+  return { tipo, cantidad:0, costo:0, markup: ult ? num(ult.markup) : num(editing.data.markupDefault), precio:0 };
+}
+function toggleTar(i, on){
+  const c = editing.data, s = c.servicios[i], pax = parseInt(c.pasajeros, 10) || 0;
+  if (on){
+    // Si ya tenía un costo cargado, pasa a ser la tarifa del adulto (dividida por los pasajeros) para no perderlo.
+    const x = { tipo:'ADT', cantidad: pax || 1, costo:0, markup: num(s.markup) || num(c.markupDefault), precio:0 };
+    if (num(s.costo) > 0) x.costo = s.costoModo === 'persona' ? num(s.costoPP) : round2(num(s.costo) / (pax || 1));
+    x.precio = tarPrecio(x);
+    s.tarifas = [x]; s.costoModo = '';
+  } else {
+    const conDatos = (s.tarifas||[]).some(x => num(x.cantidad) || num(x.costo));
+    if (conDatos && !confirm('Se descartan las tarifas por tipo de pasajero. El costo y el precio del aéreo quedan con el total actual y se pueden editar a mano. ¿Continuar?')){ renderServicios(); return; }
+    s.tarifas = [];
+  }
+  sincTar(s);
+  renderServicios(); renderTotales(); markDirty();
+}
+function agregarTar(i){ const s = editing.data.servicios[i]; s.tarifas.push(tarNueva(s)); renderServicios(); renderTotales(); markDirty(); }
+function quitarTar(i, k){
+  const s = editing.data.servicios[i];
+  if (s.tarifas.length <= 1){ alert('Queda una sola línea. Para volver al precio único, destildá "Cotizar por tipo de pasajero".'); return; }
+  s.tarifas.splice(k, 1); sincTar(s);
+  renderServicios(); renderTotales(); markDirty();
+}
+function refrescarTar(i){
+  const s = editing.data.servicios[i], card = document.querySelector(`[data-srv="${i}"]`);
+  sincTar(s);
+  if (card){
+    card.querySelectorAll('[data-tar]').forEach(row => {
+      const x = s.tarifas[Number(row.dataset.tar)];
+      if (!x) return;
+      [['t-precio', x.precio], ['t-markup', x.markup]].forEach(([cls, v]) => { const inp = row.querySelector('.' + cls); if (inp && document.activeElement !== inp) inp.value = v; });
+      row.querySelector('.h-total').textContent = fmtMoney(tarTotalPrecio(x), s.moneda || editing.data.moneda);
+    });
+  }
+  renderServiciosFoot(); renderTotales(); markDirty();
+}
+function setTar(i, k, campo, v){
+  const x = editing.data.servicios[i].tarifas[k];
+  x[campo] = num(v);
+  if (campo === 'costo' || campo === 'markup') x.precio = tarPrecio(x);
+  if (campo === 'precio' && num(x.costo) > 0) x.markup = round2((x.precio / num(x.costo) - 1) * 100);
+  refrescarTar(i);
+}
+function setTarTipo(i, k, v){ editing.data.servicios[i].tarifas[k].tipo = v; markDirty(); }
+function setMarkupTars(i, v){
+  if (String(v).trim() === '') return;
+  const s = editing.data.servicios[i];
+  s.tarifas.forEach(x => { x.markup = num(v); x.precio = tarPrecio(x); });
+  refrescarTar(i);
+}
+function usarPaxTar(i){
+  const inp = document.getElementById('f-pasajeros'), n = tarPasajeros(editing.data.servicios[i]);
+  if (inp) inp.value = n;
+  onPasajeros(String(n));
 }
 function habNueva(s){
   const c = editing.data, usados = (s.habitaciones||[]).map(h => h.tipo);
@@ -2739,7 +2854,9 @@ function convertirEnReserva(){
     // Hotel por tipo de habitación: un ítem cotizado y un costo por cada tipo, para ver el detalle en la reserva.
     const lineas = tieneHab(s)
       ? s.habitaciones.filter(h => num(h.cantidad) > 0).map(h => ({ concepto: `${s.concepto || 'Hotel'} — ${fmtNum(num(h.cantidad))} × ${habNombre(h)}${habPorNoche(s) ? ' × ' + habNoches(s) + ' noche' + (habNoches(s) === 1 ? '' : 's') : ''}`.slice(0, 300), precio: habTotalPrecio(h, s), costo: habTotalCosto(h, s) }))
-      : [{ concepto, precio: num(s.precio), costo: num(s.costo) }];
+      : tieneTar(s)
+        ? s.tarifas.filter(x => num(x.cantidad) > 0).map(x => ({ concepto: `${concepto} — ${fmtNum(num(x.cantidad))} × ${paxEtiqueta(x.tipo)}`.slice(0, 300), precio: tarTotalPrecio(x), costo: tarTotalCosto(x) }))
+        : [{ concepto, precio: num(s.precio), costo: num(s.costo) }];
     lineas.forEach(l => {
       cotizado[RESERVAS_REF.push().key] = { tipo: s.tipo||'Otro', concepto: l.concepto, monto: l.precio, moneda: m, tipoCambio: tc };
       costos[RESERVAS_REF.push().key] = {
@@ -2992,6 +3109,8 @@ function buildSlides(c){
         ${x.detalle ? `<div class="srv-detalle">${escHtml(x.detalle.trim())}</div>` : ''}
         ${tieneHab(x) ? `<div class="srv-hab">${x.habitaciones.filter(h => num(h.cantidad) > 0).map(h => `<div class="srv-hab-row"><b>${fmtNum(num(h.cantidad))} ×</b><span>${escHtml(habNombre(h))}</span></div>`).join('')}
           <div class="srv-hab-tot">${fmtNum(habResumen(x).habitaciones)} habitaciones en total${habPorNoche(x) && num(x.noches) > 0 ? ` · ${fmtNum(num(x.noches))} noche${num(x.noches) === 1 ? '' : 's'}` : ''}</div></div>` : ''}
+        ${tieneTar(x) ? `<div class="srv-hab">${x.tarifas.filter(a => num(a.cantidad) > 0).map(a => `<div class="srv-hab-row"><b>${fmtNum(num(a.cantidad))} ×</b><span>${escHtml(paxEtiqueta(a.tipo))}</span></div>`).join('')}
+          <div class="srv-hab-tot">${fmtNum(tarPasajeros(x))} pasajero${tarPasajeros(x) === 1 ? '' : 's'} en total</div></div>` : ''}
       </div>`;
   const tarjetaHTML = b => {
     const nom = String(c.nombresOpciones[b.opcion] || '').trim();
@@ -3041,6 +3160,14 @@ function buildSlides(c){
     const pushSrv = lista => lista.forEach(s => {
       const v = precioConv(s);
       if (v == null) return;
+      if (tieneTar(s)){
+        filas.push({ k:'f', tipo:s.tipo, concepto: s.concepto || s.tipo, monto: v });
+        s.tarifas.filter(x => num(x.cantidad) > 0).forEach(x => {
+          const mon = s.moneda || m, tot = convertir(tarTotalPrecio(x), mon, m, c.tipoCambio), unit = convertir(num(x.precio), mon, m, c.tipoCambio);
+          if (tot.ok && unit.ok) filas.push({ k:'h', txt: `${fmtNum(num(x.cantidad))} × ${paxEtiqueta(x.tipo)} · ${fmtMoney(unit.value, m)} c/u`, monto: tot.value });
+        });
+        return;
+      }
       if (!tieneHab(s)){ filas.push({ k:'f', tipo:s.tipo, concepto: s.concepto || s.tipo, monto: v }); return; }
       filas.push({ k:'f', tipo:s.tipo, concepto: s.concepto || s.tipo, monto: v });
       s.habitaciones.filter(h => num(h.cantidad) > 0).forEach(h => {
