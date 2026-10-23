@@ -158,8 +158,8 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .hab-ed{margin-bottom:8px}
 .hab-hint{font-size:11px;color:rgba(43,43,43,.55);align-self:end;padding-bottom:8px}
 .hab-scroll{overflow-x:auto;margin-bottom:8px}
-.hab-tabla{min-width:760px}
-.hab-fila{display:grid;grid-template-columns:104px minmax(130px,1fr) 58px 58px 88px 70px 88px 96px 24px;gap:6px;align-items:center;margin-bottom:6px}
+.hab-tabla{min-width:980px}
+.hab-fila{display:grid;grid-template-columns:104px minmax(130px,1fr) 58px 58px 88px 70px 88px 82px 82px 96px 24px;gap:6px;align-items:center;margin-bottom:6px}
 .hab-fila .fi,.hab-fila .fsel{min-width:0}
 .reparto{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;font-size:11px;color:rgba(43,43,43,.6);margin:2px 0 8px}
 .reparto label{display:inline-flex;align-items:center;gap:4px;cursor:pointer;color:var(--dark);font-weight:500}
@@ -426,6 +426,11 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .fl-tabla thead th{padding:0 0 2mm;font-size:9.5pt;font-weight:600;color:#0F3D3E;border-bottom:.3mm solid rgba(15,61,62,.3)}
 .fl-tabla td{text-align:right;padding-left:4mm}
 .fl-tabla thead .fl-hotel{text-align:right}
+.fl-tabla{table-layout:fixed}
+.fl-tabla th:first-child{width:38%}
+.fl-tabla2{margin-top:-3mm;border-top:.3mm solid rgba(15,61,62,.3)}
+.fl-tabla2 .fl-precio{font-size:14pt}
+.fl-tabla2 .fl-abrev{font-size:11pt}
 .fl-abrev{display:block;font-size:14pt;font-weight:600;letter-spacing:.4pt;color:#0F3D3E}
 .fl-sub{display:block;font-size:8pt;color:rgba(43,43,43,.65);margin-top:.5mm}
 .fl-precio{display:block;font-size:19pt;font-weight:600;letter-spacing:-.3pt;color:#0F3D3E;white-space:nowrap}
@@ -445,6 +450,8 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .compacto .fl-tabla{margin-bottom:4mm}
 .compacto .fl-tabla th,.compacto .fl-tabla td{padding:1.8mm 0}
 .compacto .fl-abrev{font-size:12pt}
+.compacto .fl-tabla2 .fl-abrev{font-size:10.5pt}
+.compacto .fl-tabla2 .fl-precio{font-size:12.5pt}
 .compacto .fl-precio{font-size:15pt}
 .compacto .fl-incluye{margin-bottom:3mm}
 .compacto .fl-incluye li{padding:.4mm 0 .4mm 4.5mm}
@@ -1056,7 +1063,7 @@ const HAB_TIPOS = [['Single',1],['Doble',2],['Triple',3],['Cuádruple',4],['Otra
 function ocupantesDe(tipo){ const t = HAB_TIPOS.find(x => x[0] === tipo); return t ? t[1] : 1; }
 function normHab(v){
   const lista = Array.isArray(v) ? v.filter(Boolean) : Object.values(v || {});
-  return lista.map(h => ({ tipo:'Doble', categoria:'', cantidad:0, ocupantes:2, costo:0, markup:0, precio:0, ...h }));
+  return lista.map(h => ({ tipo:'Doble', categoria:'', cantidad:0, ocupantes:2, costo:0, markup:0, precio:0, costoMenor:0, precioMenor:0, ...h }));
 }
 function tieneHab(s){ return s.tipo === 'Hotel' && Array.isArray(s.habitaciones) && s.habitaciones.length > 0; }
 function habPrecio(h){ return round2(num(h.costo) * (1 + num(h.markup)/100)); }
@@ -2337,10 +2344,10 @@ function habEditor(s, i){
       <div><label class="fl">Markup % para todas</label><input class="fi" type="number" step="0.1" placeholder="Aplicar a todas" onchange="setMarkupHabs(${i},this.value)"></div>
       <div><label class="fl">El precio de cada habitación es</label><select class="fsel" onchange="setHabBase(${i},this.value)">${selOpts(['estadia','noche'],['por toda la estadía','por noche'],habPorNoche(s)?'noche':'estadia')}</select></div>
       <div style="${habPorNoche(s) ? '' : 'visibility:hidden'}"><label class="fl">Noches</label><input class="fi h-noches" type="number" min="1" step="1" value="${escHtml(s.noches||'')}" placeholder="N°" oninput="setHabNoches(${i},this.value)"></div>
-      <div class="hab-hint">El precio total del hotel es la suma de las líneas${habPorNoche(s) ? ' (cantidad × noches × precio)' : ''}. Para mostrar cada precio en la propuesta, activá "Mostrar desglose por servicio".</div>
+      <div class="hab-hint">El precio total del hotel es la suma de las líneas${habPorNoche(s) ? ' (cantidad × noches × precio)' : ''}. Para mostrar cada precio en la propuesta, activá "Mostrar desglose por servicio". "Menor" es la tarifa por menor y por noche cuando comparte la habitación con adultos: no suma al total del hotel, la usa el flyer.</div>
     </div>
     <div class="hab-scroll"><div class="hab-tabla">
-      <div class="hab-fila hab-cab"><span>Tipo</span><span>Categoría (visible en la propuesta)</span><span>Cant.</span><span>Ocup.</span><span>Costo ${habPorNoche(s) ? 'x noche' : 'c/u'}</span><span>Markup %</span><span>Venta ${habPorNoche(s) ? 'x noche' : 'c/u'}</span><span>Total venta</span><span></span></div>
+      <div class="hab-fila hab-cab"><span>Tipo</span><span>Categoría (visible en la propuesta)</span><span>Cant.</span><span>Ocup.</span><span>Costo ${habPorNoche(s) ? 'x noche' : 'c/u'}</span><span>Markup %</span><span>Venta ${habPorNoche(s) ? 'x noche' : 'c/u'}</span><span>Menor: costo</span><span>Menor: venta</span><span>Total venta</span><span></span></div>
       ${s.habitaciones.map((h, k) => `<div class="hab-fila" data-hab="${k}">
         <select class="fsel" onchange="setHabTipo(${i},${k},this.value)">${selOpts(HAB_TIPOS.map(x=>x[0]),HAB_TIPOS.map(x=>x[0]),h.tipo)}</select>
         <input class="fi" value="${escHtml(h.categoria)}" placeholder="Ej: Junior Suite Pool Access" oninput="setHab(${i},${k},'categoria',this.value)">
@@ -2349,6 +2356,8 @@ function habEditor(s, i){
         <input class="fi h-costo" type="number" step="0.01" value="${escHtml(h.costo)}" oninput="setHab(${i},${k},'costo',this.value)">
         <input class="fi h-markup" type="number" step="0.1" value="${escHtml(h.markup)}" oninput="setHab(${i},${k},'markup',this.value)">
         <input class="fi h-precio" type="number" step="0.01" value="${escHtml(h.precio)}" oninput="setHab(${i},${k},'precio',this.value)">
+        <input class="fi h-costoMenor" type="number" step="0.01" value="${escHtml(h.costoMenor || '')}" placeholder="—" oninput="setHab(${i},${k},'costoMenor',this.value)">
+        <input class="fi h-precioMenor" type="number" step="0.01" value="${escHtml(h.precioMenor || '')}" placeholder="—" oninput="setHab(${i},${k},'precioMenor',this.value)">
         <b class="h-total">${fmtMoney(habTotalPrecio(h, s), s.moneda || c.moneda)}</b>
         <button class="icon-btn danger" title="Quitar esta línea" onclick="quitarHab(${i},${k})">✕</button>
       </div>`).join('')}
@@ -2591,7 +2600,7 @@ function habNueva(s){
   const c = editing.data, usados = (s.habitaciones||[]).map(h => h.tipo);
   const tipo = HAB_TIPOS.map(x => x[0]).find(t => t !== 'Otra' && !usados.includes(t)) || 'Otra';
   const ult = (s.habitaciones||[]).slice(-1)[0];
-  const h = { tipo, categoria:'', cantidad:0, ocupantes: ocupantesDe(tipo), costo:0, markup: ult ? num(ult.markup) : num(c.markupDefault), precio:0 };
+  const h = { tipo, categoria:'', cantidad:0, ocupantes: ocupantesDe(tipo), costo:0, markup: ult ? num(ult.markup) : num(c.markupDefault), precio:0, costoMenor:0, precioMenor:0 };
   return h;
 }
 function toggleHab(i, on){
@@ -2629,7 +2638,7 @@ function refrescarHab(i){
     card.querySelectorAll('[data-hab]').forEach(row => {
       const h = s.habitaciones[Number(row.dataset.hab)];
       if (!h) return;
-      [['h-precio', h.precio], ['h-markup', h.markup], ['h-ocupantes', h.ocupantes]].forEach(([cls, v]) => {
+      [['h-precio', h.precio], ['h-markup', h.markup], ['h-ocupantes', h.ocupantes], ['h-precioMenor', h.precioMenor || '']].forEach(([cls, v]) => {
         const inp = row.querySelector('.' + cls);
         if (inp && document.activeElement !== inp) inp.value = v;
       });
@@ -2643,6 +2652,7 @@ function setHab(i, k, campo, v){
   if (campo === 'categoria'){ h.categoria = v; markDirty(); return; }
   h[campo] = num(v);
   if (campo === 'costo' || campo === 'markup') h.precio = habPrecio(h);
+  if (campo === 'costoMenor' || (campo === 'markup' && num(h.costoMenor) > 0)) h.precioMenor = round2(num(h.costoMenor) * (1 + num(h.markup)/100));
   if (campo === 'precio' && num(h.costo) > 0) h.markup = round2((h.precio / num(h.costo) - 1) * 100);
   refrescarHab(i);
 }
@@ -2666,7 +2676,7 @@ function setHabTipo(i, k, v){
 function setMarkupHabs(i, v){
   if (String(v).trim() === '') return;
   const s = editing.data.servicios[i];
-  s.habitaciones.forEach(h => { h.markup = num(v); h.precio = habPrecio(h); });
+  s.habitaciones.forEach(h => { h.markup = num(v); h.precio = habPrecio(h); if (num(h.costoMenor) > 0) h.precioMenor = round2(num(h.costoMenor) * (1 + h.markup/100)); });
   refrescarHab(i);
 }
 function usarPaxHab(i){
@@ -3674,18 +3684,33 @@ function preciosPorBase(c, o){
   const alcance = srvActivos(c).filter(s => modoDe(s) === 'incluido' || (o && modoDe(s) === o));
   const hoteles = alcance.filter(s => s.tipo === 'Hotel' && tieneHab(s));
   const pax = parseInt(c.pasajeros, 10) || 0;
-  let otros = 0, faltaPax = false, sinTC = false;
+  const todos = PAX_TIPOS.map(a => a[0]);
+  // Cantidad de pasajeros de cada tipo (ADT, CHD, INF): sale de las tarifas del aéreo. Sin aéreo por tipo, todos cuentan como adultos.
+  const conteo = {};
+  resumenTipos(c, alcance).forEach(x => { conteo[x.tipo] = x.pasajeros; });
+  const hayTipos = Object.keys(conteo).length > 0;
+  const paxTipo = hayTipos ? conteo : { ADT: pax };
+  const presentes = todos.filter(T => paxTipo[T] > 0);
+  // Lo que paga cada tipo por los servicios que no son el hotel: la tarifa del aéreo de su tipo y su parte de los demás
+  // (precio ÷ pasajeros de los tipos entre los que se reparte el servicio, que por defecto son todos).
+  const otros = { ADT: 0, CHD: 0, INF: 0 };
+  let faltaPax = false, sinTC = false;
   alcance.filter(s => !hoteles.includes(s)).forEach(s => {
     const mon = s.moneda || c.moneda;
     if (tieneTar(s)){
-      const ad = s.tarifas.find(x => x.tipo === 'ADT') || s.tarifas[0];
-      const cv = convertir(num(ad.precio), mon, c.moneda, c.tipoCambio);
-      if (cv.ok) otros += cv.value; else sinTC = true;
+      s.tarifas.forEach(x => { const cv = convertir(num(x.precio), mon, c.moneda, c.tipoCambio); if (cv.ok) otros[x.tipo] = (otros[x.tipo] || 0) + cv.value; else sinTC = true; });
     } else if (num(s.precio) > 0){
       const cv = convertir(num(s.precio), mon, c.moneda, c.tipoCambio);
-      if (!cv.ok) sinTC = true; else if (pax > 0) otros += cv.value / pax; else faltaPax = true;
+      if (!cv.ok){ sinTC = true; return; }
+      let dest = (Array.isArray(s.reparteEntre) && s.reparteEntre.length ? s.reparteEntre : todos).filter(T => paxTipo[T] > 0);
+      if (!dest.length) dest = presentes;
+      const den = dest.reduce((a, T) => a + (paxTipo[T] || 0), 0);
+      if (den > 0) dest.forEach(T => { otros[T] += cv.value / den; }); else faltaPax = true;
     }
   });
+  // Tipos que pagan habitación (hoteles: "Se reparte entre"; por defecto todos).
+  const pagaHotel = T => hoteles.length > 0 && hoteles.every(s => !(Array.isArray(s.reparteEntre) && s.reparteEntre.length) || s.reparteEntre.includes(T));
+  // Adultos: precio de la habitación ÷ ocupantes + su parte de los demás servicios.
   const filas = BASES_HAB.map(([tipo, abrev, personas]) => {
     let hotelPP = 0, completo = true, cat = '';
     hoteles.forEach(s => {
@@ -3696,10 +3721,31 @@ function preciosPorBase(c, o){
       hotelPP += cv.value / (num(h.ocupantes) || ocupantesDe(tipo));
       if (!cat) cat = String(h.categoria || '').trim();
     });
-    return hoteles.length && completo ? { tipo, abrev, personas, categoria: cat, pp: hotelPP + otros } : null;
+    return hoteles.length && completo ? { tipo, abrev, personas, categoria: cat, pp: (pagaHotel('ADT') ? hotelPP : 0) + otros.ADT } : null;
   }).filter(Boolean);
+  // Menor: tarifa de menor del hotel por noche (cuando comparte la habitación con adultos; sale de la línea Doble, o de la
+  // primera que la tenga) + la tarifa de menor del aéreo + su parte de los demás servicios.
+  let menorHotel = null;
+  if (hoteles.length){
+    let completo = true, suma = 0;
+    hoteles.forEach(s => {
+      const h = s.habitaciones.find(x => x.tipo === 'Doble' && num(x.precioMenor) > 0) || s.habitaciones.find(x => num(x.precioMenor) > 0);
+      if (!h){ completo = false; return; }
+      const cv = convertir(num(h.precioMenor) * habNoches(s), s.moneda || c.moneda, c.moneda, c.tipoCambio);
+      if (!cv.ok){ sinTC = true; completo = false; return; }
+      suma += cv.value;
+    });
+    menorHotel = completo ? suma : null;
+  }
+  const otrosMenor = hayTipos && conteo.CHD ? otros.CHD : otros.ADT;
+  const menor = menorHotel != null ? (pagaHotel('CHD') ? menorHotel : 0) + otrosMenor : null;
+  // Infante: no paga habitación; paga el aéreo de su tipo y su parte de los demás servicios.
+  const inf = hayTipos && conteo.INF > 0 && !pagaHotel('INF') ? otros.INF : null;
+  // Familia de 4 (2 adultos y 2 menores): los adultos como en habitación doble y los menores con su tarifa.
+  const fd = filas.find(f => f.tipo === 'Doble');
+  const familia = fd && menor != null ? { total: 2 * fd.pp + 2 * menor, adulto: fd.pp, menor } : null;
   const nombre = hoteles.map(s => s.concepto).filter(Boolean).join(' + ');
-  return { filas, hotel: nombre, otros, faltaPax, sinTC, hayHotel: hoteles.length > 0 };
+  return { filas, hotel: nombre, otros: otros.ADT, otrosTipo: otros, faltaPax, sinTC, hayHotel: hoteles.length > 0, conteo: paxTipo, menor, inf, familia };
 }
 function flyerOpciones(c){
   const ops = opcionesDe(c), f = c.flyer || {};
@@ -3722,13 +3768,15 @@ function flyerDefaults(c){
 function flyerCardHTML(c){
   const f = c.flyer || {}, d = flyerDefaults(c), ops = opcionesDe(c);
   return `<h3>Flyer · precio por persona</h3>
-    <p class="card-hint">Arma una página A4 con el valor por persona en base a SNGL, DBLE, TPL y CUAD, a partir de los tipos de habitación del hotel. Cada valor suma la habitación (÷ ocupantes) y la parte por persona de los demás servicios. Los campos vacíos usan el texto sugerido.</p>
+    <p class="card-hint">Arma una página A4 con el valor por persona en base a SNGL, DBLE, TPL y CUAD, a partir de los tipos de habitación del hotel. Cada valor suma la habitación (÷ ocupantes) y la parte por persona de los demás servicios. Con la "tarifa de menor" del hotel (columnas "Menor" de cada habitación) y el aéreo por tipo de pasajero, el flyer suma el precio del menor, el del infante y un ejemplo de familia; lo que paga cada tipo por el hotel y los demás servicios se define con "Se reparte entre" en cada servicio. Los campos vacíos usan el texto sugerido.</p>
     <div class="frow"><label class="fl">Título</label><input class="fi" value="${escHtml(f.titulo || '')}" placeholder="${escHtml(d.titulo)}" oninput="setFlyer('titulo',this.value)"></div>
     <div class="frow"><label class="fl">Subtítulo</label><input class="fi" value="${escHtml(f.subtitulo || '')}" placeholder="${escHtml(d.subtitulo)}" oninput="setFlyer('subtitulo',this.value)"></div>
     ${ops.length ? `<div class="frow"><label class="fl">Hoteles / opciones que se muestran</label><div class="flyer-ops">${ops.map(o => `<label class="check-row" style="margin:0"><input type="checkbox" ${flyerOpciones(c).includes(o) ? 'checked' : ''} onchange="setFlyerOpcion('${o}',this.checked)"> ${escHtml(nombreOpcion(c, o))}</label>`).join('')}</div></div>` : ''}
     <div class="frow"><label class="fl">Qué incluye (una línea por ítem)</label><textarea class="fta" data-neg rows="4" placeholder="${escHtml(d.incluye)}" oninput="setFlyer('incluye',this.value)">${escHtml(f.incluye || '')}</textarea></div>
     <div class="frow"><label class="fl">Nota</label><textarea class="fta" data-neg rows="2" placeholder="${escHtml(d.nota)}" oninput="setFlyer('nota',this.value)">${escHtml(f.nota || '')}</textarea></div>
     <label class="check-row"><input type="checkbox" ${f.sinCategoria ? '' : 'checked'} onchange="setFlyer('sinCategoria',!this.checked)"> Mostrar la categoría de habitación de cada base</label>
+    <div class="grid g2" style="margin:8px 0"><div><label class="fl">Edad de los menores (texto del flyer)</label><input class="fi" value="${escHtml(f.edadMenor || '')}" placeholder="2 a 11 años" oninput="setFlyer('edadMenor',this.value)"></div><div><label class="fl">Edad de los infantes</label><input class="fi" value="${escHtml(f.edadInfante || '')}" placeholder="0 a 2 años" oninput="setFlyer('edadInfante',this.value)"></div></div>
+    <label class="check-row"><input type="checkbox" ${f.sinFamilia ? '' : 'checked'} onchange="setFlyer('sinFamilia',!this.checked)"> Mostrar el ejemplo de familia de 4 (2 adultos y 2 menores), cuando hay tarifa de menor</label>
     <h4 class="flyer-sub">Pagos</h4>
     <p class="card-hint" style="margin-top:0">Los textos vacíos usan los datos de cobro de la agencia${DATOS_COBRO.updatedAt ? '' : ' (todavía no se cargaron)'}. Si todo queda vacío, el flyer no muestra la sección de pagos.</p>
     <div class="frow"><label class="fl">Formas de pago</label><textarea class="fta" data-neg rows="3" placeholder="${escHtml(DATOS_COBRO.formasPago || 'Ej: Transferencia bancaria o depósito. Seña del 30 % para confirmar y saldo hasta 30 días antes de la salida.')}" oninput="setFlyer('formasPago',this.value)">${escHtml(f.formasPago || '')}</textarea></div>
@@ -3812,12 +3860,20 @@ function buildFlyer(c, pago = 'dentro', compacto = false){
   const img = portadaSrc(c), m = c.moneda;
   const conOps = cols.length > 1;
   const tipos = BASES_HAB.filter(b => cols.some(col => col.filas.some(x => x.tipo === b[0])));
+  const moneda = n => (m === 'USD' ? 'US$ ' : '$ ') + fmtNum(Math.round(n));
+  // Menores, infantes y ejemplo de familia (solo si hay datos): una segunda tabla con las mismas columnas que la primera.
+  const edadMenor = String(f.edadMenor || '').trim() || '2 a 11 años', edadInf = String(f.edadInfante || '').trim() || '0 a 2 años';
+  const extra = [];
+  if (cols.some(col => col.menor != null)) extra.push({ abrev:'Menor', sub:`${edadMenor} · comparte habitación con 2 adultos`, val: col => col.menor });
+  if (cols.some(col => col.inf != null)) extra.push({ abrev:'Infante', sub:`${edadInf} · sin cargo de habitación`, val: col => col.inf });
+  if (!f.sinFamilia && cols.some(col => col.familia)) extra.push({ abrev:'Familia de 4', sub:'2 adultos y 2 menores · total', val: col => col.familia && col.familia.total, det: col => col.familia ? `${moneda(col.familia.adulto)} por adulto · ${moneda(col.familia.menor)} por menor` : '' });
+  const tablaExtra = extra.length ? `<table class="fl-tabla fl-tabla2"><tbody>${extra.map(r => `<tr><th><span class="fl-abrev">${r.abrev}</span><span class="fl-sub">${escHtml(r.sub)}</span></th>${cols.map(col => { const v = r.val(col); return `<td>${v != null ? `<span class="fl-precio">${escHtml(moneda(v))}</span>${r.det && r.det(col) ? `<span class="fl-cat">${escHtml(r.det(col))}</span>` : ''}` : '<span class="fl-na">—</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>` : '';
   const bloquePago = pago === 'ninguno' ? '' : flyerPagoHTML(c);
   const filaHTML = ([tipo, abrev, personas]) => {
     const cat = !f.sinCategoria && cols.map(col => (col.filas.find(x => x.tipo === tipo) || {}).categoria).find(Boolean);
     return `<tr><th><span class="fl-abrev">${abrev}</span><span class="fl-sub">${tipo} · ${personas}${cat && !conOps ? ' · ' + escHtml(cat) : ''}</span></th>${cols.map(col => {
       const x = col.filas.find(y => y.tipo === tipo);
-      return `<td>${x ? `<span class="fl-precio">${escHtml((m === 'USD' ? 'US$ ' : '$ ') + fmtNum(Math.round(x.pp)))}</span>${cat && conOps && x.categoria ? `<span class="fl-cat">${escHtml(x.categoria)}</span>` : ''}` : '<span class="fl-na">—</span>'}</td>`;
+      return `<td>${x ? `<span class="fl-precio">${escHtml(moneda(x.pp))}</span>${cat && conOps && x.categoria ? `<span class="fl-cat">${escHtml(x.categoria)}</span>` : ''}` : '<span class="fl-na">—</span>'}</td>`;
     }).join('')}</tr>`;
   };
   const top = '<div class="fl-top"><div class="fl-logo">Be<span>•</span>Travel</div><div class="fl-web">betravel.com.ar</div></div>';
@@ -3831,7 +3887,7 @@ function buildFlyer(c, pago = 'dentro', compacto = false){
       <div class="fl-seccion">Valor por persona</div>
       ${tipos.length ? `<table class="fl-tabla">
         ${conOps ? `<thead><tr><th></th>${cols.map(col => `<th class="fl-hotel">${escHtml(col.hotel || ('Opción ' + col.o))}</th>`).join('')}</tr></thead>` : (cols[0].hotel ? `<thead><tr><th></th><th class="fl-hotel">${escHtml(cols[0].hotel)}</th></tr></thead>` : '')}
-        <tbody>${tipos.map(filaHTML).join('')}</tbody></table>` : '<p class="fl-aviso">No hay un hotel con tipos de habitación y precio para calcular el valor por persona.</p>'}
+        <tbody>${tipos.map(filaHTML).join('')}</tbody></table>${tablaExtra}` : '<p class="fl-aviso">No hay un hotel con tipos de habitación y precio para calcular el valor por persona.</p>'}
       ${incluye.length ? `<div class="fl-seccion">Incluye</div><ul class="fl-incluye">${incluye.map(l => `<li>${negrita(l)}</li>`).join('')}</ul>` : ''}
       ${pago === 'dentro' && bloquePago ? `<div class="fl-seccion">Pagos</div>${bloquePago}` : ''}
       <div class="fl-nota">${negrita(nota)}</div>
@@ -3864,16 +3920,16 @@ async function abrirFlyer(imprimir){
   const entra = () => ![...deck.querySelectorAll('.fl-body')].some(b => desborda(b));
   // Si los pagos no entran en la página: primero se achica la imagen y los espacios; si aun así no entran,
   // pasan a una segunda página. Si algo sigue sin entrar, se avisa.
-  if (!entra() && flyerPagoHTML(c)){
+  if (!entra()){
     deck.innerHTML = buildFlyer(c, 'dentro', true); compacto = true;
-    if (!entra()){ deck.innerHTML = buildFlyer(c, 'aparte'); aparte = true; compacto = false; }
+    if (!entra() && flyerPagoHTML(c)){ deck.innerHTML = buildFlyer(c, 'aparte'); aparte = true; compacto = false; }
   }
   DESBORDES = [...deck.querySelectorAll('.fl-body')].map((b, i) => desborda(b) ? i + 1 : 0).filter(Boolean);
   const cols = flyerOpciones(c).map(o => preciosPorBase(c, o));
   document.getElementById('deck-warn').textContent = [
     DESBORDES.length ? '⚠ El flyer tiene más contenido del que entra y se va a cortar: acortá "Qué incluye", los pagos o la nota.' : '',
     aparte && !DESBORDES.length ? 'Los pagos no entraban en la misma página: salen en una segunda.' : '',
-    compacto && !DESBORDES.length ? 'Para que entren los pagos se achicó la imagen y los espacios.' : '',
+    compacto && !DESBORDES.length ? 'Para que entre todo se achicó la imagen y los espacios.' : '',
     !portadaSrc(c) ? '⚠ El flyer no tiene imagen del destino: cargala en "Imagen de portada".' : '',
     cols.some(x => x.faltaPax) ? '⚠ Falta la cantidad de pasajeros de la cotización: los servicios que no son el hotel no se pudieron repartir por persona.' : '',
     cols.some(x => x.sinTC) ? '⚠ Hay servicios en otra moneda sin tipo de cambio de referencia: no están sumados.' : '',
