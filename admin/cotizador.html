@@ -420,6 +420,10 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .fl-body{flex:1;min-height:0;overflow:hidden;padding:9mm 16mm 4mm}
 .fl-kicker{font-size:8.5pt;font-weight:600;letter-spacing:1.8pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin-bottom:2.5mm}
 .fl-titulo{font-size:27pt;font-weight:600;letter-spacing:-.6pt;line-height:1.1;color:#0F3D3E;margin-bottom:7mm}
+.fl-seccion-pp{display:flex;justify-content:space-between;align-items:center;margin:0 0 2.5mm;padding-bottom:1.8mm;border-bottom:.3mm solid rgba(15,61,62,.3)}
+.fl-seccion-pp .fl-sec-t{font-size:13pt;font-weight:600;color:#0F3D3E}
+.fl-seccion-pp .fl-sec-pp{background:#0F3D3E;color:#E6E1D8;font-size:8pt;font-weight:600;letter-spacing:1.6pt;text-transform:uppercase;padding:1.2mm 3mm;border-radius:1mm}
+.compacto .fl-seccion-pp{margin-bottom:1.5mm;padding-bottom:1.2mm}
 .fl-seccion{font-size:8pt;font-weight:600;letter-spacing:1.6pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin:0 0 2.5mm;padding-bottom:1.5mm;border-bottom:.3mm solid rgba(15,61,62,.3)}
 .fl-tabla{width:100%;border-collapse:collapse;margin-bottom:7mm}
 .fl-tabla th,.fl-tabla td{padding:3mm 0;border-bottom:.2mm solid rgba(15,61,62,.18);vertical-align:middle;text-align:left}
@@ -3899,7 +3903,8 @@ function buildFlyer(c, pago = 'dentro', compacto = false){
     const [abrev, sub] = T === 'ADT' ? [porTipo ? 'Adulto' : 'Por persona', ''] : T === 'CHD' ? ['Chico', edadMenor] : ['Bebé', edadInf];
     return `<tr><th><span class="fl-abrev">${abrev}</span>${sub ? `<span class="fl-sub">${escHtml(sub)}</span>` : ''}</th>${colsAer.map(col => { const x = col.aereoFilas.find(y => y.tipo === T); return `<td>${x ? `<span class="fl-precio">${escHtml(moneda(x.valor))}</span>` : '<span class="fl-na">—</span>'}</td>`; }).join('')}</tr>`;
   };
-  const tablaAereo = tiposAer.length ? `<div class="fl-seccion">Vuelos · valor por persona</div><table class="fl-tabla fl-tabla-aer">${aereoIgual ? '' : `<thead><tr><th></th>${colsAer.map(col => `<th class="fl-hotel">Opción ${escHtml(col.o || '')}</th>`).join('')}</tr></thead>`}<tbody>${tiposAer.map(filaAer).join('')}</tbody></table>` : '';
+  const secPP = t => `<div class="fl-seccion-pp"><span class="fl-sec-t">${t}</span><span class="fl-sec-pp">Valor por persona</span></div>`;
+  const tablaAereo = tiposAer.length ? `${secPP("Vuelos")}<table class="fl-tabla fl-tabla-aer">${aereoIgual ? '' : `<thead><tr><th></th>${colsAer.map(col => `<th class="fl-hotel">Opción ${escHtml(col.o || '')}</th>`).join('')}</tr></thead>`}<tbody>${tiposAer.map(filaAer).join('')}</tbody></table>` : '';
   // Aclaración de la habitación: noches de la estadía y servicios incluidos (sin discriminar su precio).
   const nochesIguales = cols.every(col => col.noches === cols[0].noches);
   const inclHab = [...new Set(cols.flatMap(col => col.incluidos))];
@@ -3922,7 +3927,7 @@ function buildFlyer(c, pago = 'dentro', compacto = false){
       <div class="fl-kicker">${escHtml(subtitulo)}</div>
       <h1 class="fl-titulo">${escHtml(titulo)}</h1>
       ${tablaAereo}
-      <div class="fl-seccion">Habitación · valor por persona</div>
+      ${secPP("Habitación")}
       ${tipos.length ? `${aclaraHabHTML}<table class="fl-tabla">
         ${conOps ? `<thead><tr><th></th>${cols.map(col => `<th class="fl-hotel">${escHtml(col.hotel || ('Opción ' + col.o))}${nochesIguales || !col.noches ? '' : `<span class="fl-cat">${col.noches} noches</span>`}</th>`).join('')}</tr></thead>` : (cols[0].hotel ? `<thead><tr><th></th><th class="fl-hotel">${escHtml(cols[0].hotel)}</th></tr></thead>` : '')}
         <tbody>${tipos.map(filaHTML).join('')}</tbody></table>${tablaExtra}` : '<p class="fl-aviso">No hay un hotel con tipos de habitación y precio para calcular el valor por persona.</p>'}
