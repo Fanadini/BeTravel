@@ -410,6 +410,37 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .validez{margin-top:6mm;font-size:10pt;font-weight:600;color:#0F3D3E}
 
 /* Cierre */
+.slide-flyer{padding:0;display:flex;flex-direction:column;background:#E6E1D8}
+.fl-top{background:#0F3D3E;color:#E6E1D8;display:flex;justify-content:space-between;align-items:center;padding:6mm 16mm;flex-shrink:0}
+.fl-logo{font-size:15pt;font-weight:600;letter-spacing:-.3pt}
+.fl-logo span{color:#B08A5A}
+.fl-web{font-size:8pt;letter-spacing:.6pt;color:rgba(230,225,216,.7)}
+.fl-img{width:100%;height:78mm;object-fit:cover;display:block;flex-shrink:0}
+.fl-img-vacia{background:#0F3D3E;opacity:.15}
+.fl-body{flex:1;min-height:0;overflow:hidden;padding:9mm 16mm 4mm}
+.fl-kicker{font-size:8.5pt;font-weight:600;letter-spacing:1.8pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin-bottom:2.5mm}
+.fl-titulo{font-size:27pt;font-weight:600;letter-spacing:-.6pt;line-height:1.1;color:#0F3D3E;margin-bottom:7mm}
+.fl-seccion{font-size:8pt;font-weight:600;letter-spacing:1.6pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin:0 0 2.5mm;padding-bottom:1.5mm;border-bottom:.3mm solid rgba(15,61,62,.3)}
+.fl-tabla{width:100%;border-collapse:collapse;margin-bottom:7mm}
+.fl-tabla th,.fl-tabla td{padding:3mm 0;border-bottom:.2mm solid rgba(15,61,62,.18);vertical-align:middle;text-align:left}
+.fl-tabla thead th{padding:0 0 2mm;font-size:9.5pt;font-weight:600;color:#0F3D3E;border-bottom:.3mm solid rgba(15,61,62,.3)}
+.fl-tabla td{text-align:right;padding-left:4mm}
+.fl-tabla thead .fl-hotel{text-align:right}
+.fl-abrev{display:block;font-size:14pt;font-weight:600;letter-spacing:.4pt;color:#0F3D3E}
+.fl-sub{display:block;font-size:8pt;color:rgba(43,43,43,.65);margin-top:.5mm}
+.fl-precio{display:block;font-size:19pt;font-weight:600;letter-spacing:-.3pt;color:#0F3D3E;white-space:nowrap}
+.fl-cat{display:block;font-size:7.5pt;color:rgba(43,43,43,.6);margin-top:.5mm}
+.fl-na{color:rgba(43,43,43,.4)}
+.fl-aviso{font-size:10pt;color:#9a3a3a;margin-bottom:6mm}
+.fl-incluye{list-style:none;columns:2;column-gap:10mm;margin-bottom:5mm}
+.fl-incluye li{font-size:9.5pt;line-height:1.45;padding:1mm 0 1mm 4.5mm;position:relative;break-inside:avoid}
+.fl-incluye li::before{content:'';position:absolute;left:0;top:3mm;width:1.6mm;height:.3mm;background:#0F3D3E}
+.fl-nota{font-size:8pt;line-height:1.5;color:rgba(43,43,43,.65)}
+.fl-pie{background:#0F3D3E;color:#E6E1D8;display:flex;justify-content:space-between;align-items:flex-end;padding:5mm 16mm;font-size:9pt;line-height:1.5;flex-shrink:0}
+.fl-pie b{font-weight:600;color:#fff}
+.fl-pie-d{font-size:7.5pt;letter-spacing:1.4pt;text-transform:uppercase;color:rgba(230,225,216,.6)}
+.flyer-ops{display:flex;flex-direction:column;gap:5px}
+.flyer-btns{display:flex;gap:8px;margin-top:6px}
 .slide-close{background:#0F3D3E;color:#E6E1D8;justify-content:center}
 .close-logo{font-size:30pt;font-weight:600;letter-spacing:-.6pt;margin-bottom:8mm}
 .close-logo span{color:#B08A5A}
@@ -524,7 +555,7 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 <div class="deck-modal" id="deck-modal">
   <div class="deck-toolbar">
     <div>
-      <div class="t">Vista previa de la propuesta</div>
+      <div class="t" id="deck-titulo">Vista previa de la propuesta</div>
       <div class="hint">En el diálogo de impresión elegí "Guardar como PDF". El formato ya queda en A4 vertical.</div>
       <div class="hint" id="deck-warn" style="color:#f0b35a"></div>
     </div>
@@ -845,7 +876,7 @@ function blankCotizacion(){
     moneda:'USD', tipoCambio:'', validezHasta:'', estado:'borrador',
     portada:'auto', portadaUrl:'', nombresOpciones:{}, opcionElegida:'',
     introduccion:'', dias:[], servicios:[], markupDefault: MARKUP_DEFAULT,
-    mostrarDesglose:false, mostrarPorPersona:true,
+    mostrarDesglose:false, mostrarPorPersona:true, flyer:{},
     noIncluye: DEFAULT_NO_INCLUYE, condiciones: DEFAULT_CONDICIONES, anexos: [],
     reservaId:'', fechaCreacion: todayISO(),
     creadoPor: CURRENT_USER.email, creadoPorNombre: CURRENT_USER.nombre, creadoPorEmail: '',
@@ -1271,6 +1302,8 @@ function renderEditor(){
           <div id="anexos-list"></div>
           <button class="add-item-btn" onclick="agregarAnexo()">+ Agregar anexo</button>
         </div>
+
+        <div class="card" id="card-flyer">${flyerCardHTML(c)}</div>
       </div>
 
       <div class="side">
@@ -3602,6 +3635,145 @@ function buildSlides(c){
   }).join('');
 }
 
+// ── FLYER: precio por persona según la ocupación de la habitación (SNGL, DBLE, TPL, CUAD) ──
+let DECK_MODO = 'propuesta';
+const BASES_HAB = [['Single','SNGL','1 persona'],['Doble','DBLE','2 personas'],['Triple','TPL','3 personas'],['Cuádruple','CUAD','4 personas']];
+// Precio por persona de cada base de ocupación, para las opciones elegidas (o para todo lo incluido si no hay opciones).
+// Por persona = precio de la habitación (toda la estadía) ÷ ocupantes + la parte por persona de los demás servicios:
+// el aéreo con tarifa por tipo de pasajero aporta la del adulto (ADT); el resto se divide por los pasajeros de la cotización.
+function preciosPorBase(c, o){
+  const alcance = srvActivos(c).filter(s => modoDe(s) === 'incluido' || (o && modoDe(s) === o));
+  const hoteles = alcance.filter(s => s.tipo === 'Hotel' && tieneHab(s));
+  const pax = parseInt(c.pasajeros, 10) || 0;
+  let otros = 0, faltaPax = false, sinTC = false;
+  alcance.filter(s => !hoteles.includes(s)).forEach(s => {
+    const mon = s.moneda || c.moneda;
+    if (tieneTar(s)){
+      const ad = s.tarifas.find(x => x.tipo === 'ADT') || s.tarifas[0];
+      const cv = convertir(num(ad.precio), mon, c.moneda, c.tipoCambio);
+      if (cv.ok) otros += cv.value; else sinTC = true;
+    } else if (num(s.precio) > 0){
+      const cv = convertir(num(s.precio), mon, c.moneda, c.tipoCambio);
+      if (!cv.ok) sinTC = true; else if (pax > 0) otros += cv.value / pax; else faltaPax = true;
+    }
+  });
+  const filas = BASES_HAB.map(([tipo, abrev, personas]) => {
+    let hotelPP = 0, completo = true, cat = '';
+    hoteles.forEach(s => {
+      const h = s.habitaciones.find(x => x.tipo === tipo && num(x.precio) > 0);
+      if (!h){ completo = false; return; }
+      const cv = convertir(num(h.precio) * habNoches(s), s.moneda || c.moneda, c.moneda, c.tipoCambio);
+      if (!cv.ok){ sinTC = true; return; }
+      hotelPP += cv.value / (num(h.ocupantes) || ocupantesDe(tipo));
+      if (!cat) cat = String(h.categoria || '').trim();
+    });
+    return hoteles.length && completo ? { tipo, abrev, personas, categoria: cat, pp: hotelPP + otros } : null;
+  }).filter(Boolean);
+  const nombre = hoteles.map(s => s.concepto).filter(Boolean).join(' + ');
+  return { filas, hotel: nombre, otros, faltaPax, sinTC, hayHotel: hoteles.length > 0 };
+}
+function flyerOpciones(c){
+  const ops = opcionesDe(c), f = c.flyer || {};
+  return ops.length ? (Array.isArray(f.opciones) && f.opciones.length ? ops.filter(o => f.opciones.includes(o)) : ops) : [null];
+}
+// Textos que se usan si el campo del flyer queda vacío.
+function flyerDefaults(c){
+  const f = c.flyer || {}, sel = flyerOpciones(c);
+  const incluidos = srvActivos(c).filter(s => modoDe(s) === 'incluido' && s.tipo !== 'Hotel' && String(s.concepto).trim());
+  const deOpcion = sel.filter(Boolean).flatMap(o => srvActivos(c).filter(s => modoDe(s) === o && s.tipo !== 'Hotel' && String(s.concepto).trim()));
+  const incluye = [...new Set([...incluidos, ...deOpcion].map(s => String(s.concepto).trim()))].join('\n');
+  const mon = c.moneda === 'USD' ? 'dólares estadounidenses' : 'pesos argentinos';
+  const nota = `Valores en ${mon}, por persona, según la ocupación de la habitación. Sujetos a disponibilidad.${c.validezHasta ? ` Válidos hasta el ${fmtDateLong(c.validezHasta)}.` : ''}`;
+  return {
+    titulo: c.titulo || c.destino || 'Propuesta de viaje',
+    subtitulo: [c.destino, rangoFechas(c.fechaInicio, c.fechaFin)].filter(Boolean).join(' · '),
+    incluye, nota,
+  };
+}
+function flyerCardHTML(c){
+  const f = c.flyer || {}, d = flyerDefaults(c), ops = opcionesDe(c);
+  return `<h3>Flyer · precio por persona</h3>
+    <p class="card-hint">Arma una página A4 con el valor por persona en base a SNGL, DBLE, TPL y CUAD, a partir de los tipos de habitación del hotel. Cada valor suma la habitación (÷ ocupantes) y la parte por persona de los demás servicios. Los campos vacíos usan el texto sugerido.</p>
+    <div class="frow"><label class="fl">Título</label><input class="fi" value="${escHtml(f.titulo || '')}" placeholder="${escHtml(d.titulo)}" oninput="setFlyer('titulo',this.value)"></div>
+    <div class="frow"><label class="fl">Subtítulo</label><input class="fi" value="${escHtml(f.subtitulo || '')}" placeholder="${escHtml(d.subtitulo)}" oninput="setFlyer('subtitulo',this.value)"></div>
+    ${ops.length ? `<div class="frow"><label class="fl">Hoteles / opciones que se muestran</label><div class="flyer-ops">${ops.map(o => `<label class="check-row" style="margin:0"><input type="checkbox" ${flyerOpciones(c).includes(o) ? 'checked' : ''} onchange="setFlyerOpcion('${o}',this.checked)"> ${escHtml(nombreOpcion(c, o))}</label>`).join('')}</div></div>` : ''}
+    <div class="frow"><label class="fl">Qué incluye (una línea por ítem)</label><textarea class="fta" data-neg rows="4" placeholder="${escHtml(d.incluye)}" oninput="setFlyer('incluye',this.value)">${escHtml(f.incluye || '')}</textarea></div>
+    <div class="frow"><label class="fl">Nota</label><textarea class="fta" data-neg rows="2" placeholder="${escHtml(d.nota)}" oninput="setFlyer('nota',this.value)">${escHtml(f.nota || '')}</textarea></div>
+    <label class="check-row"><input type="checkbox" ${f.sinCategoria ? '' : 'checked'} onchange="setFlyer('sinCategoria',!this.checked)"> Mostrar la categoría de habitación de cada base</label>
+    <div class="flyer-btns"><button class="new-btn" onclick="abrirFlyer(false)">Ver flyer</button><button class="new-btn outline" onclick="abrirFlyer(true)">Descargar PDF</button></div>`;
+}
+function setFlyer(campo, v){
+  const c = editing.data;
+  if (!c.flyer || typeof c.flyer !== 'object') c.flyer = {};
+  if (v === '' || v === false) delete c.flyer[campo]; else c.flyer[campo] = v;
+  markDirty();
+}
+function setFlyerOpcion(o, on){
+  const c = editing.data, ops = opcionesDe(c);
+  let sel = flyerOpciones(c).slice();
+  sel = on ? [...new Set([...sel, o])] : sel.filter(x => x !== o);
+  if (!sel.length){ document.getElementById('card-flyer').innerHTML = flyerCardHTML(c); return; }   // tiene que quedar al menos una
+  if (!c.flyer || typeof c.flyer !== 'object') c.flyer = {};
+  if (ops.every(x => sel.includes(x))) delete c.flyer.opciones; else c.flyer.opciones = ops.filter(x => sel.includes(x));
+  markDirty();
+  document.getElementById('card-flyer').innerHTML = flyerCardHTML(c);
+}
+function buildFlyer(c){
+  const f = c.flyer || {}, d = flyerDefaults(c);
+  const titulo = String(f.titulo || '').trim() || d.titulo, subtitulo = String(f.subtitulo || '').trim() || d.subtitulo;
+  const incluye = lineas(String(f.incluye || '').trim() ? f.incluye : d.incluye);
+  const nota = String(f.nota || '').trim() || d.nota;
+  const cols = flyerOpciones(c).map(o => ({ o, ...preciosPorBase(c, o) }));
+  const img = portadaSrc(c), m = c.moneda;
+  const conOps = cols.length > 1;
+  const tipos = BASES_HAB.filter(b => cols.some(col => col.filas.some(x => x.tipo === b[0])));
+  const filaHTML = ([tipo, abrev, personas]) => {
+    const cat = !f.sinCategoria && cols.map(col => (col.filas.find(x => x.tipo === tipo) || {}).categoria).find(Boolean);
+    return `<tr><th><span class="fl-abrev">${abrev}</span><span class="fl-sub">${tipo} · ${personas}${cat && !conOps ? ' · ' + escHtml(cat) : ''}</span></th>${cols.map(col => {
+      const x = col.filas.find(y => y.tipo === tipo);
+      return `<td>${x ? `<span class="fl-precio">${escHtml((m === 'USD' ? 'US$ ' : '$ ') + fmtNum(Math.round(x.pp)))}</span>${cat && conOps && x.categoria ? `<span class="fl-cat">${escHtml(x.categoria)}</span>` : ''}` : '<span class="fl-na">—</span>'}</td>`;
+    }).join('')}</tr>`;
+  };
+  return `<section class="slide slide-flyer">
+    <div class="fl-top"><div class="fl-logo">Be<span>•</span>Travel</div><div class="fl-web">betravel.com.ar</div></div>
+    ${img ? `<img class="fl-img" src="${escHtml(img)}" alt="">` : '<div class="fl-img fl-img-vacia"></div>'}
+    <div class="fl-body">
+      <div class="fl-kicker">${escHtml(subtitulo)}</div>
+      <h1 class="fl-titulo">${escHtml(titulo)}</h1>
+      <div class="fl-seccion">Valor por persona</div>
+      ${tipos.length ? `<table class="fl-tabla">
+        ${conOps ? `<thead><tr><th></th>${cols.map(col => `<th class="fl-hotel">${escHtml(col.hotel || ('Opción ' + col.o))}</th>`).join('')}</tr></thead>` : (cols[0].hotel ? `<thead><tr><th></th><th class="fl-hotel">${escHtml(cols[0].hotel)}</th></tr></thead>` : '')}
+        <tbody>${tipos.map(filaHTML).join('')}</tbody></table>` : '<p class="fl-aviso">No hay un hotel con tipos de habitación y precio para calcular el valor por persona.</p>'}
+      ${incluye.length ? `<div class="fl-seccion">Incluye</div><ul class="fl-incluye">${incluye.map(l => `<li>${negrita(l)}</li>`).join('')}</ul>` : ''}
+      <div class="fl-nota">${negrita(nota)}</div>
+    </div>
+    <div class="fl-pie"><div><b>${escHtml(c.creadoPorNombre || CURRENT_USER.nombre || 'Be•Travel')}</b><br>${escHtml(contactoDe(c))}</div><div class="fl-pie-d">Consultas y reservas</div></div>
+  </section>`;
+}
+async function abrirFlyer(imprimir){
+  const c = editing.data;
+  flushSave().catch(()=>{});
+  await cargarImagenFull(portadaId(c));
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  const deck = document.getElementById('deck');
+  document.getElementById('deck-modal').classList.add('open');
+  deck.style.zoom = 1;
+  DECK_MODO = 'flyer';
+  document.getElementById('deck-titulo').textContent = 'Vista previa del flyer';
+  deck.innerHTML = buildFlyer(c);
+  const cuerpo = deck.querySelector('.fl-body');
+  DESBORDES = cuerpo && desborda(cuerpo) ? [1] : [];
+  const cols = flyerOpciones(c).map(o => preciosPorBase(c, o));
+  document.getElementById('deck-warn').textContent = [
+    DESBORDES.length ? '⚠ El flyer tiene más contenido del que entra y se va a cortar: acortá "Qué incluye" o la nota.' : '',
+    !portadaSrc(c) ? '⚠ El flyer no tiene imagen del destino: cargala en "Imagen de portada".' : '',
+    cols.some(x => x.faltaPax) ? '⚠ Falta la cantidad de pasajeros de la cotización: los servicios que no son el hotel no se pudieron repartir por persona.' : '',
+    cols.some(x => x.sinTC) ? '⚠ Hay servicios en otra moneda sin tipo de cambio de referencia: no están sumados.' : '',
+    cols.every(x => x.filas.length < 4) && cols.some(x => x.hayHotel) ? '⚠ Algún hotel no tiene precio en los cuatro tipos de habitación: solo se muestran los que tienen.' : '',
+  ].filter(Boolean).join(' ');
+  ajustarZoomDeck();
+  if (imprimir) imprimirDeck();
+}
 function ajustarZoomDeck(){
   const scroll = document.getElementById('deck-scroll');
   const deck = document.getElementById('deck');
@@ -3637,6 +3809,8 @@ async function abrirDeck(imprimir){
   const deck = document.getElementById('deck');
   document.getElementById('deck-modal').classList.add('open');
   deck.style.zoom = 1;
+  DECK_MODO = 'propuesta';
+  document.getElementById('deck-titulo').textContent = 'Vista previa de la propuesta';
   deck.innerHTML = buildSlides(c);
   DESBORDES = detectarDesbordes();
   const uno = DESBORDES.length === 1;
@@ -3652,10 +3826,10 @@ async function abrirDeck(imprimir){
 function cerrarDeck(){ document.getElementById('deck-modal').classList.remove('open'); }
 function imprimirDeck(){
   const c = editing.data;
-  if (DESBORDES.length && !confirm(`La propuesta tiene texto que se va a cortar (página ${DESBORDES.join(', ')}). ¿Descargar igual?`)) return;
+  if (DESBORDES.length && !confirm(`${DECK_MODO === 'flyer' ? 'El flyer' : 'La propuesta'} tiene texto que se va a cortar (página ${DESBORDES.join(', ')}). ¿Descargar igual?`)) return;
   const tituloOriginal = document.title;
   // Chrome usa el título del documento como nombre sugerido del PDF.
-  document.title = ['Propuesta Be•Travel', c.codigo, c.cliente, c.destino].filter(Boolean).join(' - ');
+  document.title = [DECK_MODO === 'flyer' ? 'Flyer Be•Travel' : 'Propuesta Be•Travel', c.codigo, c.cliente, c.destino].filter(Boolean).join(' - ');
   const restaurar = () => { document.title = tituloOriginal; window.removeEventListener('afterprint', restaurar); };
   window.addEventListener('afterprint', restaurar);
   esperarRecursos().then(() => window.print());
