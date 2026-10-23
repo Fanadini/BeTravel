@@ -921,7 +921,7 @@ function blankCotizacion(){
 // Mail de contacto de quien arma la cotización: el de la ficha de usuario (emailContacto) o, si no hay, el de su cuenta.
 function miContacto(){ return CURRENT_USER.emailContacto || CURRENT_USER.email; }
 // Vías de contacto de la agencia: van siempre en el cierre de la propuesta y en el pie del flyer, además del ejecutivo a cargo.
-const BT_EMAIL = 'info@betravel.com', BT_TEL = '+54 9 11 2402-2855';
+const BT_EMAIL = 'info@betravel.com.ar', BT_TEL = '+54 9 11 2402-2855';
 // Mail que lleva la propuesta en el cierre: el de quien armó la cotización, no uno genérico de la agencia.
 function contactoDe(c){
   const propia = c.creadoPor && CURRENT_USER.email && String(c.creadoPor).toLowerCase() === CURRENT_USER.email.toLowerCase();
