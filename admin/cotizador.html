@@ -443,7 +443,8 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .fl-nota{font-size:8pt;line-height:1.5;color:rgba(43,43,43,.65)}
 .fl-pie{background:#0F3D3E;color:#E6E1D8;display:flex;justify-content:space-between;align-items:flex-end;padding:5mm 16mm;font-size:9pt;line-height:1.5;flex-shrink:0}
 .fl-pie b{font-weight:600;color:#fff}
-.fl-pie-d{font-size:7.5pt;letter-spacing:1.4pt;text-transform:uppercase;color:rgba(230,225,216,.6)}
+.fl-pie-d{font-size:7.5pt;letter-spacing:1.4pt;text-transform:uppercase;color:rgba(230,225,216,.6);text-align:right}
+.fl-pie-c{display:block;margin-top:1mm;font-size:9pt;letter-spacing:0;text-transform:none;color:#E6E1D8}
 .compacto .fl-img{height:46mm}
 .compacto .fl-body{padding-top:6mm}
 .compacto .fl-titulo{font-size:22pt;margin-bottom:4mm}
@@ -478,6 +479,7 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .close-text{font-size:13pt;line-height:1.6;max-width:170mm;color:rgba(230,225,216,.9);margin-bottom:12mm}
 .close-contact{font-size:10.5pt;line-height:1.9;color:rgba(230,225,216,.75)}
 .close-contact b{color:#fff;font-weight:600}
+.close-agencia{margin-top:7mm;padding-top:5mm;border-top:.3mm solid rgba(230,225,216,.25);line-height:1.7}
 
 @media print{
   @page{size:A4 portrait;margin:0}
@@ -918,6 +920,8 @@ function blankCotizacion(){
 }
 // Mail de contacto de quien arma la cotización: el de la ficha de usuario (emailContacto) o, si no hay, el de su cuenta.
 function miContacto(){ return CURRENT_USER.emailContacto || CURRENT_USER.email; }
+// Vías de contacto de la agencia: van siempre en el cierre de la propuesta y en el pie del flyer, además del ejecutivo a cargo.
+const BT_EMAIL = 'info@betravel.com', BT_TEL = '+54 9 11 2402-2855';
 // Mail que lleva la propuesta en el cierre: el de quien armó la cotización, no uno genérico de la agencia.
 function contactoDe(c){
   const propia = c.creadoPor && CURRENT_USER.email && String(c.creadoPor).toLowerCase() === CURRENT_USER.email.toLowerCase();
@@ -3658,8 +3662,8 @@ function buildSlides(c){
       <div class="close-text">Quedamos a su disposición para ajustar esta propuesta a sus necesidades.</div>
       <div class="close-contact">
         <b>${escHtml(c.creadoPorNombre || CURRENT_USER.nombre || '')}</b><br>
-        ${escHtml(contactoDe(c))}<br>
-        betravel.com.ar
+        ${escHtml(contactoDe(c))}
+        <div class="close-agencia">Be•Travel<br>${escHtml(BT_EMAIL)}<br>${escHtml(BT_TEL)}<br>betravel.com.ar</div>
       </div>
     </section>` });
 
@@ -3879,7 +3883,7 @@ function buildFlyer(c, pago = 'dentro', compacto = false){
     }).join('')}</tr>`;
   };
   const top = '<div class="fl-top"><div class="fl-logo">Be<span>•</span>Travel</div><div class="fl-web">betravel.com.ar</div></div>';
-  const pie = `<div class="fl-pie"><div><b>${escHtml(c.creadoPorNombre || CURRENT_USER.nombre || 'Be•Travel')}</b><br>${escHtml(contactoDe(c))}</div><div class="fl-pie-d">Consultas y reservas</div></div>`;
+  const pie = `<div class="fl-pie"><div><b>${escHtml(c.creadoPorNombre || CURRENT_USER.nombre || 'Be•Travel')}</b><br>${escHtml(contactoDe(c))}</div><div class="fl-pie-d">Consultas y reservas<span class="fl-pie-c">${escHtml(BT_EMAIL)}<br>${escHtml(BT_TEL)}</span></div></div>`;
   const pagina1 = `<section class="slide slide-flyer${compacto ? ' compacto' : ''}">
     ${top}
     ${img ? `<img class="fl-img" src="${escHtml(img)}" alt="">` : '<div class="fl-img fl-img-vacia"></div>'}
