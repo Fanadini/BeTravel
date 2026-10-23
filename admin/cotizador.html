@@ -439,6 +439,30 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .fl-pie{background:#0F3D3E;color:#E6E1D8;display:flex;justify-content:space-between;align-items:flex-end;padding:5mm 16mm;font-size:9pt;line-height:1.5;flex-shrink:0}
 .fl-pie b{font-weight:600;color:#fff}
 .fl-pie-d{font-size:7.5pt;letter-spacing:1.4pt;text-transform:uppercase;color:rgba(230,225,216,.6)}
+.compacto .fl-img{height:46mm}
+.compacto .fl-body{padding-top:6mm}
+.compacto .fl-titulo{font-size:22pt;margin-bottom:4mm}
+.compacto .fl-tabla{margin-bottom:4mm}
+.compacto .fl-tabla th,.compacto .fl-tabla td{padding:1.8mm 0}
+.compacto .fl-abrev{font-size:12pt}
+.compacto .fl-precio{font-size:15pt}
+.compacto .fl-incluye{margin-bottom:3mm}
+.compacto .fl-incluye li{padding:.4mm 0 .4mm 4.5mm}
+.compacto .fl-incluye li::before{top:2.2mm}
+.compacto .fl-pago{margin-bottom:3mm}
+.fl-pago{display:grid;grid-template-columns:1fr;gap:5mm;margin-bottom:5mm}
+.fl-pago-2{grid-template-columns:1.15fr 1fr;gap:8mm}
+.fl-h{font-size:7.5pt;font-weight:600;letter-spacing:1.3pt;text-transform:uppercase;color:rgba(15,61,62,.7);margin:0 0 1.2mm}
+.fl-pago-col>.fl-h:not(:first-child){margin-top:3.5mm}
+.fl-txt{font-size:9pt;line-height:1.5;white-space:pre-line}
+.fl-fechas{display:grid;gap:1mm}
+.fl-fecha{display:grid;grid-template-columns:44mm 1fr;gap:3mm;font-size:9pt;line-height:1.4}
+.fl-fecha b{font-weight:600;color:#0F3D3E}
+.fl-pago-cta{border:.3mm solid rgba(15,61,62,.3);background:rgba(255,255,255,.45);padding:3.5mm 4mm;align-self:start}
+.fl-cuentas{font-size:8.5pt;line-height:1.55;white-space:pre-line;overflow-wrap:anywhere}
+.flyer-sub{font-size:10px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--teal);margin:14px 0 6px;padding-top:12px;border-top:1px solid var(--beige-d)}
+.flyer-dl{display:grid;gap:6px;margin-bottom:6px}
+.flyer-dl-fila{display:grid;grid-template-columns:150px 1fr 24px;gap:6px;align-items:center}
 .flyer-ops{display:flex;flex-direction:column;gap:5px}
 .flyer-btns{display:flex;gap:8px;margin-top:6px}
 .slide-close{background:#0F3D3E;color:#E6E1D8;justify-content:center}
@@ -589,6 +613,7 @@ const META_COT_COUNTER_REF = db.ref('finanzas/meta/cotizacionCodigoCounter');
 const META_COT_PREFIJO_REF = db.ref('finanzas/meta/cotizacionPrefijo');
 const META_RES_COUNTER_REF = db.ref('finanzas/meta/reservaCodigoCounter');
 const META_PROV_REF = db.ref('finanzas/meta/proveedores');
+const META_COBRO_REF = db.ref('finanzas/meta/datosCobro');   // formas de pago, condición del tipo de cambio y cuentas de la agencia
 const META_USUARIOS_REF = db.ref('finanzas/meta/usuarios');
 
 // Mismos tipos que gestioninterna.html, para que "Convertir en reserva" sea compatible.
@@ -795,6 +820,7 @@ function attachListeners(){
   }, err => { setSyncStatus('err','Error de sync'); console.error(err); document.getElementById('lo').classList.add('hidden'); });
   META_PROV_REF.on('value', snap => { PROVEEDORES = snap.val() ? Object.values(snap.val()) : []; refreshDatalists(); });
   META_COT_PREFIJO_REF.on('value', snap => { PREFIJO = String(snap.val() || 'COT-'); });
+  META_COBRO_REF.on('value', snap => { DATOS_COBRO = snap.val() || {}; if (editing){ const k = document.getElementById('card-flyer'); if (k && !k.contains(document.activeElement)) k.innerHTML = flyerCardHTML(editing.data); } }, () => {});
   IMG_META_REF.on('value', snap => {
     const val = snap.val() || {};
     IMAGENES = Object.keys(val).map(id => ({ id, ...val[id] })).sort((a,b) => (b.fecha||0) - (a.fecha||0));
@@ -901,7 +927,7 @@ function normArchivos(v){
 // las computadoras, así que dos personas que abren la misma cotización vieja llegan a los mismos uid.
 function nuevoUid(){ return Math.random().toString(36).slice(2, 10); }
 function recorrerListas(c, fn){
-  fn(c.dias); fn(c.servicios); fn(c.anexos);
+  fn(c.dias); fn(c.servicios); fn(c.anexos); fn(c.flyer && c.flyer.deadlines);
   (c.servicios || []).forEach(s => { fn(s.habitaciones); fn(s.tarifas); });
   (c.anexos || []).forEach(a => fn(a.archivos));
 }
@@ -979,6 +1005,8 @@ function normalizar(raw){
     if (s.reparteEntre !== undefined) s.reparteEntre = Array.isArray(s.reparteEntre) ? s.reparteEntre.filter(Boolean) : Object.values(s.reparteEntre || {});
   });
   c.anexos = (Array.isArray(c.anexos) ? c.anexos.filter(Boolean) : Object.values(c.anexos||{})).map(a => ({ titulo:'', texto:'', activo:true, ...a, archivos: normArchivos(a.archivos) }));
+  c.flyer = { ...(c.flyer && typeof c.flyer === 'object' ? c.flyer : {}) };
+  if (c.flyer.deadlines !== undefined) c.flyer.deadlines = (Array.isArray(c.flyer.deadlines) ? c.flyer.deadlines.filter(Boolean) : Object.values(c.flyer.deadlines || {})).map(x => ({ fecha:'', concepto:'', ...x }));
   uidsPorDefecto(c);
   c.nombresOpciones = { ...(c.nombresOpciones||{}) };
   if (raw && raw.noIncluye === undefined) c.noIncluye = '';
@@ -3637,6 +3665,7 @@ function buildSlides(c){
 
 // ── FLYER: precio por persona según la ocupación de la habitación (SNGL, DBLE, TPL, CUAD) ──
 let DECK_MODO = 'propuesta';
+let DATOS_COBRO = {};
 const BASES_HAB = [['Single','SNGL','1 persona'],['Doble','DBLE','2 personas'],['Triple','TPL','3 personas'],['Cuádruple','CUAD','4 personas']];
 // Precio por persona de cada base de ocupación, para las opciones elegidas (o para todo lo incluido si no hay opciones).
 // Por persona = precio de la habitación (toda la estadía) ÷ ocupantes + la parte por persona de los demás servicios:
@@ -3700,7 +3729,48 @@ function flyerCardHTML(c){
     <div class="frow"><label class="fl">Qué incluye (una línea por ítem)</label><textarea class="fta" data-neg rows="4" placeholder="${escHtml(d.incluye)}" oninput="setFlyer('incluye',this.value)">${escHtml(f.incluye || '')}</textarea></div>
     <div class="frow"><label class="fl">Nota</label><textarea class="fta" data-neg rows="2" placeholder="${escHtml(d.nota)}" oninput="setFlyer('nota',this.value)">${escHtml(f.nota || '')}</textarea></div>
     <label class="check-row"><input type="checkbox" ${f.sinCategoria ? '' : 'checked'} onchange="setFlyer('sinCategoria',!this.checked)"> Mostrar la categoría de habitación de cada base</label>
+    <h4 class="flyer-sub">Pagos</h4>
+    <p class="card-hint" style="margin-top:0">Los textos vacíos usan los datos de cobro de la agencia${DATOS_COBRO.updatedAt ? '' : ' (todavía no se cargaron)'}. Si todo queda vacío, el flyer no muestra la sección de pagos.</p>
+    <div class="frow"><label class="fl">Formas de pago</label><textarea class="fta" data-neg rows="3" placeholder="${escHtml(DATOS_COBRO.formasPago || 'Ej: Transferencia bancaria o depósito. Seña del 30 % para confirmar y saldo hasta 30 días antes de la salida.')}" oninput="setFlyer('formasPago',this.value)">${escHtml(f.formasPago || '')}</textarea></div>
+    <label class="check-row"><input type="checkbox" ${f.sinTC ? '' : 'checked'} onchange="setFlyer('sinTC',!this.checked)"> Mostrar el tipo de cambio de referencia ${num(c.tipoCambio) ? `(US$ 1 = $ ${escHtml(fmtNum(num(c.tipoCambio)))})` : '(cargalo en "Datos de la propuesta")'}</label>
+    <div class="frow"><label class="fl">Condición del tipo de cambio</label><input class="fi" value="${escHtml(f.tcNota || '')}" placeholder="${escHtml(DATOS_COBRO.tcNota || 'Ej: Los pagos en pesos se calculan al dólar vendedor del Banco Nación del día anterior al pago')}" oninput="setFlyer('tcNota',this.value)"></div>
+    <label class="fl">Fechas límite</label>
+    <div class="flyer-dl">${((f.deadlines) || []).map((x, i) => `<div class="flyer-dl-fila" data-uid="${escHtml(x.uid || '')}"><input class="fi" type="date" value="${escHtml(x.fecha)}" onchange="setDeadline(${i},'fecha',this.value)"><input class="fi" value="${escHtml(x.concepto)}" placeholder="Ej: Seña del 30 % para confirmar" oninput="setDeadline(${i},'concepto',this.value)"><button class="icon-btn danger" title="Quitar" onclick="quitarDeadline(${i})">✕</button></div>`).join('')}</div>
+    <button class="add-item-btn" style="margin-bottom:10px" onclick="agregarDeadline()">+ Agregar fecha límite</button>
+    <div class="frow"><label class="fl">Datos bancarios</label><textarea class="fta" rows="5" placeholder="${escHtml(DATOS_COBRO.cuentas || 'Banco, titular, CUIT, tipo y número de cuenta, CBU, alias. Para cuentas en dólares, SWIFT.')}" oninput="setFlyer('cuentas',this.value)">${escHtml(f.cuentas || '')}</textarea></div>
+    <div class="flyer-btns">${CURRENT_USER.rol === 'admin' ? `<button class="new-btn outline" onclick="guardarDatosCobro()" title="Guarda formas de pago, condición del tipo de cambio y datos bancarios como los de la agencia">Guardar como datos de cobro de la agencia</button>` : ''}</div>
     <div class="flyer-btns"><button class="new-btn" onclick="abrirFlyer(false)">Ver flyer</button><button class="new-btn outline" onclick="abrirFlyer(true)">Descargar PDF</button></div>`;
+}
+function datosPagoEfectivos(c){
+  const f = c.flyer || {}, d = DATOS_COBRO || {};
+  return { formasPago: String(f.formasPago || '').trim() || String(d.formasPago || '').trim(),
+           tcNota: String(f.tcNota || '').trim() || String(d.tcNota || '').trim(),
+           cuentas: String(f.cuentas || '').trim() || String(d.cuentas || '').trim() };
+}
+function guardarDatosCobro(){
+  if (CURRENT_USER.rol !== 'admin') return;
+  const v = datosPagoEfectivos(editing.data);
+  if (!v.formasPago && !v.tcNota && !v.cuentas){ alert('Completá al menos un dato (formas de pago, condición del tipo de cambio o datos bancarios) para guardarlo.'); return; }
+  if (!confirm('Estos datos pasan a ser los datos de cobro de la agencia y se usan en todos los flyers que tengan esos campos vacíos. ¿Guardarlos?')) return;
+  META_COBRO_REF.set({ ...v, updatedAt: Date.now(), updatedBy: CURRENT_USER.email })
+    .then(() => { showBanner(''); setSaveStatus('Datos de cobro guardados ✓'); })
+    .catch(handleWriteError);
+}
+function agregarDeadline(){
+  const c = editing.data;
+  if (!c.flyer || typeof c.flyer !== 'object') c.flyer = {};
+  if (!Array.isArray(c.flyer.deadlines)) c.flyer.deadlines = [];
+  c.flyer.deadlines.push({ uid: nuevoUid(), fecha:'', concepto:'' });
+  markDirty();
+  document.getElementById('card-flyer').innerHTML = flyerCardHTML(c);
+}
+function setDeadline(i, campo, v){ editing.data.flyer.deadlines[i][campo] = v; markDirty(); }
+function quitarDeadline(i){
+  const c = editing.data;
+  c.flyer.deadlines.splice(i, 1);
+  if (!c.flyer.deadlines.length) delete c.flyer.deadlines;
+  markDirty();
+  document.getElementById('card-flyer').innerHTML = flyerCardHTML(c);
 }
 function setFlyer(campo, v){
   const c = editing.data;
@@ -3718,7 +3788,22 @@ function setFlyerOpcion(o, on){
   markDirty();
   document.getElementById('card-flyer').innerHTML = flyerCardHTML(c);
 }
-function buildFlyer(c){
+// Bloque de pagos: formas de pago, tipo de cambio de referencia, fechas límite y datos bancarios. Vacío si no hay nada.
+function flyerPagoHTML(c){
+  const f = c.flyer || {}, v = datosPagoEfectivos(c), m = c.moneda;
+  const tc = !f.sinTC && num(c.tipoCambio) > 0 ? `US$ 1 = $ ${fmtNum(num(c.tipoCambio))}` : '';
+  const fechas = (f.deadlines || []).filter(x => x && (x.fecha || String(x.concepto).trim())).slice().sort((a, b) => String(a.fecha || '9999').localeCompare(String(b.fecha || '9999')));
+  if (!v.formasPago && !tc && !fechas.length && !v.cuentas) return '';
+  const izq = [
+    v.formasPago ? `<div class="fl-h">Formas de pago</div><div class="fl-txt">${negrita(v.formasPago)}</div>` : '',
+    tc ? `<div class="fl-h">Tipo de cambio de referencia</div><div class="fl-txt"><b>${escHtml(tc)}</b>${v.tcNota ? `<br>${negrita(v.tcNota)}` : ''}</div>` : '',
+    fechas.length ? `<div class="fl-h">Fechas límite</div><div class="fl-fechas">${fechas.map(x => `<div class="fl-fecha"><b>${x.fecha ? escHtml(fmtDateLong(x.fecha)) : ''}</b><span>${negrita(String(x.concepto || '').trim())}</span></div>`).join('')}</div>` : '',
+  ].filter(Boolean).join('');
+  const der = v.cuentas ? `<div class="fl-h">Datos bancarios</div><div class="fl-cuentas">${negrita(v.cuentas)}</div>` : '';
+  return `<div class="fl-pago${izq && der ? ' fl-pago-2' : ''}">${izq ? `<div class="fl-pago-col">${izq}</div>` : ''}${der ? `<div class="fl-pago-col fl-pago-cta">${der}</div>` : ''}</div>`;
+}
+// pago: 'dentro' (en la misma página, debajo de "Incluye"), 'aparte' (segunda página) o 'ninguno'.
+function buildFlyer(c, pago = 'dentro', compacto = false){
   const f = c.flyer || {}, d = flyerDefaults(c);
   const titulo = String(f.titulo || '').trim() || d.titulo, subtitulo = String(f.subtitulo || '').trim() || d.subtitulo;
   const incluye = lineas(String(f.incluye || '').trim() ? f.incluye : d.incluye);
@@ -3727,6 +3812,7 @@ function buildFlyer(c){
   const img = portadaSrc(c), m = c.moneda;
   const conOps = cols.length > 1;
   const tipos = BASES_HAB.filter(b => cols.some(col => col.filas.some(x => x.tipo === b[0])));
+  const bloquePago = pago === 'ninguno' ? '' : flyerPagoHTML(c);
   const filaHTML = ([tipo, abrev, personas]) => {
     const cat = !f.sinCategoria && cols.map(col => (col.filas.find(x => x.tipo === tipo) || {}).categoria).find(Boolean);
     return `<tr><th><span class="fl-abrev">${abrev}</span><span class="fl-sub">${tipo} · ${personas}${cat && !conOps ? ' · ' + escHtml(cat) : ''}</span></th>${cols.map(col => {
@@ -3734,8 +3820,10 @@ function buildFlyer(c){
       return `<td>${x ? `<span class="fl-precio">${escHtml((m === 'USD' ? 'US$ ' : '$ ') + fmtNum(Math.round(x.pp)))}</span>${cat && conOps && x.categoria ? `<span class="fl-cat">${escHtml(x.categoria)}</span>` : ''}` : '<span class="fl-na">—</span>'}</td>`;
     }).join('')}</tr>`;
   };
-  return `<section class="slide slide-flyer">
-    <div class="fl-top"><div class="fl-logo">Be<span>•</span>Travel</div><div class="fl-web">betravel.com.ar</div></div>
+  const top = '<div class="fl-top"><div class="fl-logo">Be<span>•</span>Travel</div><div class="fl-web">betravel.com.ar</div></div>';
+  const pie = `<div class="fl-pie"><div><b>${escHtml(c.creadoPorNombre || CURRENT_USER.nombre || 'Be•Travel')}</b><br>${escHtml(contactoDe(c))}</div><div class="fl-pie-d">Consultas y reservas</div></div>`;
+  const pagina1 = `<section class="slide slide-flyer${compacto ? ' compacto' : ''}">
+    ${top}
     ${img ? `<img class="fl-img" src="${escHtml(img)}" alt="">` : '<div class="fl-img fl-img-vacia"></div>'}
     <div class="fl-body">
       <div class="fl-kicker">${escHtml(subtitulo)}</div>
@@ -3745,10 +3833,21 @@ function buildFlyer(c){
         ${conOps ? `<thead><tr><th></th>${cols.map(col => `<th class="fl-hotel">${escHtml(col.hotel || ('Opción ' + col.o))}</th>`).join('')}</tr></thead>` : (cols[0].hotel ? `<thead><tr><th></th><th class="fl-hotel">${escHtml(cols[0].hotel)}</th></tr></thead>` : '')}
         <tbody>${tipos.map(filaHTML).join('')}</tbody></table>` : '<p class="fl-aviso">No hay un hotel con tipos de habitación y precio para calcular el valor por persona.</p>'}
       ${incluye.length ? `<div class="fl-seccion">Incluye</div><ul class="fl-incluye">${incluye.map(l => `<li>${negrita(l)}</li>`).join('')}</ul>` : ''}
+      ${pago === 'dentro' && bloquePago ? `<div class="fl-seccion">Pagos</div>${bloquePago}` : ''}
       <div class="fl-nota">${negrita(nota)}</div>
     </div>
-    <div class="fl-pie"><div><b>${escHtml(c.creadoPorNombre || CURRENT_USER.nombre || 'Be•Travel')}</b><br>${escHtml(contactoDe(c))}</div><div class="fl-pie-d">Consultas y reservas</div></div>
+    ${pie}
   </section>`;
+  const pagina2 = pago === 'aparte' && bloquePago ? `<section class="slide slide-flyer">
+    ${top}
+    <div class="fl-body">
+      <div class="fl-kicker">${escHtml(subtitulo)}</div>
+      <h1 class="fl-titulo">Formas de pago</h1>
+      ${bloquePago}
+    </div>
+    ${pie}
+  </section>` : '';
+  return pagina1 + pagina2;
 }
 async function abrirFlyer(imprimir){
   const c = editing.data;
@@ -3760,12 +3859,21 @@ async function abrirFlyer(imprimir){
   deck.style.zoom = 1;
   DECK_MODO = 'flyer';
   document.getElementById('deck-titulo').textContent = 'Vista previa del flyer';
-  deck.innerHTML = buildFlyer(c);
-  const cuerpo = deck.querySelector('.fl-body');
-  DESBORDES = cuerpo && desborda(cuerpo) ? [1] : [];
+  deck.innerHTML = buildFlyer(c, 'dentro');
+  let aparte = false, compacto = false;
+  const entra = () => ![...deck.querySelectorAll('.fl-body')].some(b => desborda(b));
+  // Si los pagos no entran en la página: primero se achica la imagen y los espacios; si aun así no entran,
+  // pasan a una segunda página. Si algo sigue sin entrar, se avisa.
+  if (!entra() && flyerPagoHTML(c)){
+    deck.innerHTML = buildFlyer(c, 'dentro', true); compacto = true;
+    if (!entra()){ deck.innerHTML = buildFlyer(c, 'aparte'); aparte = true; compacto = false; }
+  }
+  DESBORDES = [...deck.querySelectorAll('.fl-body')].map((b, i) => desborda(b) ? i + 1 : 0).filter(Boolean);
   const cols = flyerOpciones(c).map(o => preciosPorBase(c, o));
   document.getElementById('deck-warn').textContent = [
-    DESBORDES.length ? '⚠ El flyer tiene más contenido del que entra y se va a cortar: acortá "Qué incluye" o la nota.' : '',
+    DESBORDES.length ? '⚠ El flyer tiene más contenido del que entra y se va a cortar: acortá "Qué incluye", los pagos o la nota.' : '',
+    aparte && !DESBORDES.length ? 'Los pagos no entraban en la misma página: salen en una segunda.' : '',
+    compacto && !DESBORDES.length ? 'Para que entren los pagos se achicó la imagen y los espacios.' : '',
     !portadaSrc(c) ? '⚠ El flyer no tiene imagen del destino: cargala en "Imagen de portada".' : '',
     cols.some(x => x.faltaPax) ? '⚠ Falta la cantidad de pasajeros de la cotización: los servicios que no son el hotel no se pudieron repartir por persona.' : '',
     cols.some(x => x.sinTC) ? '⚠ Hay servicios en otra moneda sin tipo de cambio de referencia: no están sumados.' : '',
