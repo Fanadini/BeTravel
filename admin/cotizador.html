@@ -1087,6 +1087,8 @@ function habResumen(s){
 // (infante). Cada línea tiene cantidad, costo neto, markup y venta por pasajero; el costo y el precio del servicio
 // son la suma de las líneas, así que totales, márgenes y conversión de moneda no cambian.
 const PAX_TIPOS = [['ADT','Adulto'],['CHD','Menor'],['INF','Infante']];
+// Corte de edades del aéreo: rige para todo (hotel, flyer y demás servicios). Menor = CHD, infante = INF.
+const EDAD_CHD = '2 a 11 años', EDAD_INF = '0 a 2 años';
 function paxEtiqueta(tipo){ const x = PAX_TIPOS.find(a => a[0] === tipo); return x ? `${x[1]} (${x[0]})` : tipo; }
 function normTar(v){
   const lista = Array.isArray(v) ? v.filter(Boolean) : Object.values(v || {});
@@ -2344,7 +2346,7 @@ function habEditor(s, i){
       <div><label class="fl">Markup % para todas</label><input class="fi" type="number" step="0.1" placeholder="Aplicar a todas" onchange="setMarkupHabs(${i},this.value)"></div>
       <div><label class="fl">El precio de cada habitación es</label><select class="fsel" onchange="setHabBase(${i},this.value)">${selOpts(['estadia','noche'],['por toda la estadía','por noche'],habPorNoche(s)?'noche':'estadia')}</select></div>
       <div style="${habPorNoche(s) ? '' : 'visibility:hidden'}"><label class="fl">Noches</label><input class="fi h-noches" type="number" min="1" step="1" value="${escHtml(s.noches||'')}" placeholder="N°" oninput="setHabNoches(${i},this.value)"></div>
-      <div class="hab-hint">El precio total del hotel es la suma de las líneas${habPorNoche(s) ? ' (cantidad × noches × precio)' : ''}. Para mostrar cada precio en la propuesta, activá "Mostrar desglose por servicio". "Menor" es la tarifa por menor y por noche cuando comparte la habitación con adultos: no suma al total del hotel, la usa el flyer.</div>
+      <div class="hab-hint">El precio total del hotel es la suma de las líneas${habPorNoche(s) ? ' (cantidad × noches × precio)' : ''}. Para mostrar cada precio en la propuesta, activá "Mostrar desglose por servicio". "Menor" es la tarifa por menor y por noche cuando comparte la habitación con adultos: no suma al total del hotel, la usa el flyer. Se aplica el mismo corte de edades que en el aéreo: menor (CHD) de ${EDAD_CHD}, infante (INF) de ${EDAD_INF} sin cargo de habitación.</div>
     </div>
     <div class="hab-scroll"><div class="hab-tabla">
       <div class="hab-fila hab-cab"><span>Tipo</span><span>Categoría (visible en la propuesta)</span><span>Cant.</span><span>Ocup.</span><span>Costo ${habPorNoche(s) ? 'x noche' : 'c/u'}</span><span>Markup %</span><span>Venta ${habPorNoche(s) ? 'x noche' : 'c/u'}</span><span>Menor: costo</span><span>Menor: venta</span><span>Total venta</span><span></span></div>
@@ -2523,7 +2525,7 @@ function tarEditor(s, i){
     <div class="hab-scroll"><div class="hab-tabla tar-tabla">
       <div class="hab-fila tar-fila hab-cab"><span>Tipo</span><span>Cant.</span><span>Costo neto c/u</span><span>Markup %</span><span>Venta c/u</span><span>Total venta</span><span></span></div>
       ${s.tarifas.map((x, k) => `<div class="hab-fila tar-fila" data-tar="${k}">
-        <select class="fsel" onchange="setTarTipo(${i},${k},this.value)">${selOpts(PAX_TIPOS.map(a=>a[0]),PAX_TIPOS.map(a=>a[0] + ' · ' + a[1]),x.tipo)}</select>
+        <select class="fsel" onchange="setTarTipo(${i},${k},this.value)">${selOpts(PAX_TIPOS.map(a=>a[0]),PAX_TIPOS.map(a=>a[0] + ' · ' + a[1] + (a[0]==='CHD' ? ' · ' + EDAD_CHD : a[0]==='INF' ? ' · ' + EDAD_INF : '')),x.tipo)}</select>
         <input class="fi t-cantidad" type="number" min="0" step="1" value="${escHtml(x.cantidad)}" oninput="setTar(${i},${k},'cantidad',this.value)">
         <input class="fi t-costo" type="number" step="0.01" value="${escHtml(x.costo)}" oninput="setTar(${i},${k},'costo',this.value)">
         <input class="fi t-markup" type="number" step="0.1" value="${escHtml(x.markup)}" oninput="setTar(${i},${k},'markup',this.value)">
@@ -3775,7 +3777,7 @@ function flyerCardHTML(c){
     <div class="frow"><label class="fl">Qué incluye (una línea por ítem)</label><textarea class="fta" data-neg rows="4" placeholder="${escHtml(d.incluye)}" oninput="setFlyer('incluye',this.value)">${escHtml(f.incluye || '')}</textarea></div>
     <div class="frow"><label class="fl">Nota</label><textarea class="fta" data-neg rows="2" placeholder="${escHtml(d.nota)}" oninput="setFlyer('nota',this.value)">${escHtml(f.nota || '')}</textarea></div>
     <label class="check-row"><input type="checkbox" ${f.sinCategoria ? '' : 'checked'} onchange="setFlyer('sinCategoria',!this.checked)"> Mostrar la categoría de habitación de cada base</label>
-    <div class="grid g2" style="margin:8px 0"><div><label class="fl">Edad de los menores (texto del flyer)</label><input class="fi" value="${escHtml(f.edadMenor || '')}" placeholder="2 a 11 años" oninput="setFlyer('edadMenor',this.value)"></div><div><label class="fl">Edad de los infantes</label><input class="fi" value="${escHtml(f.edadInfante || '')}" placeholder="0 a 2 años" oninput="setFlyer('edadInfante',this.value)"></div></div>
+    <div class="grid g2" style="margin:8px 0"><div><label class="fl">Edad de los menores (texto del flyer)</label><input class="fi" value="${escHtml(f.edadMenor || '')}" placeholder="${EDAD_CHD}" oninput="setFlyer('edadMenor',this.value)"></div><div><label class="fl">Edad de los infantes</label><input class="fi" value="${escHtml(f.edadInfante || '')}" placeholder="${EDAD_INF}" oninput="setFlyer('edadInfante',this.value)"></div></div>
     <label class="check-row"><input type="checkbox" ${f.sinFamilia ? '' : 'checked'} onchange="setFlyer('sinFamilia',!this.checked)"> Mostrar el ejemplo de familia de 4 (2 adultos y 2 menores), cuando hay tarifa de menor</label>
     <h4 class="flyer-sub">Pagos</h4>
     <p class="card-hint" style="margin-top:0">Los textos vacíos usan los datos de cobro de la agencia${DATOS_COBRO.updatedAt ? '' : ' (todavía no se cargaron)'}. Si todo queda vacío, el flyer no muestra la sección de pagos.</p>
@@ -3862,7 +3864,7 @@ function buildFlyer(c, pago = 'dentro', compacto = false){
   const tipos = BASES_HAB.filter(b => cols.some(col => col.filas.some(x => x.tipo === b[0])));
   const moneda = n => (m === 'USD' ? 'US$ ' : '$ ') + fmtNum(Math.round(n));
   // Menores, infantes y ejemplo de familia (solo si hay datos): una segunda tabla con las mismas columnas que la primera.
-  const edadMenor = String(f.edadMenor || '').trim() || '2 a 11 años', edadInf = String(f.edadInfante || '').trim() || '0 a 2 años';
+  const edadMenor = String(f.edadMenor || '').trim() || EDAD_CHD, edadInf = String(f.edadInfante || '').trim() || EDAD_INF;
   const extra = [];
   if (cols.some(col => col.menor != null)) extra.push({ abrev:'Menor', sub:`${edadMenor} · comparte habitación con 2 adultos`, val: col => col.menor });
   if (cols.some(col => col.inf != null)) extra.push({ abrev:'Infante', sub:`${edadInf} · sin cargo de habitación`, val: col => col.inf });
