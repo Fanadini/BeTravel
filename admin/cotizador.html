@@ -441,15 +441,17 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .fl-incluye li{font-size:9.5pt;line-height:1.45;padding:1mm 0 1mm 4.5mm;position:relative;break-inside:avoid}
 .fl-incluye li::before{content:'';position:absolute;left:0;top:3mm;width:1.6mm;height:.3mm;background:#0F3D3E}
 .fl-nota{font-size:8pt;line-height:1.5;color:rgba(43,43,43,.65)}
+.fl-aclara{font-size:9pt;color:rgba(43,43,43,.75);margin:-1mm 0 2.5mm}
+.compacto .fl-aclara{margin-bottom:1.5mm}
 .fl-pie{background:#0F3D3E;color:#E6E1D8;display:flex;justify-content:space-between;align-items:flex-end;padding:5mm 16mm;font-size:9pt;line-height:1.5;flex-shrink:0}
 .fl-pie b{font-weight:600;color:#fff}
 .fl-pie-d{font-size:7.5pt;letter-spacing:1.4pt;text-transform:uppercase;color:rgba(230,225,216,.6);text-align:right}
 .fl-pie-c{display:block;margin-top:1mm;font-size:9pt;letter-spacing:0;text-transform:none;color:#E6E1D8}
-.compacto .fl-img{height:46mm}
+.compacto .fl-img{height:34mm}
 .compacto .fl-body{padding-top:6mm}
 .compacto .fl-titulo{font-size:22pt;margin-bottom:4mm}
 .compacto .fl-tabla{margin-bottom:4mm}
-.compacto .fl-tabla th,.compacto .fl-tabla td{padding:1.8mm 0}
+.compacto .fl-tabla th,.compacto .fl-tabla td{padding:1.5mm 0}
 .compacto .fl-abrev{font-size:12pt}
 .compacto .fl-tabla2 .fl-abrev{font-size:10.5pt}
 .compacto .fl-tabla2 .fl-precio{font-size:12.5pt}
@@ -3699,19 +3701,21 @@ function preciosPorBase(c, o){
   const presentes = todos.filter(T => paxTipo[T] > 0);
   // Lo que paga cada tipo por los servicios que no son el hotel: la tarifa del aéreo de su tipo y su parte de los demás
   // (precio ÷ pasajeros de los tipos entre los que se reparte el servicio, que por defecto son todos).
-  const otros = { ADT: 0, CHD: 0, INF: 0 };
+  // Los vuelos van aparte (aer): el flyer los muestra primero y la habitación suma solo los demás servicios (otros).
+  const otros = { ADT: 0, CHD: 0, INF: 0 }, aer = { ADT: 0, CHD: 0, INF: 0 };
   let faltaPax = false, sinTC = false;
   alcance.filter(s => !hoteles.includes(s)).forEach(s => {
     const mon = s.moneda || c.moneda;
+    const dst = s.tipo === 'Aéreo' ? aer : otros;
     if (tieneTar(s)){
-      s.tarifas.forEach(x => { const cv = convertir(num(x.precio), mon, c.moneda, c.tipoCambio); if (cv.ok) otros[x.tipo] = (otros[x.tipo] || 0) + cv.value; else sinTC = true; });
+      s.tarifas.forEach(x => { const cv = convertir(num(x.precio), mon, c.moneda, c.tipoCambio); if (cv.ok) dst[x.tipo] = (dst[x.tipo] || 0) + cv.value; else sinTC = true; });
     } else if (num(s.precio) > 0){
       const cv = convertir(num(s.precio), mon, c.moneda, c.tipoCambio);
       if (!cv.ok){ sinTC = true; return; }
       let dest = (Array.isArray(s.reparteEntre) && s.reparteEntre.length ? s.reparteEntre : todos).filter(T => paxTipo[T] > 0);
       if (!dest.length) dest = presentes;
       const den = dest.reduce((a, T) => a + (paxTipo[T] || 0), 0);
-      if (den > 0) dest.forEach(T => { otros[T] += cv.value / den; }); else faltaPax = true;
+      if (den > 0) dest.forEach(T => { dst[T] += cv.value / den; }); else faltaPax = true;
     }
   });
   // Tipos que pagan habitación (hoteles: "Se reparte entre"; por defecto todos).
@@ -3729,8 +3733,8 @@ function preciosPorBase(c, o){
     });
     return hoteles.length && completo ? { tipo, abrev, personas, categoria: cat, pp: (pagaHotel('ADT') ? hotelPP : 0) + otros.ADT } : null;
   }).filter(Boolean);
-  // Menor: tarifa de menor del hotel por noche (cuando comparte la habitación con adultos; sale de la línea Cuádruple, o de la
-  // Doble, o de la primera que la tenga) + la tarifa de menor del aéreo + su parte de los demás servicios.
+  // Chico: tarifa de menor del hotel por noche (cuando comparte la habitación con adultos; sale de la línea Cuádruple, o de la
+  // Doble, o de la primera que la tenga) + su parte de los demás servicios (el vuelo va aparte).
   let menorHotel = null;
   if (hoteles.length){
     let completo = true, suma = 0;
@@ -3745,14 +3749,25 @@ function preciosPorBase(c, o){
   }
   const otrosMenor = hayTipos && conteo.CHD ? otros.CHD : otros.ADT;
   const menor = menorHotel != null ? (pagaHotel('CHD') ? menorHotel : 0) + otrosMenor : null;
-  // Infante: no paga habitación; paga el aéreo de su tipo y su parte de los demás servicios.
+  // Bebé: no paga habitación; paga su parte de los demás servicios (el vuelo va aparte).
   const inf = hayTipos && conteo.INF > 0 && !pagaHotel('INF') ? otros.INF : null;
   // Familia de 4 (2 adultos y 2 menores) en una habitación cuádruple: los adultos con el valor por persona de la cuádruple
   // (si el hotel no la tiene cargada, el de la doble) y los menores con su tarifa.
   const fd = filas.find(f => f.tipo === 'Cuádruple') || filas.find(f => f.tipo === 'Doble');
   const familia = fd && menor != null ? { total: 2 * fd.pp + 2 * menor, adulto: fd.pp, menor, base: fd.abrev } : null;
   const nombre = hoteles.map(s => s.concepto).filter(Boolean).join(' + ');
-  return { filas, hotel: nombre, otros: otros.ADT, otrosTipo: otros, faltaPax, sinTC, hayHotel: hoteles.length > 0, conteo: paxTipo, menor, inf, familia };
+  // Vuelos por tipo de pasajero (solo los tipos que tienen precio).
+  const aereoFilas = presentes.filter(T => aer[T] > 0).map(T => ({ tipo: T, valor: aer[T] }));
+  const vuelos = (T) => aer[T] || 0;
+  // Familia: habitación y servicios (como arriba) más los vuelos de 2 adultos y 2 chicos.
+  const vuelosFam = 2 * vuelos('ADT') + 2 * (hayTipos && conteo.CHD ? vuelos('CHD') : vuelos('ADT'));
+  const familiaV = familia ? { ...familia, habitacion: familia.total, vuelos: vuelosFam, total: familia.total + vuelosFam } : null;
+  // Noches de la estadía (la del hotel o, si no está cargada, la de las fechas del viaje) y qué servicios incluye el precio de habitación.
+  const diasViaje = c.fechaInicio && c.fechaFin ? Math.round((new Date(c.fechaFin) - new Date(c.fechaInicio)) / 86400000) : 0;
+  const noches = hoteles.length ? (num(hoteles[0].noches) || diasViaje || 0) : 0;
+  const incluidos = alcance.filter(s => !hoteles.includes(s) && s.tipo !== 'Aéreo' && (num(s.precio) > 0 || tieneTar(s)))
+    .map(s => s.tipo === 'Traslados' ? 'traslados' : String(s.concepto || s.tipo).trim()).filter(Boolean);
+  return { filas, hotel: nombre, otros: otros.ADT, otrosTipo: otros, faltaPax, sinTC, hayHotel: hoteles.length > 0, conteo: paxTipo, menor, inf, familia: familiaV, aereoFilas, aereoPorTipo: hayTipos, noches, incluidos };
 }
 function flyerOpciones(c){
   const ops = opcionesDe(c), f = c.flyer || {};
@@ -3775,15 +3790,15 @@ function flyerDefaults(c){
 function flyerCardHTML(c){
   const f = c.flyer || {}, d = flyerDefaults(c), ops = opcionesDe(c);
   return `<h3>Flyer · precio por persona</h3>
-    <p class="card-hint">Arma una página A4 con el valor por persona en base a SNGL, DBLE, TPL y CUAD, a partir de los tipos de habitación del hotel. Cada valor suma la habitación (÷ ocupantes) y la parte por persona de los demás servicios. Con la "tarifa de menor" del hotel (columnas "Menor" de cada habitación) y el aéreo por tipo de pasajero, el flyer suma el precio del menor, el del infante y un ejemplo de familia; lo que paga cada tipo por el hotel y los demás servicios se define con "Se reparte entre" en cada servicio. Los campos vacíos usan el texto sugerido.</p>
+    <p class="card-hint">Arma una página A4. Primero muestra el valor del vuelo por persona (adulto, chico y bebé, según las tarifas del aéreo). Abajo, el valor por persona de cada tipo de habitación (SNGL, DBLE, TPL y CUAD) por toda la estadía: suma la habitación (÷ ocupantes) y la parte por persona de los demás servicios (por ejemplo Assist Card y traslados), que se aclaran como incluidos sin separar su precio. Con la "tarifa de menor" del hotel (columnas "Menor" de cada habitación) suma el valor del chico, el del bebé y un ejemplo de familia con vuelos; lo que paga cada tipo por el hotel y los demás servicios se define con "Se reparte entre" en cada servicio. Los campos vacíos usan el texto sugerido.</p>
     <div class="frow"><label class="fl">Título</label><input class="fi" value="${escHtml(f.titulo || '')}" placeholder="${escHtml(d.titulo)}" oninput="setFlyer('titulo',this.value)"></div>
     <div class="frow"><label class="fl">Subtítulo</label><input class="fi" value="${escHtml(f.subtitulo || '')}" placeholder="${escHtml(d.subtitulo)}" oninput="setFlyer('subtitulo',this.value)"></div>
     ${ops.length ? `<div class="frow"><label class="fl">Hoteles / opciones que se muestran</label><div class="flyer-ops">${ops.map(o => `<label class="check-row" style="margin:0"><input type="checkbox" ${flyerOpciones(c).includes(o) ? 'checked' : ''} onchange="setFlyerOpcion('${o}',this.checked)"> ${escHtml(nombreOpcion(c, o))}</label>`).join('')}</div></div>` : ''}
     <div class="frow"><label class="fl">Qué incluye (una línea por ítem)</label><textarea class="fta" data-neg rows="4" placeholder="${escHtml(d.incluye)}" oninput="setFlyer('incluye',this.value)">${escHtml(f.incluye || '')}</textarea></div>
     <div class="frow"><label class="fl">Nota</label><textarea class="fta" data-neg rows="2" placeholder="${escHtml(d.nota)}" oninput="setFlyer('nota',this.value)">${escHtml(f.nota || '')}</textarea></div>
     <label class="check-row"><input type="checkbox" ${f.sinCategoria ? '' : 'checked'} onchange="setFlyer('sinCategoria',!this.checked)"> Mostrar la categoría de habitación de cada base</label>
-    <div class="grid g2" style="margin:8px 0"><div><label class="fl">Edad de los menores (texto del flyer)</label><input class="fi" value="${escHtml(f.edadMenor || '')}" placeholder="${EDAD_CHD}" oninput="setFlyer('edadMenor',this.value)"></div><div><label class="fl">Edad de los infantes</label><input class="fi" value="${escHtml(f.edadInfante || '')}" placeholder="${EDAD_INF}" oninput="setFlyer('edadInfante',this.value)"></div></div>
-    <label class="check-row"><input type="checkbox" ${f.sinFamilia ? '' : 'checked'} onchange="setFlyer('sinFamilia',!this.checked)"> Mostrar el ejemplo de familia de 4 (2 adultos y 2 menores), cuando hay tarifa de menor</label>
+    <div class="grid g2" style="margin:8px 0"><div><label class="fl">Edad de los chicos (texto del flyer)</label><input class="fi" value="${escHtml(f.edadMenor || '')}" placeholder="${EDAD_CHD}" oninput="setFlyer('edadMenor',this.value)"></div><div><label class="fl">Edad de los bebés</label><input class="fi" value="${escHtml(f.edadInfante || '')}" placeholder="${EDAD_INF}" oninput="setFlyer('edadInfante',this.value)"></div></div>
+    <label class="check-row"><input type="checkbox" ${f.sinFamilia ? '' : 'checked'} onchange="setFlyer('sinFamilia',!this.checked)"> Mostrar el ejemplo de familia de 4 (2 adultos y 2 chicos en cuádruple, con vuelos), cuando hay tarifa de menor</label>
     <h4 class="flyer-sub">Pagos</h4>
     <p class="card-hint" style="margin-top:0">Los textos vacíos usan los datos de cobro de la agencia${DATOS_COBRO.updatedAt ? '' : ' (todavía no se cargaron)'}. Si todo queda vacío, el flyer no muestra la sección de pagos.</p>
     <div class="frow"><label class="fl">Formas de pago</label><textarea class="fta" data-neg rows="3" placeholder="${escHtml(DATOS_COBRO.formasPago || 'Ej: Transferencia bancaria o depósito. Seña del 30 % para confirmar y saldo hasta 30 días antes de la salida.')}" oninput="setFlyer('formasPago',this.value)">${escHtml(f.formasPago || '')}</textarea></div>
@@ -3871,10 +3886,25 @@ function buildFlyer(c, pago = 'dentro', compacto = false){
   // Menores, infantes y ejemplo de familia (solo si hay datos): una segunda tabla con las mismas columnas que la primera.
   const edadMenor = String(f.edadMenor || '').trim() || EDAD_CHD, edadInf = String(f.edadInfante || '').trim() || EDAD_INF;
   const extra = [];
-  if (cols.some(col => col.menor != null)) extra.push({ abrev:'Menor', sub:`${edadMenor} · comparte habitación con 2 adultos`, val: col => col.menor });
-  if (cols.some(col => col.inf != null)) extra.push({ abrev:'Infante', sub:`${edadInf} · sin cargo de habitación`, val: col => col.inf });
-  if (!f.sinFamilia && cols.some(col => col.familia)) extra.push({ abrev:'Familia de 4', sub:'2 adultos y 2 menores en habitación cuádruple · total', val: col => col.familia && col.familia.total, det: col => col.familia ? `${moneda(col.familia.adulto)} por adulto · ${moneda(col.familia.menor)} por menor` : '' });
-  const tablaExtra = extra.length ? `<table class="fl-tabla fl-tabla2"><tbody>${extra.map(r => `<tr><th><span class="fl-abrev">${r.abrev}</span><span class="fl-sub">${escHtml(r.sub)}</span></th>${cols.map(col => { const v = r.val(col); return `<td>${v != null ? `<span class="fl-precio">${escHtml(moneda(v))}</span>${r.det && r.det(col) ? `<span class="fl-cat">${escHtml(r.det(col))}</span>` : ''}` : '<span class="fl-na">—</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>` : '';
+  if (cols.some(col => col.menor != null)) extra.push({ abrev:'Chico', sub:`${edadMenor} · comparte habitación con 2 adultos`, val: col => col.menor });
+  if (cols.some(col => col.inf != null)) extra.push({ abrev:'Bebé', sub:`${edadInf} · sin cargo de habitación`, val: col => col.inf });
+  if (!f.sinFamilia && cols.some(col => col.familia)) extra.push({ abrev:'Familia de 4', sub:'2 adultos y 2 chicos en habitación cuádruple · total con vuelos', val: col => col.familia && col.familia.total, det: col => col.familia ? `Vuelos ${moneda(col.familia.vuelos)} · habitación ${moneda(col.familia.habitacion)}` : '' });
+  const tablaExtra = extra.length ? `<table class="fl-tabla fl-tabla2"><tbody>${extra.map(r => `<tr><th><span class="fl-abrev">${r.abrev}</span><span class="fl-sub">${escHtml(r.sub)}</span></th>${cols.map(col => { const v = r.val(col); return `<td>${v != null ? `<span class="fl-precio">${escHtml(v > 0 ? moneda(v) : 'Sin cargo')}</span>${r.det && r.det(col) ? `<span class="fl-cat">${escHtml(r.det(col))}</span>` : ''}` : '<span class="fl-na">—</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>` : '';
+  // Vuelos: una fila por tipo de pasajero. Una sola columna si el vuelo es el mismo en todas las opciones.
+  const aereoIgual = cols.every(col => JSON.stringify(col.aereoFilas.map(x => [x.tipo, Math.round(x.valor)])) === JSON.stringify(cols[0].aereoFilas.map(x => [x.tipo, Math.round(x.valor)])));
+  const colsAer = aereoIgual ? [cols[0]] : cols;
+  const tiposAer = ['ADT', 'CHD', 'INF'].filter(T => colsAer.some(col => col.aereoFilas.some(x => x.tipo === T)));
+  const porTipo = cols.some(col => col.aereoPorTipo);
+  const filaAer = T => {
+    const [abrev, sub] = T === 'ADT' ? [porTipo ? 'Adulto' : 'Por persona', ''] : T === 'CHD' ? ['Chico', edadMenor] : ['Bebé', edadInf];
+    return `<tr><th><span class="fl-abrev">${abrev}</span>${sub ? `<span class="fl-sub">${escHtml(sub)}</span>` : ''}</th>${colsAer.map(col => { const x = col.aereoFilas.find(y => y.tipo === T); return `<td>${x ? `<span class="fl-precio">${escHtml(moneda(x.valor))}</span>` : '<span class="fl-na">—</span>'}</td>`; }).join('')}</tr>`;
+  };
+  const tablaAereo = tiposAer.length ? `<div class="fl-seccion">Vuelos · valor por persona</div><table class="fl-tabla fl-tabla-aer">${aereoIgual ? '' : `<thead><tr><th></th>${colsAer.map(col => `<th class="fl-hotel">Opción ${escHtml(col.o || '')}</th>`).join('')}</tr></thead>`}<tbody>${tiposAer.map(filaAer).join('')}</tbody></table>` : '';
+  // Aclaración de la habitación: noches de la estadía y servicios incluidos (sin discriminar su precio).
+  const nochesIguales = cols.every(col => col.noches === cols[0].noches);
+  const inclHab = [...new Set(cols.flatMap(col => col.incluidos))];
+  const aclaraHab = [cols[0].noches && nochesIguales ? `Estadía de ${cols[0].noches} noches.` : '', inclHab.length ? `Incluye ${inclHab.join(' y ')}.` : ''].filter(Boolean).join(' ');
+  const aclaraHabHTML = aclaraHab ? `<p class="fl-aclara">${escHtml(aclaraHab)}</p>` : '';
   const bloquePago = pago === 'ninguno' ? '' : flyerPagoHTML(c);
   const filaHTML = ([tipo, abrev, personas]) => {
     const cat = !f.sinCategoria && cols.map(col => (col.filas.find(x => x.tipo === tipo) || {}).categoria).find(Boolean);
@@ -3891,9 +3921,10 @@ function buildFlyer(c, pago = 'dentro', compacto = false){
     <div class="fl-body">
       <div class="fl-kicker">${escHtml(subtitulo)}</div>
       <h1 class="fl-titulo">${escHtml(titulo)}</h1>
-      <div class="fl-seccion">Valor por persona</div>
-      ${tipos.length ? `<table class="fl-tabla">
-        ${conOps ? `<thead><tr><th></th>${cols.map(col => `<th class="fl-hotel">${escHtml(col.hotel || ('Opción ' + col.o))}</th>`).join('')}</tr></thead>` : (cols[0].hotel ? `<thead><tr><th></th><th class="fl-hotel">${escHtml(cols[0].hotel)}</th></tr></thead>` : '')}
+      ${tablaAereo}
+      <div class="fl-seccion">Habitación · valor por persona</div>
+      ${tipos.length ? `${aclaraHabHTML}<table class="fl-tabla">
+        ${conOps ? `<thead><tr><th></th>${cols.map(col => `<th class="fl-hotel">${escHtml(col.hotel || ('Opción ' + col.o))}${nochesIguales || !col.noches ? '' : `<span class="fl-cat">${col.noches} noches</span>`}</th>`).join('')}</tr></thead>` : (cols[0].hotel ? `<thead><tr><th></th><th class="fl-hotel">${escHtml(cols[0].hotel)}</th></tr></thead>` : '')}
         <tbody>${tipos.map(filaHTML).join('')}</tbody></table>${tablaExtra}` : '<p class="fl-aviso">No hay un hotel con tipos de habitación y precio para calcular el valor por persona.</p>'}
       ${incluye.length ? `<div class="fl-seccion">Incluye</div><ul class="fl-incluye">${incluye.map(l => `<li>${negrita(l)}</li>`).join('')}</ul>` : ''}
       ${pago === 'dentro' && bloquePago ? `<div class="fl-seccion">Pagos</div>${bloquePago}` : ''}
@@ -3929,7 +3960,10 @@ async function abrirFlyer(imprimir){
   // pasan a una segunda página. Si algo sigue sin entrar, se avisa.
   if (!entra()){
     deck.innerHTML = buildFlyer(c, 'dentro', true); compacto = true;
-    if (!entra() && flyerPagoHTML(c)){ deck.innerHTML = buildFlyer(c, 'aparte'); aparte = true; compacto = false; }
+    if (!entra() && flyerPagoHTML(c)){
+      deck.innerHTML = buildFlyer(c, 'aparte'); aparte = true; compacto = false;
+      if (!entra()){ deck.innerHTML = buildFlyer(c, 'aparte', true); compacto = true; }
+    }
   }
   DESBORDES = [...deck.querySelectorAll('.fl-body')].map((b, i) => desborda(b) ? i + 1 : 0).filter(Boolean);
   const cols = flyerOpciones(c).map(o => preciosPorBase(c, o));
