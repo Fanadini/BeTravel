@@ -3765,7 +3765,8 @@ function preciosPorBase(c, o){
   const familia = fd && menor != null ? { total: 2 * fd.pp + 2 * menor, adulto: fd.pp, menor, base: fd.abrev } : null;
   const nombre = hoteles.map(s => s.concepto).filter(Boolean).join(' + ');
   // Vuelos por tipo de pasajero (solo los tipos que tienen precio).
-  const aereoFilas = presentes.filter(T => aer[T] > 0).map(T => ({ tipo: T, valor: aer[T] }));
+  // El bebé no paga habitación: lo que le corresponde de los demás servicios (Assist Card, traslados) se suma a su vuelo.
+  const aereoFilas = presentes.map(T => ({ tipo: T, valor: aer[T] + (T === 'INF' && inf != null ? inf : 0), conServ: T === 'INF' && inf != null && inf > 0 })).filter(x => x.valor > 0);
   const vuelos = (T) => aer[T] || 0;
   // Familia: habitación y servicios (como arriba) más los vuelos de 2 adultos y 2 chicos.
   const vuelosFam = 2 * vuelos('ADT') + 2 * (hayTipos && conteo.CHD ? vuelos('CHD') : vuelos('ADT'));
@@ -3895,7 +3896,6 @@ function buildFlyer(c, pago = 'dentro', compacto = false){
   const edadMenor = String(f.edadMenor || '').trim() || EDAD_CHD, edadInf = String(f.edadInfante || '').trim() || EDAD_INF;
   const extra = [];
   if (cols.some(col => col.menor != null)) extra.push({ abrev:'Chico', sub:`${edadMenor} · por persona, comparte habitación con 2 adultos`, val: col => col.menor });
-  if (cols.some(col => col.inf != null)) extra.push({ abrev:'Bebé', sub:`${edadInf} · por persona, sin cargo de habitación`, val: col => col.inf });
   if (!f.sinFamilia && cols.some(col => col.familia)) extra.push({ abrev:'Familia de 4', sub:'2 adultos y 2 chicos en habitación cuádruple · total con vuelos', val: col => col.familia && col.familia.total, det: col => col.familia ? `Vuelos ${moneda(col.familia.vuelos)} · habitación ${moneda(col.familia.habitacion)}` : '' });
   const tablaExtra = extra.length ? `<table class="fl-tabla fl-tabla2"><tbody>${extra.map(r => `<tr><th><span class="fl-abrev">${r.abrev}</span><span class="fl-sub">${escHtml(r.sub)}</span></th>${cols.map(col => { const v = r.val(col); return `<td>${v != null ? `<span class="fl-precio">${escHtml(v > 0 ? moneda(v) : 'Sin cargo')}</span>${r.det && r.det(col) ? `<span class="fl-cat">${escHtml(r.det(col))}</span>` : ''}` : '<span class="fl-na">—</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>` : '';
   // Vuelos: una fila por tipo de pasajero. Una sola columna si el vuelo es el mismo en todas las opciones.
@@ -3903,8 +3903,9 @@ function buildFlyer(c, pago = 'dentro', compacto = false){
   const colsAer = aereoIgual ? [cols[0]] : cols;
   const tiposAer = ['ADT', 'CHD', 'INF'].filter(T => colsAer.some(col => col.aereoFilas.some(x => x.tipo === T)));
   const porTipo = cols.some(col => col.aereoPorTipo);
+  const incluidosBebe = [...new Set(cols.flatMap(col => col.incluidos))].join(' y ');
   const filaAer = T => {
-    const [abrev, sub] = T === 'ADT' ? [porTipo ? 'Adulto' : 'Por persona', ''] : T === 'CHD' ? ['Chico', edadMenor] : ['Bebé', edadInf];
+    const [abrev, sub] = T === 'ADT' ? [porTipo ? 'Adulto' : 'Por persona', ''] : T === 'CHD' ? ['Chico', edadMenor] : ['Bebé', colsAer.some(col => col.aereoFilas.some(x => x.conServ)) ? `${edadInf} · sin cargo de habitación${incluidosBebe ? ', incluye ' + incluidosBebe : ''}` : edadInf];
     return `<tr><th><span class="fl-abrev">${abrev}</span>${sub ? `<span class="fl-sub">${escHtml(sub)}</span>` : ''}</th>${colsAer.map(col => { const x = col.aereoFilas.find(y => y.tipo === T); return `<td>${x ? `<span class="fl-precio">${escHtml(moneda(x.valor))}</span>` : '<span class="fl-na">—</span>'}</td>`; }).join('')}</tr>`;
   };
   const secPP = (t, etiqueta = 'Valor por persona') => `<div class="fl-seccion-pp"><span class="fl-sec-t">${t}</span><span class="fl-sec-pp">${etiqueta}</span></div>`;
