@@ -3729,13 +3729,13 @@ function preciosPorBase(c, o){
     });
     return hoteles.length && completo ? { tipo, abrev, personas, categoria: cat, pp: (pagaHotel('ADT') ? hotelPP : 0) + otros.ADT } : null;
   }).filter(Boolean);
-  // Menor: tarifa de menor del hotel por noche (cuando comparte la habitación con adultos; sale de la línea Doble, o de la
-  // primera que la tenga) + la tarifa de menor del aéreo + su parte de los demás servicios.
+  // Menor: tarifa de menor del hotel por noche (cuando comparte la habitación con adultos; sale de la línea Cuádruple, o de la
+  // Doble, o de la primera que la tenga) + la tarifa de menor del aéreo + su parte de los demás servicios.
   let menorHotel = null;
   if (hoteles.length){
     let completo = true, suma = 0;
     hoteles.forEach(s => {
-      const h = s.habitaciones.find(x => x.tipo === 'Doble' && num(x.precioMenor) > 0) || s.habitaciones.find(x => num(x.precioMenor) > 0);
+      const h = s.habitaciones.find(x => x.tipo === 'Cuádruple' && num(x.precioMenor) > 0) || s.habitaciones.find(x => x.tipo === 'Doble' && num(x.precioMenor) > 0) || s.habitaciones.find(x => num(x.precioMenor) > 0);
       if (!h){ completo = false; return; }
       const cv = convertir(num(h.precioMenor) * habNoches(s), s.moneda || c.moneda, c.moneda, c.tipoCambio);
       if (!cv.ok){ sinTC = true; completo = false; return; }
@@ -3747,9 +3747,10 @@ function preciosPorBase(c, o){
   const menor = menorHotel != null ? (pagaHotel('CHD') ? menorHotel : 0) + otrosMenor : null;
   // Infante: no paga habitación; paga el aéreo de su tipo y su parte de los demás servicios.
   const inf = hayTipos && conteo.INF > 0 && !pagaHotel('INF') ? otros.INF : null;
-  // Familia de 4 (2 adultos y 2 menores): los adultos como en habitación doble y los menores con su tarifa.
-  const fd = filas.find(f => f.tipo === 'Doble');
-  const familia = fd && menor != null ? { total: 2 * fd.pp + 2 * menor, adulto: fd.pp, menor } : null;
+  // Familia de 4 (2 adultos y 2 menores) en una habitación cuádruple: los adultos con el valor por persona de la cuádruple
+  // (si el hotel no la tiene cargada, el de la doble) y los menores con su tarifa.
+  const fd = filas.find(f => f.tipo === 'Cuádruple') || filas.find(f => f.tipo === 'Doble');
+  const familia = fd && menor != null ? { total: 2 * fd.pp + 2 * menor, adulto: fd.pp, menor, base: fd.abrev } : null;
   const nombre = hoteles.map(s => s.concepto).filter(Boolean).join(' + ');
   return { filas, hotel: nombre, otros: otros.ADT, otrosTipo: otros, faltaPax, sinTC, hayHotel: hoteles.length > 0, conteo: paxTipo, menor, inf, familia };
 }
@@ -3872,7 +3873,7 @@ function buildFlyer(c, pago = 'dentro', compacto = false){
   const extra = [];
   if (cols.some(col => col.menor != null)) extra.push({ abrev:'Menor', sub:`${edadMenor} · comparte habitación con 2 adultos`, val: col => col.menor });
   if (cols.some(col => col.inf != null)) extra.push({ abrev:'Infante', sub:`${edadInf} · sin cargo de habitación`, val: col => col.inf });
-  if (!f.sinFamilia && cols.some(col => col.familia)) extra.push({ abrev:'Familia de 4', sub:'2 adultos y 2 menores · total', val: col => col.familia && col.familia.total, det: col => col.familia ? `${moneda(col.familia.adulto)} por adulto · ${moneda(col.familia.menor)} por menor` : '' });
+  if (!f.sinFamilia && cols.some(col => col.familia)) extra.push({ abrev:'Familia de 4', sub:'2 adultos y 2 menores en habitación cuádruple · total', val: col => col.familia && col.familia.total, det: col => col.familia ? `${moneda(col.familia.adulto)} por adulto · ${moneda(col.familia.menor)} por menor` : '' });
   const tablaExtra = extra.length ? `<table class="fl-tabla fl-tabla2"><tbody>${extra.map(r => `<tr><th><span class="fl-abrev">${r.abrev}</span><span class="fl-sub">${escHtml(r.sub)}</span></th>${cols.map(col => { const v = r.val(col); return `<td>${v != null ? `<span class="fl-precio">${escHtml(moneda(v))}</span>${r.det && r.det(col) ? `<span class="fl-cat">${escHtml(r.det(col))}</span>` : ''}` : '<span class="fl-na">—</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>` : '';
   const bloquePago = pago === 'ninguno' ? '' : flyerPagoHTML(c);
   const filaHTML = ([tipo, abrev, personas]) => {
