@@ -276,6 +276,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
     <div class="sync-pill"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Conectando…</span></div>
     <a class="nav-btn" href="cotizador.html">Cotizador</a>
     <a class="nav-btn" href="kanban.html">Prospectos</a>
+    <a class="nav-btn" id="nav-contratos" href="contratos.html" style="display:none">Contratos</a>
     <button class="nav-btn" onclick="logout()">Salir</button>
   </div>
 </div>
@@ -581,6 +582,8 @@ function applyRoleUI(){
   const esAdmin = CURRENT_USER.rol === 'admin';
   const tabFacturas = document.getElementById('tab-facturas');
   if (tabFacturas) tabFacturas.style.display = esAdmin ? '' : 'none';
+  const navContratos = document.getElementById('nav-contratos');
+  if (navContratos) navContratos.style.display = esAdmin ? '' : 'none';
   ['col-reparto-ejecutivos','col-ganancia-ejecutivos','col-por-pagar'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = esAdmin ? '' : 'none';

@@ -368,6 +368,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
     <button class="nav-btn hide-mobile" onclick="openManageTags('pri')">Prioridades</button>
     <a class="nav-btn hide-mobile" href="gestioninterna.html">Finanzas</a>
     <a class="nav-btn hide-mobile" href="cotizador.html">Cotizador</a>
+    <a class="nav-btn hide-mobile" id="nav-contratos" href="contratos.html" style="display:none">Contratos</a>
     <!-- Menú mobile para acciones extra -->
     <button class="nav-btn show-mobile" onclick="openMobileMenu()" title="Más opciones">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="5" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="19" r="1.5" fill="currentColor"/></svg>
@@ -588,6 +589,7 @@ auth.onAuthStateChanged(user => {
     verificarAcceso(user.email).then(acc => {
       if (!acc) mostrarSinAcceso(user.email);
       else if (acc.perfil.rol === 'cotizador') mostrarSinAcceso(user.email, true);
+      else if (acc.perfil.rol === 'admin' || acc.sinConfigurar) { const nc = document.getElementById('nav-contratos'); if (nc) nc.style.display = ''; }
     });
   } else {
     // Sin sesión → mostrar login, ocultar loading
