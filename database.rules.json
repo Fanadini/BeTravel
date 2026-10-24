@@ -16,6 +16,9 @@
           ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
           ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() === 'admin'"
         },
+        "contratoAgencia": {
+          ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() === 'admin'"
+        },
       "proveedores": {
           ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",
           ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'"
@@ -64,6 +67,10 @@
           ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && data.child('creadoPor').val() === auth.token.email",
           ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && (root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador' || (data.exists() && data.child('creadoPor').val() === auth.token.email && (!newData.exists() || newData.child('creadoPor').val() === auth.token.email)) || (!data.exists() && newData.child('creadoPor').val() === auth.token.email))"
         }
+      },
+      "contratos": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() === 'admin'",
+        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() === 'admin'"
       },
       "imagenesMeta": {
         ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists()",

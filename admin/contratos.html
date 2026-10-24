@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Be•Travel Admin — Contratos</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --teal:#0F3D3E;--teal-h:#0c3233;--teal-l:rgba(15,61,62,.07);--teal-m:rgba(15,61,62,.14);
+  --beige:#E6E1D8;--beige-d:#D5CEC3;--bronze:#B08A5A;--dark:#2B2B2B;--white:#fff;
+  --board:#e8e3da;--red:#b83232;--green:#2f8f4e;
+}
+html,body{height:100%}
+body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;overflow:hidden}
+
+/* ── NAV (igual al resto del panel) ── */
+.nav{background:var(--teal);height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:300;gap:10px;flex-shrink:0}
+.nav-brand{font-size:15px;font-weight:600;color:var(--beige);letter-spacing:-.3px;white-space:nowrap}
+.nav-brand span{color:var(--bronze)}
+.nav-right{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.nav-user{font-size:11px;color:rgba(230,225,216,.6);white-space:nowrap}
+.nav-btn{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:6px 12px;border-radius:6px;border:1px solid rgba(230,225,216,.2);background:rgba(255,255,255,.08);color:rgba(230,225,216,.75);cursor:pointer;transition:all .18s;white-space:nowrap;text-decoration:none;display:inline-block}
+.nav-btn:hover{background:rgba(255,255,255,.16);color:var(--beige);border-color:rgba(230,225,216,.4)}
+
+/* ── LOGIN / ACCESO ── */
+.loading-overlay{position:fixed;inset:0;background:rgba(15,61,62,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:14px}
+.loading-overlay.hidden{display:none}
+.spinner{width:32px;height:32px;border-radius:50%;border:3px solid rgba(230,225,216,.15);border-top-color:var(--bronze);animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:12px;color:rgba(230,225,216,.5)}
+.login-screen{position:fixed;inset:0;background:var(--teal);display:flex;align-items:center;justify-content:center;z-index:1100;padding:20px}
+.login-screen.hidden{display:none}
+.login-box{background:var(--white);border-radius:16px;padding:40px 36px;width:100%;max-width:380px;text-align:center}
+.login-logo{font-size:22px;font-weight:600;color:var(--teal);letter-spacing:-.5px;margin-bottom:6px}
+.login-logo span{color:var(--bronze)}
+.login-subtitle{font-size:12px;color:rgba(43,43,43,.45);margin-bottom:32px}
+.google-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 16px;border-radius:9px;border:1.5px solid var(--beige-d);background:var(--white);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--dark);cursor:pointer;text-decoration:none}
+.google-btn:hover{border-color:rgba(15,61,62,.3);background:var(--beige)}
+.login-error{font-size:11px;color:var(--red);margin-top:14px;min-height:16px}
+
+/* ── GENERAL ── */
+.main{flex:1;min-height:0;display:flex;flex-direction:column}
+.banner{display:none;background:rgba(184,50,50,.1);border:1px solid rgba(184,50,50,.3);color:var(--red);font-size:12px;line-height:1.5;padding:10px 14px;margin:12px 18px 0;border-radius:8px}
+.banner.show{display:block}
+.btn{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:8px 14px;border-radius:7px;border:1.5px solid var(--teal);background:var(--teal);color:var(--beige);cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--teal-h)}
+.btn.outline{background:transparent;color:var(--teal)}
+.btn.outline:hover{background:var(--teal-l)}
+.btn.small{padding:5px 10px;font-size:11px}
+.btn.danger{border-color:var(--red);color:var(--red);background:transparent}
+.hidden{display:none!important}
+
+/* ── LISTA ── */
+#view-list{flex:1;overflow-y:auto;padding:18px}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.section-head h2{font-size:15px;font-weight:600;color:var(--teal)}
+.lista{background:var(--white);border:1px solid var(--beige-d);border-radius:10px;overflow:hidden}
+.lista table{width:100%;border-collapse:collapse;font-size:12px}
+.lista th{text-align:left;font-weight:600;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:rgba(43,43,43,.55);padding:9px 12px;border-bottom:1px solid var(--beige-d)}
+.lista td{padding:10px 12px;border-bottom:1px solid rgba(213,206,195,.5);vertical-align:middle}
+.lista tr.fila{cursor:pointer}
+.lista tr.fila:hover{background:var(--teal-l)}
+.lista td.acc{text-align:right;white-space:nowrap}
+.vacio{padding:30px;text-align:center;font-size:12px;color:rgba(43,43,43,.5)}
+.pill{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--teal-l);color:var(--teal)}
+.pill.firmado{background:rgba(47,143,78,.12);color:var(--green)}
+.pill.enviado{background:rgba(176,138,90,.18);color:#7a5a2c}
+
+/* ── EDITOR ── */
+#view-edit{flex:1;min-height:0;display:flex;flex-direction:column}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 18px;background:var(--white);border-bottom:1px solid var(--beige-d)}
+.toolbar .grow{flex:1}
+.toolbar select{font-family:'Inter',sans-serif;font-size:12px;padding:6px 8px;border-radius:6px;border:1.5px solid var(--beige-d);background:var(--white)}
+.estado-guardado{font-size:11px;color:rgba(43,43,43,.5)}
+.aviso-legal{font-size:11px;line-height:1.5;background:rgba(176,138,90,.14);border-left:3px solid var(--bronze);padding:8px 12px;color:#5b431f}
+.tabs{display:none;padding:8px 18px 0;gap:8px}
+.split{flex:1;min-height:0;display:flex}
+.form{width:470px;max-width:100%;flex-shrink:0;overflow-y:auto;padding:14px 18px 60px;border-right:1px solid var(--beige-d)}
+.paper-wrap{flex:1;min-width:0;overflow:auto;padding:22px 18px 60px;background:var(--board)}
+.paper{background:#fff;color:#000;width:210mm;max-width:100%;margin:0 auto;padding:22mm 20mm;border:1px solid var(--beige-d)}
+#view-edit.modelo .form{display:none}
+details.card{background:var(--white);border:1px solid var(--beige-d);border-radius:10px;margin-bottom:10px}
+details.card>summary{cursor:pointer;list-style:none;font-size:13px;font-weight:600;color:var(--teal);padding:11px 14px;display:flex;align-items:center;justify-content:space-between}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary::after{content:'+';font-weight:500;color:rgba(43,43,43,.4)}
+details.card[open]>summary::after{content:'–'}
+.card-body{padding:2px 14px 14px}
+.card-hint{font-size:11px;line-height:1.5;color:rgba(43,43,43,.6);margin-bottom:10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.fld{display:flex;flex-direction:column;gap:3px;min-width:0}
+.fld.full{grid-column:1/-1}
+.fld label{font-size:10.5px;font-weight:500;color:rgba(43,43,43,.65)}
+.fld input,.fld select,.fld textarea{font-family:'Inter',sans-serif;font-size:12px;padding:7px 9px;border-radius:7px;border:1.5px solid var(--beige-d);background:var(--white);outline:none;width:100%;color:var(--dark)}
+.fld textarea{resize:vertical;min-height:70px;line-height:1.45}
+.fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--teal)}
+.chk{display:flex;align-items:center;gap:7px;font-size:12px;padding:6px 0}
+.pagos-fila{display:grid;grid-template-columns:1.3fr 54px 1fr 1.1fr 24px;gap:6px;margin-bottom:6px;align-items:center}
+.pagos-fila input{font-family:'Inter',sans-serif;font-size:12px;padding:6px 7px;border-radius:7px;border:1.5px solid var(--beige-d);width:100%;min-width:0}
+.pagos-cab{font-size:10px;font-weight:600;color:rgba(43,43,43,.55);margin-bottom:4px}
+.pagos-detalle{grid-column:1/-1;margin-top:-2px}
+.x-btn{border:none;background:none;color:var(--red);cursor:pointer;font-size:14px}
+.sub-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+
+/* ── DOCUMENTO (vista previa e impresión) ── */
+.doc{font-family:'Inter',sans-serif;font-size:10.5pt;line-height:1.5;color:#000;text-align:justify}
+.doc h1{font-size:13pt;font-weight:600;text-align:center;margin-bottom:6mm;letter-spacing:.2pt}
+.doc h2{font-size:10.5pt;font-weight:600;margin:6mm 0 2mm;text-align:left;break-after:avoid;page-break-after:avoid}
+.doc p{margin-bottom:2.2mm}
+.doc ul{list-style:none;margin:0 0 2.5mm 0}
+.doc li{padding-left:5mm;position:relative;margin-bottom:1.2mm}
+.doc li::before{content:'–';position:absolute;left:0}
+.doc .ind{margin-left:4mm}
+.doc .blank{display:inline-block;min-width:26mm;border-bottom:1px solid #000;height:1em;vertical-align:baseline;background:rgba(176,138,90,.16)}
+.doc .multi{white-space:pre-line}
+.doc .firmas{display:flex;justify-content:space-between;gap:12mm;margin-top:16mm;break-inside:avoid;page-break-inside:avoid}
+.doc .firma{flex:1;font-size:9.5pt;line-height:1.55;text-align:left}
+.doc .firma .linea{border-top:1px solid #000;padding-top:2mm;margin-bottom:2mm;font-weight:600}
+.doc .cierre{break-inside:avoid;page-break-inside:avoid}
+
+@page{size:A4;margin:22mm 20mm 22mm;@bottom-center{content:"Página " counter(page) " de " counter(pages);font-family:'Inter',sans-serif;font-size:8pt;color:#555}}
+@media print{
+  html,body{height:auto!important;overflow:visible!important;background:#fff!important;display:block!important}
+  .nav,.loading-overlay,.login-screen,#view-list,.toolbar,.tabs,.form,.banner{display:none!important}
+  .main,#view-edit,.split,.paper-wrap{display:block!important;overflow:visible!important;height:auto!important;padding:0!important;background:none!important}
+  .paper{border:0!important;padding:0!important;margin:0!important;width:auto!important;max-width:none!important}
+  .doc .blank{background:none!important}
+}
+
+@media(max-width:900px){
+  .tabs{display:flex}
+  .split{display:block;overflow-y:auto}
+  .form{width:auto;border-right:none;overflow:visible}
+  .paper-wrap{overflow:visible;padding-top:10px}
+  .paper{padding:14mm 10mm}
+  #view-edit[data-tab="form"] .paper-wrap{display:none}
+  #view-edit[data-tab="doc"] .form{display:none}
+  .nav-user{display:none}
+  #view-list{padding:12px}
+  .lista .col-hide{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">Be<span>•</span>Travel</div>
+    <div class="login-subtitle">Contratos</div>
+    <button class="google-btn" onclick="loginWithGoogle()">Continuar con Google</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ACCESO RESTRINGIDO -->
+<div class="login-screen hidden" id="noacceso-screen">
+  <div class="login-box">
+    <div class="login-logo">Be<span>•</span>Travel</div>
+    <div class="login-subtitle">Acceso restringido</div>
+    <p style="font-size:13px;line-height:1.55;color:#2B2B2B;margin-bottom:22px" id="noacceso-msg"></p>
+    <a class="google-btn" href="cotizador.html" style="margin-bottom:10px">Ir al Cotizador</a>
+    <button class="google-btn" onclick="logout()">Salir y usar otra cuenta</button>
+  </div>
+</div>
+
+<div class="loading-overlay" id="lo">
+  <div class="spinner"></div>
+  <div class="loading-text">Conectando con Firebase…</div>
+</div>
+
+<div class="nav">
+  <div class="nav-brand">Be<span>•</span>Travel Admin — Contratos</div>
+  <div class="nav-right">
+    <span class="nav-user" id="nav-user-name"></span>
+    <a class="nav-btn" href="cotizador.html">Cotizador</a>
+    <a class="nav-btn" href="gestioninterna.html">Gestión interna</a>
+    <a class="nav-btn" href="kanban.html">Prospectos</a>
+    <button class="nav-btn" onclick="logout()">Salir</button>
+  </div>
+</div>
+
+<div class="main" id="main">
+  <div class="banner" id="banner"></div>
+
+  <!-- LISTA -->
+  <div id="view-list">
+    <div class="section-head">
+      <h2>Contratos</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn outline" onclick="abrirModelo()">Modelo en blanco</button>
+        <button class="btn" onclick="nuevoContrato()">+ Nuevo contrato</button>
+      </div>
+    </div>
+    <div class="lista" id="lista"></div>
+  </div>
+
+  <!-- EDITOR -->
+  <div id="view-edit" class="hidden" data-tab="form">
+    <div class="toolbar">
+      <button class="btn outline small" onclick="volverLista()">← Contratos</button>
+      <span class="grow"></span>
+      <span class="estado-guardado" id="estado-guardado"></span>
+      <label style="font-size:11px;color:rgba(43,43,43,.6)" class="solo-contrato">Estado
+        <select id="sel-estado" onchange="setEstado(this.value)"><option value="borrador">Borrador</option><option value="enviado">Enviado</option><option value="firmado">Firmado</option></select>
+      </label>
+      <button class="btn outline small solo-contrato" onclick="alternarModelo(true)">Ver modelo en blanco</button>
+      <button class="btn outline small solo-modelo" onclick="alternarModelo(false)">Volver al contrato</button>
+      <button class="btn small" onclick="descargarPDF()">Descargar PDF</button>
+    </div>
+    <div class="aviso-legal">Texto base sin revisión legal. Un abogado debe revisarlo antes de usarlo con un cliente. Este aviso no aparece en el PDF.</div>
+    <div class="tabs">
+      <button class="btn outline small" onclick="setTab('form')">Datos</button>
+      <button class="btn outline small" onclick="setTab('doc')">Vista previa</button>
+    </div>
+    <div class="split">
+      <div class="form" id="form"></div>
+      <div class="paper-wrap"><div class="paper"><div class="doc" id="doc"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script>
+// ── FIREBASE ───────────────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey:"AIzaSyARJ-zVCszUxJ_Fs1UBBtMiQvjuDF98IYI",
+  authDomain:"betravel-kanban.firebaseapp.com",
+  databaseURL:"https://betravel-kanban-default-rtdb.firebaseio.com",
+  projectId:"betravel-kanban",
+  storageBucket:"betravel-kanban.firebasestorage.app",
+  messagingSenderId:"644328296494",
+  appId:"1:644328296494:web:aec3842de80021159f8fbf",
+});
+const db = firebase.database();
+const auth = firebase.auth();
+const CONT_REF = db.ref('finanzas/contratos');
+const COT_REF = db.ref('finanzas/cotizaciones');
+const META_USUARIOS_REF = db.ref('finanzas/meta/usuarios');
+const META_AGENCIA_REF = db.ref('finanzas/meta/contratoAgencia');   // datos de BeTravel que se repiten en cada contrato
+const META_COBRO_REF = db.ref('finanzas/meta/datosCobro');
+
+// ── AUTH (solo administradores) ────────────────────────────────────────────
+let CURRENT_USER = { email:'', nombre:'', rol:'' };
+function emailKey(email){ return (email||'').toLowerCase().replace(/\./g, ','); }
+function loginWithGoogle(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  document.getElementById('login-error').textContent = '';
+  auth.signInWithPopup(provider).catch(err => {
+    document.getElementById('login-error').textContent = 'Error al iniciar sesión. Intentá de nuevo.';
+    console.error(err);
+  });
+}
+function logout(){ auth.signOut(); }
+function verificarAcceso(email){
+  return META_USUARIOS_REF.child(emailKey(email)).once('value').then(s => {
+    if (s.exists()) return { perfil: s.val() || {}, sinConfigurar: false };
+    return META_USUARIOS_REF.once('value').then(all => Object.keys(all.val() || {}).length ? null : { perfil: {}, sinConfigurar: true }, () => null);
+  }, () => null);
+}
+function mostrarSinAcceso(email, noAdmin){
+  document.getElementById('noacceso-msg').innerHTML = noAdmin
+    ? `Los contratos son solo para administradores. La cuenta <strong>${esc(email)}</strong> no tiene ese rol.`
+    : `La cuenta <strong>${esc(email)}</strong> no está habilitada para el panel interno. Pedile a un administrador que la agregue a la lista de usuarios.`;
+  document.getElementById('noacceso-screen').classList.remove('hidden');
+  document.getElementById('lo').classList.add('hidden');
+}
+function ocultarSinAcceso(){ document.getElementById('noacceso-screen').classList.add('hidden'); }
+let listenersAttached = false;
+auth.onAuthStateChanged(user => {
+  const loginScreen = document.getElementById('login-screen');
+  if (!user){
+    ocultarSinAcceso();
+    loginScreen.classList.remove('hidden');
+    document.getElementById('lo').classList.add('hidden');
+    return;
+  }
+  loginScreen.classList.add('hidden');
+  const nombreGoogle = user.displayName ? user.displayName.split(' ')[0] : user.email;
+  document.getElementById('nav-user-name').textContent = nombreGoogle;
+  CURRENT_USER = { email:user.email, nombre: user.displayName || nombreGoogle, rol:'' };
+  verificarAcceso(user.email).then(acc => {
+    if (!acc){ mostrarSinAcceso(user.email); return; }
+    CURRENT_USER.rol = acc.sinConfigurar || acc.perfil.rol === 'admin' ? 'admin' : (acc.perfil.rol || 'agente');
+    if (CURRENT_USER.rol !== 'admin'){ mostrarSinAcceso(user.email, true); return; }
+    if (acc.perfil.nombre) CURRENT_USER.nombre = acc.perfil.nombre;
+    if (!listenersAttached){ attachListeners(); listenersAttached = true; }
+  });
+});
+function showBanner(msg){ const b = document.getElementById('banner'); b.textContent = msg; b.classList.toggle('show', !!msg); }
+function handleWriteError(err){
+  console.error(err);
+  if (String(err && (err.code||err.message)).toUpperCase().includes('PERMISSION')){
+    showBanner('Firebase rechazó el guardado: faltan publicar las reglas actualizadas (database.rules.json) o tu cuenta no es administradora. Ver admin/SEGURIDAD_FIREBASE.md.');
+  } else showBanner('No se pudo guardar. Revisá la conexión e intentá de nuevo.');
+  setEstadoGuardado('Error al guardar');
+}
+
+// ── UTILIDADES ─────────────────────────────────────────────────────────────
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function parteFecha(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? { a:+m[1], m:+m[2], d:+m[3] } : null; }
+function fechaLarga(iso){ const p = parteFecha(iso); return p ? `${p.d} de ${MESES[p.m - 1]} de ${p.a}` : ''; }
+function diasEntre(a, b){ const x = parteFecha(a), y = parteFecha(b); return x && y ? Math.round((Date.UTC(y.a, y.m - 1, y.d) - Date.UTC(x.a, x.m - 1, x.d)) / 86400000) : null; }
+function hoyISO(){ const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+// "12.000,50", "12000.5" o "12 000" → número
+function numero(v){
+  let s = String(v == null ? '' : v).replace(/[^\d.,-]/g, '');
+  if (!s) return NaN;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if ((s.match(/\./g) || []).length > 1 || /\.\d{3}$/.test(s)) s = s.replace(/\./g, '');
+  return parseFloat(s);
+}
+function fmtNum(n){ return Number.isInteger(n) ? n.toLocaleString('es-AR') : n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function dinero(n, moneda){ return (moneda === 'ARS' ? '$ ' : 'US$ ') + fmtNum(n); }
+
+// ── DATOS POR DEFECTO ──────────────────────────────────────────────────────
+const AGENCIA_DEF = { ag_nombre:'Facundo Nahuel Berdini', ag_legajo:'20807', ag_cuit:'', ag_domicilio:'Ciudad Autónoma de Buenos Aires, Argentina', ag_banco:'' };
+const SERV_SUGERIDOS = ['Transporte aéreo / terrestre:', 'Alojamiento (categoría y régimen):', 'Traslados aeropuerto / hotel:', 'Asistencia al viajero:', 'Coordinador del grupo asignado:', 'Otros:'].join('\n');
+const NO_INCL_DEF = 'gastos personales de los pasajeros, consumiciones extras, propinas, visados individuales, y cualquier otro servicio no especificado en el presente contrato';
+let AGENCIA_GUARDADA = {};   // lo que el administrador dejó como datos de BeTravel
+function agenciaDef(){ return { ...AGENCIA_DEF, ...AGENCIA_GUARDADA }; }
+function valoresNuevos(){
+  return { ...agenciaDef(), lugar:'Buenos Aires', fecha: hoyISO(), ev_tipo:'Viaje de grupo para una boda', moneda:'USD',
+    pagos: [{ concepto:'Anticipo' }, { concepto:'Segundo pago' }, { concepto:'Saldo' }].map(x => ({ concepto:x.concepto, pct:'', monto:'', fecha:'', detalle:'' })),
+    mp_transf:true, mp_cheque:false, servicios: SERV_SUGERIDOS, no_incl: NO_INCL_DEF,
+    can_d1:'60', can_p1:'80', can_d2:'30', can_p2:'50', can_d3:'15', can_p3:'25', can_p4:'0' };
+}
+// El modelo en blanco: los datos de BeTravel y la estructura, sin nada del cliente ni del viaje.
+function valoresModelo(){ const v = valoresNuevos(); v.fecha = ''; v.servicios = SERV_SUGERIDOS; return v; }
+
+// ── SECCIONES DEL FORMULARIO ───────────────────────────────────────────────
+// t: text (por defecto), date, select, textarea, check. full: ocupa las dos columnas.
+const FISCAL = ['', 'Consumidor final', 'Responsable inscripto', 'Monotributista', 'Exento'];
+const SECCIONES = [
+  { id:'contrato', titulo:'Contrato', abierto:true, campos:[
+    { k:'lugar', l:'Ciudad de firma' }, { k:'fecha', l:'Fecha de firma', t:'date' } ] },
+  { id:'cliente', titulo:'El cliente', abierto:true, hint:'Quien contrata: los novios, un organizador o una empresa.', campos:[
+    { k:'cl_nombre', l:'Nombre completo o razón social', full:true }, { k:'cl_doc', l:'DNI o CUIT' }, { k:'cl_tel', l:'Teléfono' },
+    { k:'cl_domicilio', l:'Domicilio', full:true }, { k:'cl_email', l:'Correo electrónico de contacto', full:true },
+    { k:'cl_rep', l:'Representado por (si corresponde)', full:true }, { k:'cl_rep_car', l:'En carácter de' }, { k:'cl_rep_dni', l:'DNI del representante' },
+    { k:'cl_fiscal', l:'Condición fiscal', t:'select', opts:FISCAL, full:true },
+    { k:'fa_nombre', l:'Facturar a nombre de (si es distinto)', full:true }, { k:'fa_doc', l:'DNI o CUIT de facturación (si es distinto)', full:true } ] },
+  { id:'viaje', titulo:'Viaje y evento', abierto:true, campos:[
+    { k:'ev_tipo', l:'Tipo de evento o propósito', full:true }, { k:'ev_detalle', l:'Detalle del evento (novios, fecha y lugar de la ceremonia)', full:true },
+    { k:'destino', l:'Destino', full:true }, { k:'salida', l:'Fecha de salida', t:'date' }, { k:'regreso', l:'Fecha de regreso', t:'date' },
+    { k:'duracion', l:'Duración (si queda vacía se calcula)', full:true }, { k:'pasajeros', l:'Cantidad de pasajeros' },
+    { k:'ref_cot', l:'Propuesta de referencia (código)' }, { k:'coord', l:'Responsable de coordinación por parte del cliente', full:true } ] },
+  { id:'precio', titulo:'Precio y forma de pago', abierto:true, campos:[
+    { k:'moneda', l:'Moneda', t:'select', opts:[['USD', 'Dólares estadounidenses'], ['ARS', 'Pesos argentinos']] },
+    { k:'total', l:'Precio total del programa' }, { k:'por_pax', l:'Valor por pasajero (opcional)', full:true } ], pagos:true,
+    campos2:[ { k:'mp_transf', l:'Transferencia bancaria', t:'check' }, { k:'mp_cheque', l:'Cheque', t:'check' }, { k:'mp_otro', l:'Otro medio de pago', full:true },
+      { k:'ag_banco', l:'Datos bancarios de BeTravel', t:'textarea', full:true } ] },
+  { id:'servicios', titulo:'Servicios incluidos', hint:'Una línea por servicio. Las líneas que terminan en ":" quedan con un espacio en blanco para completar.', campos:[
+    { k:'servicios', l:'Servicios incluidos', t:'textarea', full:true, filas:7 }, { k:'no_incl', l:'Servicios no incluidos', t:'textarea', full:true } ] },
+  { id:'nomina', titulo:'Nómina y reemplazos', campos:[
+    { k:'nom_dias', l:'Días de anticipación para la nómina definitiva' }, { k:'rep_pct', l:'% de pasajeros reemplazables sin costo' }, { k:'rep_dias', l:'Días de anticipación para reemplazos' } ] },
+  { id:'cancel', titulo:'Política de cancelación', hint:'Los tramos se calculan sobre el monto abonado. Deben respetar lo que cobran los proveedores.', campos:[
+    { k:'can_d1', l:'Más de (días)' }, { k:'can_p1', l:'Se reintegra (%)' }, { k:'can_d2', l:'Entre ese tramo y (días)' }, { k:'can_p2', l:'Se reintegra (%)' },
+    { k:'can_d3', l:'Entre ese tramo y (días)' }, { k:'can_p3', l:'Se reintegra (%)' }, { k:'can_p4', l:'Menos que el último tramo: se reintegra (%)', full:true } ] },
+  { id:'adic', titulo:'Cláusulas adicionales', hint:'Si se completa, se agrega una cláusula antes de la conformidad.', campos:[
+    { k:'adicionales', l:'Texto de la cláusula adicional', t:'textarea', full:true, filas:5 } ] },
+  { id:'agencia', titulo:'Datos de BeTravel', hint:'Se repiten en todos los contratos. "Guardar como datos de BeTravel" los deja como valores iniciales.', campos:[
+    { k:'ag_nombre', l:'Representante (firma)', full:true }, { k:'ag_legajo', l:'Legajo N°' }, { k:'ag_cuit', l:'CUIT' }, { k:'ag_domicilio', l:'Domicilio', full:true } ], agenciaBtns:true },
+];
+
+// ── DOCUMENTO ──────────────────────────────────────────────────────────────
+let BLANK = false;
+function cuerpoContrato(V){
+  const blank = (w) => `<span class="blank" style="min-width:${w || 26}mm"></span>`;
+  const t = k => String(V[k] == null ? '' : V[k]).trim();
+  const val = (k, w) => t(k) ? esc(t(k)) : blank(w);
+  const opt = (k, pre = '', post = '') => t(k) ? pre + esc(t(k)) + post : '';
+  const moneda = V.moneda === 'ARS' ? 'ARS' : 'USD';
+  const monedaNombre = moneda === 'ARS' ? 'pesos argentinos' : 'dólares estadounidenses';
+  const f = (iso, w) => iso ? esc(fechaLarga(iso)) : blank(w || 34);
+  const x = on => on ? '[X]' : '[ ]';
+
+  // Encabezado y fecha
+  const pf = parteFecha(V.fecha);
+  const encabezadoFecha = pf
+    ? `En la ciudad de ${esc(t('lugar') || 'Buenos Aires')}, a los ${pf.d} días del mes de ${MESES[pf.m - 1]} de ${pf.a}`
+    : `En la ciudad de ${esc(t('lugar') || 'Buenos Aires')}, a los ${blank(10)} días del mes de ${blank(26)} de ${blank(14)}`;
+
+  // Duración
+  const dd = diasEntre(V.salida, V.regreso);
+  const duracion = t('duracion') ? esc(t('duracion')) : dd != null && dd >= 0 ? `${dd + 1} días (${dd} noches)` : `${blank(18)} días`;
+
+  // Pagos
+  const total = numero(V.total);
+  const filasPago = (Array.isArray(V.pagos) ? V.pagos : Object.values(V.pagos || {})).filter(Boolean);
+  const pagosHTML = filasPago.map(p => {
+    const vacia = !String(p.pct || '').trim() && !String(p.monto || '').trim() && !String(p.fecha || '').trim() && !String(p.detalle || '').trim();
+    if (vacia && !BLANK) return '';
+    const pct = numero(p.pct);
+    let monto = numero(p.monto);
+    if (isNaN(monto) && !isNaN(pct) && !isNaN(total)) monto = Math.round(total * pct) / 100;
+    const concepto = esc(String(p.concepto || 'Pago').trim() || 'Pago');
+    const pctTxt = !isNaN(pct) ? `${fmtNum(pct)}%` : `${blank(10)}%`;
+    const montoTxt = !isNaN(monto) ? dinero(monto, moneda) : `${moneda === 'ARS' ? '$' : 'US$'} ${blank(24)}`;
+    const cuando = [String(p.detalle || '').trim() ? esc(String(p.detalle).trim()) : '', p.fecha ? `con fecha límite: ${esc(fechaLarga(p.fecha))}` : ''].filter(Boolean).join(', ');
+    return `<li>${concepto} del ${pctTxt} (${montoTxt})${cuando ? ', ' + cuando : `, a abonar: ${blank(30)}`}.</li>`;
+  }).join('');
+
+  // Servicios (una línea por servicio; las que terminan en ":" quedan para completar)
+  const lineasServ = String(V.servicios || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const serviciosHTML = (lineasServ.length ? lineasServ : ['']).map(l => !l ? `<li>${blank(60)}</li>` : /:$/.test(l) ? `<li>${esc(l)} ${blank(50)}</li>` : `<li>${esc(l)}</li>`).join('');
+
+  // Cancelación
+  const reint = p => { const n = numero(p); return !isNaN(n) && n > 0 ? `se reintegra el ${fmtNum(n)}% del monto abonado` : 'no se realizará reintegro alguno'; };
+  const d1 = val('can_d1', 10), d2 = val('can_d2', 10), d3 = val('can_d3', 10);
+
+  // Condición fiscal y medios de pago
+  const fiscal = t('cl_fiscal');
+  const fiscalHTML = `Responsable inscripto en IVA ${x(fiscal === 'Responsable inscripto')} / Monotributista ${x(fiscal === 'Monotributista')} / Exento ${x(fiscal === 'Exento')} / Consumidor final ${x(fiscal === 'Consumidor final')}`;
+  const medios = `transferencia bancaria ${x(V.mp_transf)} / cheque ${x(V.mp_cheque)} / otro: ${t('mp_otro') ? esc(t('mp_otro')) : blank(30)}`;
+  const factNombre = t('fa_nombre') || t('cl_nombre'), factDoc = t('fa_doc') || t('cl_doc');
+
+  const rep = t('cl_rep') || BLANK;
+  const clienteHTML = `${val('cl_nombre', 50)}, DNI / CUIT N° ${val('cl_doc', 30)}, con domicilio en ${val('cl_domicilio', 60)}, teléfono: ${val('cl_tel', 28)}, correo electrónico de contacto: ${val('cl_email', 50)}`
+    + (rep ? `, representado/a en este acto por ${val('cl_rep', 45)}, en carácter de ${val('cl_rep_car', 36)}, DNI N° ${val('cl_rep_dni', 28)}` : '')
+    + `, en adelante denominado/a “EL CLIENTE”.`;
+
+  const lineaOpc = (rotulo, k, w) => t(k) || BLANK ? `<p class="ind">${rotulo}: ${val(k, w)}</p>` : '';
+
+  const cl = [];
+  cl.push(['CLÁUSULA 1 – OBJETO DEL CONTRATO', `
+    <p>LA AGENCIA se compromete a organizar y coordinar el siguiente programa de viaje de grupo para EL CLIENTE:</p>
+    <p class="ind">Tipo de evento / propósito: ${val('ev_tipo', 60)}</p>
+    ${lineaOpc('Detalle del evento', 'ev_detalle', 70)}
+    <p class="ind">Destino: ${val('destino', 70)}</p>
+    <p class="ind">Fecha de salida: ${f(V.salida)}</p>
+    <p class="ind">Fecha de regreso: ${f(V.regreso)}</p>
+    <p class="ind">Duración: ${duracion}</p>
+    <p class="ind">Cantidad de pasajeros: ${val('pasajeros', 20)}</p>
+    <p class="ind">Responsable de coordinación por parte de EL CLIENTE: ${val('coord', 50)}</p>`]);
+  cl.push(['CLÁUSULA 2 – PRECIO, FACTURACIÓN Y FORMA DE PAGO', `
+    <p>2.1. El precio total del programa asciende a la suma de ${!isNaN(total) ? dinero(total, moneda) : `${moneda === 'ARS' ? '$' : 'US$'} ${blank(30)}`} (${monedaNombre})${!isNaN(numero(V.por_pax)) ? `, con un valor por pasajero de ${dinero(numero(V.por_pax), moneda)}` : (BLANK ? `, con un valor por pasajero de ${blank(24)}` : '')}.${t('ref_cot') ? ` El detalle se corresponde con la propuesta N° ${esc(t('ref_cot'))}.` : ''}</p>
+    <p>2.2. Condición fiscal: EL CLIENTE es ${fiscalHTML}. La facturación se realizará a nombre de ${factNombre ? esc(factNombre) : blank(50)}, CUIT / DNI: ${factDoc ? esc(factDoc) : blank(30)}, en la categoría impositiva que corresponda.</p>
+    <p>2.3. La forma de pago acordada es la siguiente:</p>
+    <ul class="ind">${pagosHTML || `<li>${blank(80)}</li>`}</ul>
+    <p>2.4. Los pagos deberán realizarse mediante: ${medios}.</p>
+    <p class="ind">Datos bancarios de LA AGENCIA: ${t('ag_banco') ? `<span class="multi">${esc(t('ag_banco'))}</span>` : blank(90)}</p>`]);
+  cl.push(['CLÁUSULA 3 – SERVICIOS INCLUIDOS', `
+    <p>El programa incluye los siguientes servicios:</p>
+    <ul class="ind">${serviciosHTML}</ul>
+    <p>Servicios NO incluidos: ${esc(t('no_incl') || NO_INCL_DEF)}.</p>`]);
+  cl.push(['CLÁUSULA 4 – NÓMINA DE PASAJEROS Y MODIFICACIONES', `
+    <p>4.1. EL CLIENTE deberá entregar a LA AGENCIA la nómina definitiva de pasajeros (con nombre completo, DNI / Pasaporte y datos de contacto) con un mínimo de ${val('nom_dias', 12)} días de anticipación a la fecha de salida.</p>
+    <p>4.2. Reemplazos de pasajeros: se admitirá el reemplazo de hasta el ${val('rep_pct', 12)}% de los pasajeros sin costo adicional, siempre que se notifique con al menos ${val('rep_dias', 12)} días de anticipación. Los reemplazos fuera de plazo podrán incurrir en costos adicionales a cargo de EL CLIENTE.</p>
+    <p>4.3. Reducciones en la cantidad de pasajeros: toda reducción de pasajeros confirmados será tratada conforme a la política de cancelación parcial establecida en la Cláusula 5.</p>`]);
+  cl.push(['CLÁUSULA 5 – POLÍTICA DE CANCELACIÓN', `
+    <p>5.1. Cancelación total por parte de EL CLIENTE:</p>
+    <ul class="ind">
+      <li>Con más de ${d1} días de anticipación: ${reint(V.can_p1)}.</li>
+      <li>Entre ${d2} y ${d1} días de anticipación: ${reint(V.can_p2)}.</li>
+      <li>Entre ${d3} y ${d2} días de anticipación: ${reint(V.can_p3)}.</li>
+      <li>Con menos de ${d3} días de anticipación: ${reint(V.can_p4)}.</li>
+    </ul>
+    <p>5.2. Cancelación parcial (reducción de pasajeros): el costo no reintegrable por cada pasajero dado de baja seguirá el mismo escalado de porcentajes indicado en el punto 5.1, calculado sobre el valor individual de cada pasajero.</p>
+    <p>5.3. Cancelación por parte de LA AGENCIA: en caso de que LA AGENCIA cancele el programa por causas imputables a la misma, se reintegrará el 100% de los montos abonados por EL CLIENTE, sin perjuicio de otras acciones que correspondan.</p>
+    <p>5.4. Toda comunicación de cancelación deberá realizarse por escrito (correo electrónico o carta documento) dirigida al representante de LA AGENCIA.</p>`]);
+  cl.push(['CLÁUSULA 6 – RESPONSABILIDADES', `
+    <p>6.1. LA AGENCIA actuará como coordinadora e intermediaria entre EL CLIENTE y los proveedores de servicios (aerolíneas, hoteles, transportistas, etc.), y no será responsable por demoras, cancelaciones o modificaciones imputables a dichos terceros.</p>
+    <p>6.2. EL CLIENTE es responsable de garantizar que todos los pasajeros cuenten con la documentación requerida (DNI, pasaporte, visados) vigente y en regla. LA AGENCIA no asume responsabilidad por el rechazo de ingreso de pasajeros por irregularidades documentales.</p>
+    <p>6.3. EL CLIENTE será responsable del comportamiento de los pasajeros durante el programa, y deberá hacerse cargo de cualquier daño material o sanción que estos ocasionen a terceros o a los proveedores de servicio.</p>
+    <p>6.4. LA AGENCIA designará un coordinador para el programa, quien será el punto de contacto durante toda la organización y ejecución del viaje.</p>`]);
+  cl.push(['CLÁUSULA 7 – CONFIDENCIALIDAD', `
+    <p>Ambas partes se comprometen a mantener la más estricta confidencialidad respecto de la información comercial, financiera y operativa que se intercambie en el marco del presente contrato. LA AGENCIA no divulgará la nómina de pasajeros ni los detalles del programa a terceros sin autorización expresa de EL CLIENTE. Esta obligación de confidencialidad se mantendrá vigente durante la ejecución del contrato y por un plazo de dos (2) años posterior a su finalización.</p>`]);
+  cl.push(['CLÁUSULA 8 – PROTECCIÓN DE DATOS PERSONALES', `
+    <p>Los datos personales de los pasajeros proporcionados por EL CLIENTE serán tratados exclusivamente con el fin de gestionar y ejecutar los servicios contratados, en cumplimiento de la Ley N° 25.326 de Protección de los Datos Personales de la República Argentina. LA AGENCIA no cederá ni comercializará dichos datos a terceros. Concluido el programa, los datos serán conservados únicamente por el período que establezca la normativa vigente.</p>`]);
+  cl.push(['CLÁUSULA 9 – FUERZA MAYOR', `
+    <p>Ninguna de las partes será responsable por el incumplimiento de sus obligaciones cuando dicho incumplimiento sea consecuencia de eventos de fuerza mayor o caso fortuito, incluyendo pero no limitado a: desastres naturales, pandemias, actos de terrorismo, guerras, huelgas generales, restricciones gubernamentales u otros eventos imprevisibles e inevitables. Ante tales circunstancias, las partes se comprometen a negociar de buena fe una solución alternativa, que podrá incluir la reprogramación del programa para una fecha acordada.</p>`]);
+  cl.push(['CLÁUSULA 10 – JURISDICCIÓN Y LEY APLICABLE', `
+    <p>Para todos los efectos legales derivados del presente contrato, las partes se someten a la jurisdicción de los Tribunales Ordinarios en lo Comercial de la Ciudad Autónoma de Buenos Aires, renunciando a cualquier otro fuero que pudiera corresponder. El presente contrato se rige por las leyes de la República Argentina, en particular, la Ley N° 18.829 de Agentes de Viajes, el Código Civil y Comercial de la Nación y la demás normativa aplicable.</p>`]);
+  if (t('adicionales')) cl.push(['CLÁUSULA ADICIONAL – CONDICIONES ADICIONALES', String(V.adicionales).split(/\n+/).map(s => s.trim()).filter(Boolean).map(s => `<p>${esc(s)}</p>`).join('')]);
+  cl.push(['CONFORMIDAD', `
+    <p>En prueba de conformidad, las partes firman el presente contrato en dos (2) ejemplares de igual tenor y a un solo efecto, en el lugar y fecha indicados al comienzo del mismo.</p>
+    <div class="firmas">
+      <div class="firma"><div class="linea">FIRMA EL CLIENTE</div>
+        Nombre / razón social: ${t('cl_nombre') ? esc(t('cl_nombre')) : blank(32)}<br>
+        ${(t('cl_rep') || BLANK) ? `Representante: ${t('cl_rep') ? esc(t('cl_rep')) : blank(32)}<br>Cargo: ${t('cl_rep_car') ? esc(t('cl_rep_car')) : blank(32)}<br>` : ''}
+        DNI / CUIT: ${t('cl_doc') ? esc(t('cl_doc')) : blank(32)}<br>
+        Fecha: ${blank(32)}</div>
+      <div class="firma"><div class="linea">FIRMA LA AGENCIA</div>
+        BeTravel – ${esc(t('ag_nombre') || AGENCIA_DEF.ag_nombre)}<br>
+        Legajo N° ${esc(t('ag_legajo') || AGENCIA_DEF.ag_legajo)}<br>
+        CUIT: ${t('ag_cuit') ? esc(t('ag_cuit')) : blank(32)}<br>
+        Fecha: ${blank(32)}</div>
+    </div>`]);
+
+  // Numeración: las cláusulas "CLÁUSULA N" se numeran en orden.
+  let n = 0;
+  const cuerpo = cl.map(([titulo, html]) => {
+    if (/^CLÁUSULA \d+/.test(titulo)) titulo = titulo.replace(/^CLÁUSULA \d+/, 'CLÁUSULA ' + (++n));
+    else if (titulo.startsWith('CLÁUSULA ADICIONAL')) titulo = titulo.replace('CLÁUSULA ADICIONAL', 'CLÁUSULA ' + (++n));
+    else if (titulo === 'CONFORMIDAD') titulo = 'CLÁUSULA ' + (++n) + ' – CONFORMIDAD';
+    return `<h2>${esc(titulo)}</h2>${html}`;
+  }).join('');
+
+  return `<h1>CONTRATO DE PRESTACIÓN DE SERVICIOS DE VIAJE DE GRUPO</h1>
+    <p>${encabezadoFecha}, se celebra el presente contrato entre las siguientes partes:</p>
+    <h2>PARTES CONTRATANTES</h2>
+    <p>PRESTADOR DEL SERVICIO: BeTravel, con domicilio en ${esc(t('ag_domicilio') || AGENCIA_DEF.ag_domicilio)}, CUIT N° ${t('ag_cuit') ? esc(t('ag_cuit')) : blank(28)}, representada por ${esc(t('ag_nombre') || AGENCIA_DEF.ag_nombre)}, Legajo N° ${esc(t('ag_legajo') || AGENCIA_DEF.ag_legajo)}, en adelante denominada “LA AGENCIA”.</p>
+    <p>CONTRATANTE: ${clienteHTML}</p>
+    ${cuerpo}`;
+}
+
+// ── ESTADO ─────────────────────────────────────────────────────────────────
+let CONTRATOS = [];
+let editing = null;     // { id|null, estado, creadoEn, creadoPor, valores }
+let saveTimer = null;
+let renderTimer = null;
+
+function attachListeners(){
+  META_AGENCIA_REF.on('value', s => { AGENCIA_GUARDADA = s.val() || {}; });
+  CONT_REF.on('value', snap => {
+    const val = snap.val() || {};
+    CONTRATOS = Object.keys(val).map(id => ({ id, ...val[id] })).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    document.getElementById('lo').classList.add('hidden');
+    pintarLista();
+  }, err => { handleWriteError(err); document.getElementById('lo').classList.add('hidden'); });
+}
+
+function pintarLista(){
+  const cont = document.getElementById('lista');
+  if (!CONTRATOS.length){ cont.innerHTML = '<div class="vacio">Todavía no hay contratos. Creá el primero con "Nuevo contrato" o descargá el modelo en blanco.</div>'; return; }
+  cont.innerHTML = `<table><thead><tr><th>Cliente</th><th class="col-hide">Destino</th><th class="col-hide">Salida</th><th>Estado</th><th class="col-hide">Actualizado</th><th></th></tr></thead><tbody>${CONTRATOS.map(c => {
+    const v = c.valores || {};
+    const act = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString('es-AR') : '';
+    return `<tr class="fila" onclick="abrirContrato('${c.id}')"><td><strong>${esc(c.titulo || 'Sin título')}</strong></td><td class="col-hide">${esc(v.destino || '')}</td><td class="col-hide">${esc(v.salida ? fechaLarga(v.salida) : '')}</td><td><span class="pill ${esc(c.estado || 'borrador')}">${esc({ borrador:'Borrador', enviado:'Enviado', firmado:'Firmado' }[c.estado || 'borrador'] || 'Borrador')}</span></td><td class="col-hide">${esc(act)}</td><td class="acc"><button class="btn outline small" onclick="event.stopPropagation();duplicarContrato('${c.id}')">Duplicar</button> <button class="btn danger small" onclick="event.stopPropagation();eliminarContrato('${c.id}')">Eliminar</button></td></tr>`;
+  }).join('')}</tbody></table>`;
+}
+
+// ── NAVEGACIÓN ─────────────────────────────────────────────────────────────
+function mostrarVista(v){
+  document.getElementById('view-list').classList.toggle('hidden', v !== 'list');
+  document.getElementById('view-edit').classList.toggle('hidden', v !== 'edit');
+}
+function setTab(tab){ document.getElementById('view-edit').dataset.tab = tab; }
+function volverLista(){ flushSave(); editing = null; mostrarVista('list'); }
+function nuevoContrato(){
+  editing = { id:null, estado:'borrador', creadoEn:Date.now(), creadoPor:CURRENT_USER.email, valores: valoresNuevos() };
+  entrarEditor(false);
+}
+function abrirContrato(id){
+  const c = CONTRATOS.find(x => x.id === id);
+  if (!c) return;
+  const v = { ...valoresNuevos(), ...(c.valores || {}) };
+  v.pagos = normPagos(c.valores && c.valores.pagos);
+  editing = { id, estado:c.estado || 'borrador', creadoEn:c.creadoEn || Date.now(), creadoPor:c.creadoPor || '', valores:v };
+  entrarEditor(false);
+}
+function abrirModelo(){
+  editing = { id:null, estado:'borrador', modelo:true, valores: valoresModelo() };
+  entrarEditor(true);
+}
+function normPagos(p){ const l = Array.isArray(p) ? p.filter(Boolean) : Object.values(p || {}); return l.length ? l.map(x => ({ concepto:'', pct:'', monto:'', fecha:'', detalle:'', ...x })) : valoresNuevos().pagos; }
+function entrarEditor(modelo){
+  showBanner('');
+  mostrarVista('edit');
+  alternarModelo(modelo);
+  document.getElementById('sel-estado').value = editing.estado || 'borrador';
+  setEstadoGuardado(editing.id ? 'Guardado' : '');
+  setTab('form');
+  pintarForm();
+  pintarDoc();
+  if (!modelo) cargarCotizaciones();
+}
+function alternarModelo(on){
+  BLANK = !!on;
+  document.getElementById('view-edit').classList.toggle('modelo', BLANK);
+  document.querySelectorAll('.solo-contrato').forEach(e => e.classList.toggle('hidden', BLANK));
+  document.querySelectorAll('.solo-modelo').forEach(e => e.classList.toggle('hidden', !BLANK));
+  if (BLANK) setTab('doc');
+  pintarDoc();
+}
+function setEstado(v){ if (editing){ editing.estado = v; programarGuardado(); } }
+
+// ── FORMULARIO ─────────────────────────────────────────────────────────────
+function campoHTML(c){
+  const V = editing.valores, k = c.k, v = V[k] == null ? '' : V[k];
+  const cls = 'fld' + (c.full ? ' full' : '');
+  if (c.t === 'check') return `<div class="${cls}"><label class="chk"><input type="checkbox" data-k="${k}" ${v ? 'checked' : ''}> ${esc(c.l)}</label></div>`;
+  let ctl;
+  if (c.t === 'select') ctl = `<select data-k="${k}">${c.opts.map(o => { const [val, txt] = Array.isArray(o) ? o : [o, o || '—']; return `<option value="${esc(val)}" ${val === v ? 'selected' : ''}>${esc(txt)}</option>`; }).join('')}</select>`;
+  else if (c.t === 'textarea') ctl = `<textarea data-k="${k}" rows="${c.filas || 3}">${esc(v)}</textarea>`;
+  else ctl = `<input type="${c.t === 'date' ? 'date' : 'text'}" data-k="${k}" value="${esc(v)}">`;
+  return `<div class="${cls}"><label>${esc(c.l)}</label>${ctl}</div>`;
+}
+function pagosHTML(){
+  const P = editing.valores.pagos;
+  const total = numero(editing.valores.total);
+  return `<div class="pagos-cab">Pagos (concepto · % · monto · fecha límite · detalle)</div>` + P.map((p, i) => {
+    const pct = numero(p.pct), auto = !isNaN(pct) && !isNaN(total) ? fmtNum(Math.round(total * pct) / 100) : 'monto';
+    return `<div class="pagos-fila" data-i="${i}">
+      <input data-p="concepto" value="${esc(p.concepto)}" placeholder="Concepto">
+      <input data-p="pct" value="${esc(p.pct)}" placeholder="%">
+      <input data-p="monto" value="${esc(p.monto)}" placeholder="${esc(auto)}">
+      <input data-p="fecha" type="date" value="${esc(p.fecha)}">
+      <button class="x-btn" title="Quitar" onclick="quitarPago(${i})">✕</button>
+      <input class="pagos-detalle" data-p="detalle" value="${esc(p.detalle)}" placeholder="Detalle (ej: dentro de los 5 días hábiles de la firma)">
+    </div>`;
+  }).join('') + `<div class="sub-actions"><button class="btn outline small" onclick="agregarPago()">+ Agregar pago</button></div>`;
+}
+// Las tarjetas que la persona abrió o cerró se mantienen al volver a dibujar el formulario.
+const ABIERTOS = {};
+function pintarForm(){
+  const F = document.getElementById('form');
+  F.innerHTML = SECCIONES.map(s => {
+    const extra = s.id === 'viaje' ? `<div class="fld full"><label>Traer datos de una cotización</label><div style="display:flex;gap:6px"><select id="sel-cot" style="flex:1"><option value="">Elegir cotización…</option></select><button class="btn outline small" onclick="traerCotizacion()">Traer</button></div></div>` : '';
+    return `<details class="card" data-sec="${s.id}" ${(s.id in ABIERTOS ? ABIERTOS[s.id] : s.abierto) ? 'open' : ''}><summary>${esc(s.titulo)}</summary><div class="card-body">
+      ${s.hint ? `<div class="card-hint">${esc(s.hint)}</div>` : ''}
+      <div class="grid">${s.id === 'viaje' ? extra : ''}${s.campos.map(campoHTML).join('')}</div>
+      ${s.pagos ? `<div id="pagos-box" style="margin:10px 0">${pagosHTML()}</div>` : ''}
+      ${s.campos2 ? `<div class="grid">${s.campos2.map(campoHTML).join('')}</div>
+        <div class="sub-actions"><button class="btn outline small" onclick="usarDatosCobro()">Usar los datos de cobro de la agencia</button></div>` : ''}
+      ${s.agenciaBtns ? `<div class="sub-actions"><button class="btn outline small" onclick="guardarAgencia()">Guardar como datos de BeTravel</button></div>` : ''}
+    </div></details>`;
+  }).join('');
+  F.querySelectorAll('details.card').forEach(d => d.addEventListener('toggle', () => { ABIERTOS[d.dataset.sec] = d.open; }));
+  poblarSelCot();
+  F.oninput = F.onchange = e => {
+    const el = e.target;
+    if (el.dataset.k){
+      editing.valores[el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value;
+      if (el.dataset.k === 'total' || el.dataset.k === 'moneda') refrescarPlaceholdersPago();
+    } else if (el.dataset.p){
+      const i = +el.closest('.pagos-fila').dataset.i;
+      editing.valores.pagos[i][el.dataset.p] = el.value;
+      if (el.dataset.p === 'pct') refrescarPlaceholdersPago();
+    } else return;
+    programarRender(); programarGuardado();
+  };
+}
+function refrescarPlaceholdersPago(){
+  const total = numero(editing.valores.total);
+  document.querySelectorAll('#pagos-box .pagos-fila').forEach(fila => {
+    const i = +fila.dataset.i, pct = numero(editing.valores.pagos[i].pct);
+    fila.querySelector('[data-p="monto"]').placeholder = !isNaN(pct) && !isNaN(total) ? fmtNum(Math.round(total * pct) / 100) : 'monto';
+  });
+}
+function agregarPago(){ editing.valores.pagos.push({ concepto:'Pago', pct:'', monto:'', fecha:'', detalle:'' }); document.getElementById('pagos-box').innerHTML = pagosHTML(); programarRender(); programarGuardado(); }
+function quitarPago(i){ editing.valores.pagos.splice(i, 1); document.getElementById('pagos-box').innerHTML = pagosHTML(); programarRender(); programarGuardado(); }
+function programarRender(){ clearTimeout(renderTimer); renderTimer = setTimeout(pintarDoc, 120); }
+function pintarDoc(){ if (editing) document.getElementById('doc').innerHTML = cuerpoContrato(editing.valores); }
+
+// Datos opcionales de otras partes del panel
+function usarDatosCobro(){
+  META_COBRO_REF.once('value').then(s => {
+    const c = s.val() || {};
+    if (!String(c.cuentas || '').trim()){ showBanner('Todavía no hay datos bancarios cargados en los datos de cobro de la agencia.'); return; }
+    editing.valores.ag_banco = c.cuentas;
+    const ta = document.querySelector('#form [data-k="ag_banco"]'); if (ta) ta.value = c.cuentas;
+    pintarDoc(); programarGuardado();
+  }, handleWriteError);
+}
+function guardarAgencia(){
+  const v = editing.valores, d = {};
+  ['ag_nombre', 'ag_legajo', 'ag_cuit', 'ag_domicilio', 'ag_banco'].forEach(k => { d[k] = String(v[k] || '').trim(); });
+  META_AGENCIA_REF.set(d).then(() => { showBanner(''); setEstadoGuardado('Datos de BeTravel guardados'); }, handleWriteError);
+}
+let COTS_CARGADAS = false;
+function poblarSelCot(){
+  const sel = document.getElementById('sel-cot'), val = window.__COTS;
+  if (!sel || !val) return;
+  sel.innerHTML = '<option value="">Elegir cotización…</option>' + Object.keys(val).map(id => ({ id, ...val[id] })).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .map(c => `<option value="${esc(c.id)}">${esc([c.codigo, c.titulo || c.cliente, c.destino].filter(Boolean).join(' · '))}</option>`).join('');
+}
+function cargarCotizaciones(){
+  if (COTS_CARGADAS) return;
+  COTS_CARGADAS = true;
+  COT_REF.once('value').then(s => { window.__COTS = s.val() || {}; poblarSelCot(); }, () => { COTS_CARGADAS = false; });
+}
+function traerCotizacion(){
+  const id = document.getElementById('sel-cot').value, c = window.__COTS && window.__COTS[id];
+  if (!c) return;
+  const V = editing.valores, ponerSiVacio = (k, v) => { if (v != null && String(v).trim() && !String(V[k] || '').trim()) V[k] = String(v); };
+  ponerSiVacio('cl_nombre', c.cliente); ponerSiVacio('destino', c.destino); ponerSiVacio('ref_cot', c.codigo); ponerSiVacio('pasajeros', c.pasajeros);
+  if (c.fechaInicio) V.salida = c.fechaInicio;
+  if (c.fechaFin) V.regreso = c.fechaFin;
+  if (c.moneda === 'USD' || c.moneda === 'ARS') V.moneda = c.moneda;
+  if (c.titulo && !String(V.ev_detalle || '').trim()) V.ev_detalle = c.titulo;
+  pintarForm(); pintarDoc(); programarGuardado();
+}
+
+// ── GUARDADO ───────────────────────────────────────────────────────────────
+function setEstadoGuardado(t){ const e = document.getElementById('estado-guardado'); if (e) e.textContent = t || ''; }
+function programarGuardado(){
+  if (!editing || editing.modelo) return;
+  setEstadoGuardado('Guardando…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(guardarAhora, 700);
+}
+function flushSave(){ if (saveTimer){ clearTimeout(saveTimer); saveTimer = null; guardarAhora(); } }
+function tituloDe(v){ return String(v.cl_nombre || '').trim() || String(v.ev_detalle || '').trim() || 'Contrato sin título'; }
+function guardarAhora(){
+  saveTimer = null;
+  if (!editing || editing.modelo) return;
+  const d = { titulo: tituloDe(editing.valores), estado: editing.estado || 'borrador', valores: editing.valores, creadoEn: editing.creadoEn || Date.now(), creadoPor: editing.creadoPor || CURRENT_USER.email, updatedAt: Date.now(), updatedBy: CURRENT_USER.email };
+  const ref = editing.id ? CONT_REF.child(editing.id) : CONT_REF.push();
+  if (!editing.id) editing.id = ref.key;
+  ref.set(d).then(() => { showBanner(''); setEstadoGuardado('Guardado'); }, handleWriteError);
+}
+function duplicarContrato(id){
+  const c = CONTRATOS.find(x => x.id === id);
+  if (!c) return;
+  const v = { ...(c.valores || {}), fecha: hoyISO() };
+  const ref = CONT_REF.push();
+  const copia = { titulo: String(c.titulo || 'Contrato') + ' (copia)', estado:'borrador', valores:v, creadoEn:Date.now(), creadoPor:CURRENT_USER.email, updatedAt:Date.now(), updatedBy:CURRENT_USER.email };
+  ref.set(copia).catch(handleWriteError);
+}
+function eliminarContrato(id){
+  const c = CONTRATOS.find(x => x.id === id);
+  if (!c || !confirm(`¿Eliminar el contrato "${c.titulo || 'sin título'}"? No se puede deshacer.`)) return;
+  CONT_REF.child(id).remove().catch(handleWriteError);
+}
+
+// ── PDF ────────────────────────────────────────────────────────────────────
+function descargarPDF(){
+  const v = editing && editing.valores || {};
+  const previo = document.title;
+  document.title = BLANK ? 'Contrato modelo - BeTravel' : `Contrato - ${tituloDe(v)}`;
+  const restaurar = () => { document.title = previo; window.removeEventListener('afterprint', restaurar); };
+  window.addEventListener('afterprint', restaurar);
+  window.print();
+}
+
+</script>
+</body>
+</html>
