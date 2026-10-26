@@ -422,8 +422,15 @@ function cuerpoContrato(V){
   const provsFilas = (Array.isArray(V.provs) ? V.provs : Object.values(V.provs || {})).filter(p => p && (BLANK || String(p.proveedor || '').trim() || String(p.politica || '').trim() || p.fecha));
   // Condición fiscal y medios de pago
   const fiscal = t('cl_fiscal');
-  const fiscalHTML = `Responsable inscripto en IVA ${x(fiscal === 'Responsable inscripto')} / Monotributista ${x(fiscal === 'Monotributista')} / Exento ${x(fiscal === 'Exento')} / Consumidor final ${x(fiscal === 'Consumidor final')}`;
-  const medios = `transferencia bancaria ${x(V.mp_transf)} / cheque ${x(V.mp_cheque)} / otro: ${t('mp_otro') ? esc(t('mp_otro')) : blank(30)}`;
+  // Contrato completado: solo figura lo elegido. Modelo en blanco: casillas sin tildar para marcar a mano.
+  const fiscalHTML = BLANK
+    ? `Responsable inscripto en IVA [ ] / Monotributista [ ] / Exento [ ] / Consumidor final [ ]`
+    : fiscal ? esc(fiscal === 'Responsable inscripto' ? 'Responsable inscripto en IVA' : fiscal) : blank(40);
+  const mediosElegidos = [V.mp_transf ? 'transferencia bancaria' : '', V.mp_cheque ? 'cheque' : '', t('mp_otro') ? esc(t('mp_otro')) : ''].filter(Boolean);
+  const medios = BLANK
+    ? `transferencia bancaria [ ] / cheque [ ] / otro: ${blank(30)}`
+    : mediosElegidos.length ? mediosElegidos.join(' / ') : blank(40);
+  const muestraBanco = BLANK || t('ag_banco') || V.mp_transf;
   const factNombre = t('fa_nombre') || t('cl_nombre'), factDoc = t('fa_doc') || t('cl_doc');
 
   const rep = t('cl_rep') || BLANK;
@@ -450,7 +457,7 @@ function cuerpoContrato(V){
     <p>2.3. La forma de pago acordada es la siguiente:</p>
     <ul class="ind">${pagosHTML || `<li>${blank(80)}</li>`}</ul>
     <p>2.4. Los pagos deberán realizarse mediante: ${medios}.</p>
-    <p class="ind">Datos bancarios de LA AGENCIA: ${t('ag_banco') ? `<span class="multi">${esc(t('ag_banco'))}</span>` : blank(90)}</p>`]);
+    ${muestraBanco ? `<p class="ind">Datos bancarios de LA AGENCIA: ${t('ag_banco') ? `<span class="multi">${esc(t('ag_banco'))}</span>` : blank(90)}</p>` : ''}`]);
   cl.push(['CLÁUSULA 3 – SERVICIOS INCLUIDOS', `
     <p>El programa incluye los siguientes servicios:</p>
     <ul class="ind">${serviciosHTML}</ul>
