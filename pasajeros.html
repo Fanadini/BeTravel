@@ -38,6 +38,12 @@ textarea{min-height:80px;resize:vertical}
 .msg{background:var(--white);border:1px solid var(--beige-d);border-radius:12px;padding:28px 22px;text-align:center}
 .msg h2{font-size:18px;color:var(--teal);margin-bottom:8px}
 .msg p{font-size:14px;color:rgba(43,43,43,.8)}
+.combo{position:relative}
+.sugs{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--white);border:1.5px solid var(--beige-d);border-radius:8px;max-height:240px;overflow-y:auto;z-index:20;box-shadow:0 6px 18px rgba(15,61,62,.12)}
+.sug{padding:10px 12px;font-size:14px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.sug:hover,.sug.on{background:rgba(15,61,62,.07)}
+.sug small{font-size:11px;color:rgba(43,43,43,.55);white-space:nowrap}
+.sug-vacio{padding:10px 12px;font-size:13px;color:rgba(43,43,43,.6)}
 .hp{position:absolute;left:-9999px;opacity:0;height:0;overflow:hidden}
 .hidden{display:none!important}
 .alert{background:rgba(184,50,50,.08);border:1px solid rgba(184,50,50,.3);color:var(--red);font-size:13px;padding:10px 12px;border-radius:8px;margin-bottom:12px}
@@ -128,8 +134,11 @@ textarea{min-height:80px;resize:vertical}
       </div>
       <div class="fld hidden" id="blk-con" data-f="compartiCon">
         <label for="compartiConSel" id="lbl-con">Si comparte, ¿con quién? (nombre y apellido) <span class="req">*</span></label>
-        <select id="compartiConSel" class="hidden"></select>
-        <input type="text" id="compartiConTxt" maxlength="120" class="hidden" placeholder="Nombre y apellido">
+        <div class="combo">
+          <input type="text" id="compartiConTxt" maxlength="120" placeholder="Buscar por nombre o apellido" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="sugs">
+          <div class="sugs hidden" id="sugs" role="listbox"></div>
+        </div>
+        <div class="hint" id="hint-con">Elija a la persona de la lista. Si todavía no completó el formulario, escriba su nombre y apellido.</div>
         <div class="err">Indique con quién comparte.</div>
       </div>
     </div>
@@ -199,15 +208,13 @@ function iniciar(meta){
     const sel = $('invitado');
     sel.innerHTML = '<option value="">Seleccione…</option>' + INVITADOS.map(n => '<option></option>').join('') + '<option value="' + OTRO + '">Mi nombre no figura en la lista</option>';
     INVITADOS.forEach((n, i) => { sel.options[i + 1].value = n; sel.options[i + 1].textContent = n; });
-    const con = $('compartiConSel');
-    con.innerHTML = '<option value="">Seleccione…</option>' + INVITADOS.map(n => '<option></option>').join('') + '<option value="' + OTRO + '">Otra persona (indicar nombre)</option>';
-    INVITADOS.forEach((n, i) => { con.options[i + 1].value = n; con.options[i + 1].textContent = n; });
   } else {
     $('card-lista').classList.add('hidden');
   }
   $('estado').classList.add('hidden');
   $('form').classList.remove('hidden');
   actualizarCondicionales();
+  escucharNombres();
 }
 
 const radio = name => { const r = document.querySelector('input[name="' + name + '"]:checked'); return r ? r.value : ''; };
@@ -219,12 +226,60 @@ function actualizarCondicionales(){
   $('blk-comparte').classList.toggle('hidden', !compartible);
   const comparte = compartible && radio('comparte') === 'Sí';
   $('blk-con').classList.toggle('hidden', !comparte);
-  const usaLista = INVITADOS.length > 0;
-  $('compartiConSel').classList.toggle('hidden', !usaLista);
-  $('compartiConTxt').classList.toggle('hidden', usaLista && $('compartiConSel').value !== OTRO);
 }
 document.querySelectorAll('input[name="tipoHabitacion"], input[name="comparte"]').forEach(r => r.addEventListener('change', actualizarCondicionales));
-$('compartiConSel').addEventListener('change', actualizarCondicionales);
+
+// ── Buscador de compañero ──────────────────────────────────────────────────
+// NOMBRES: quienes ya enviaron el formulario (grupos/{g}/nombres, solo nombre completo, sin otros datos).
+let NOMBRES = [], SEL_ID = null, SUG_IDX = -1, SUG_ITEMS = [];
+const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+function escucharNombres(){
+  firebase.database().ref('grupos/' + GID + '/nombres').on('value', s => {
+    NOMBRES = Object.entries(s.val() || {}).map(([id, o]) => ({ id, n: o && o.n })).filter(x => x.n);
+    if (document.activeElement === $('compartiConTxt')) mostrarSugs();
+  }, () => {});
+}
+function candidatos(){
+  const yo = norm(val('nombre') + ' ' + val('apellido')), yoInv = norm(val('invitado'));
+  const vistos = new Set(NOMBRES.map(x => norm(x.n)));
+  const items = NOMBRES.filter(x => norm(x.n) !== yo && norm(x.n) !== yoInv).map(x => ({ id: x.id, n: x.n, pend: false }));
+  INVITADOS.forEach(n => { const k = norm(n); if (k && !vistos.has(k) && k !== yo && k !== yoInv) items.push({ id: null, n, pend: true }); });
+  return items.sort((a, b) => a.pend - b.pend || a.n.localeCompare(b.n, 'es'));
+}
+function mostrarSugs(){
+  const q = norm($('compartiConTxt').value).split(' ').filter(Boolean);
+  SUG_ITEMS = candidatos().filter(x => q.every(t => norm(x.n).includes(t))).slice(0, 8);
+  SUG_IDX = -1;
+  const box = $('sugs');
+  if (!SUG_ITEMS.length && !q.length){ box.classList.add('hidden'); return; }
+  box.innerHTML = SUG_ITEMS.length ? '' : '<div class="sug-vacio">Sin coincidencias. Puede escribir el nombre completo igualmente.</div>';
+  SUG_ITEMS.forEach((x, i) => {
+    const d = document.createElement('div'); d.className = 'sug'; d.setAttribute('role', 'option');
+    const sp = document.createElement('span'); sp.textContent = x.n; d.appendChild(sp);
+    if (x.pend){ const sm = document.createElement('small'); sm.textContent = 'aún no completó'; d.appendChild(sm); }
+    d.addEventListener('mousedown', ev => { ev.preventDefault(); elegir(i); });
+    box.appendChild(d);
+  });
+  box.classList.remove('hidden');
+}
+function elegir(i){
+  const x = SUG_ITEMS[i]; if (!x) return;
+  $('compartiConTxt').value = x.n; SEL_ID = x.id;
+  $('sugs').classList.add('hidden');
+  $('hint-con').textContent = x.pend ? 'Nombre tomado de la lista de invitados.' : 'Vinculado con ' + x.n + '.';
+  marcar('compartiCon', true);
+}
+$('compartiConTxt').addEventListener('input', () => { SEL_ID = null; mostrarSugs(); });
+$('compartiConTxt').addEventListener('focus', mostrarSugs);
+$('compartiConTxt').addEventListener('blur', () => setTimeout(() => $('sugs').classList.add('hidden'), 120));
+$('compartiConTxt').addEventListener('keydown', ev => {
+  const n = SUG_ITEMS.length; if (!n || $('sugs').classList.contains('hidden')) return;
+  if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp'){
+    ev.preventDefault(); SUG_IDX = (SUG_IDX + (ev.key === 'ArrowDown' ? 1 : -1) + n) % n;
+    [...$('sugs').children].forEach((c, i) => c.classList.toggle('on', i === SUG_IDX));
+  } else if (ev.key === 'Enter' && SUG_IDX >= 0){ ev.preventDefault(); elegir(SUG_IDX); }
+  else if (ev.key === 'Escape') $('sugs').classList.add('hidden');
+});
 
 function marcar(f, ok){ const el = document.querySelector('[data-f="' + f + '"]'); if (el) el.classList.toggle('bad', !ok); return ok; }
 const val = id => $(id).value.trim();
@@ -252,10 +307,7 @@ function validar(){
   ['restricciones', 'movilidad'].forEach(id => { const el = $(id).closest('.fld'); const bad = !val(id); el.classList.toggle('bad', bad); if (bad) ok = false; });
   return ok;
 }
-function conQuien(){
-  if (INVITADOS.length){ const v = $('compartiConSel').value; return v === OTRO ? val('compartiConTxt') : v; }
-  return val('compartiConTxt');
-}
+const conQuien = () => val('compartiConTxt');
 
 $('form').addEventListener('submit', e => {
   e.preventDefault();
@@ -280,11 +332,16 @@ $('form').addEventListener('submit', e => {
   if (INVITADOS.length && val('invitado') && val('invitado') !== OTRO) d.invitado = val('invitado');
   if (val('lugarPasaporte')) d.lugarPasaporte = val('lugarPasaporte');
   if (compartible && radio('tipoCama')) d.tipoCama = radio('tipoCama');
-  if (comparte === 'Sí') d.compartiCon = conQuien();
+  if (comparte === 'Sí'){ d.compartiCon = conQuien(); if (SEL_ID) d.compartiConId = SEL_ID; }
   if (val('medicas')) d.medicas = val('medicas');
 
   const btn = $('enviar'); btn.disabled = true; btn.textContent = 'Enviando…';
-  firebase.database().ref('grupos/' + GID + '/respuestas').push().set(d).then(() => {
+  // Se guarda la respuesta completa (solo staff la lee) y, aparte, solo el nombre para el buscador de compañeros.
+  const base = firebase.database().ref('grupos/' + GID);
+  const rid = base.child('respuestas').push().key, up = {};
+  up['respuestas/' + rid] = d;
+  up['nombres/' + rid] = { n: (d.nombre + ' ' + d.apellido).slice(0, 200) };
+  base.update(up).then(() => {
     mostrarMsg('Datos recibidos', 'Gracias, ' + d.nombre + '. Recibimos su información. Si necesita corregir algún dato, escríbanos.');
     window.scrollTo(0, 0);
   }, err => {
