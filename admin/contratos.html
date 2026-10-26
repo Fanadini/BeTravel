@@ -98,6 +98,8 @@ details.card[open]>summary::after{content:'–'}
 .chk{display:flex;align-items:center;gap:7px;font-size:12px;padding:6px 0}
 .pagos-fila{display:grid;grid-template-columns:1.3fr 54px 1fr 1.1fr 24px;gap:6px;margin-bottom:6px;align-items:center}
 .pagos-fila input{font-family:'Inter',sans-serif;font-size:12px;padding:6px 7px;border-radius:7px;border:1.5px solid var(--beige-d);width:100%;min-width:0}
+.provs-fila{display:grid;grid-template-columns:1.2fr 1.2fr 1.1fr 24px;gap:6px;margin-bottom:6px;align-items:center}
+.provs-fila input{font-family:'Inter',sans-serif;font-size:12px;padding:6px 7px;border-radius:7px;border:1.5px solid var(--beige-d);width:100%;min-width:0}
 .pagos-cab{font-size:10px;font-weight:600;color:rgba(43,43,43,.55);margin-bottom:4px}
 .pagos-detalle{grid-column:1/-1;margin-top:-2px}
 .x-btn{border:none;background:none;color:var(--red);cursor:pointer;font-size:14px}
@@ -327,6 +329,7 @@ function valoresNuevos(){
   return { ...agenciaDef(), lugar:'Buenos Aires', fecha: hoyISO(), ev_tipo:'Viaje de grupo para una boda', moneda:'USD',
     pagos: [{ concepto:'Anticipo' }, { concepto:'Segundo pago' }, { concepto:'Saldo' }].map(x => ({ concepto:x.concepto, pct:'', monto:'', fecha:'', detalle:'' })),
     mp_transf:true, mp_cheque:false, servicios: SERV_SUGERIDOS, no_incl: NO_INCL_DEF,
+    provs: [{ servicio:'Transporte aéreo', proveedor:'', politica:'', fecha:'' }, { servicio:'Alojamiento', proveedor:'', politica:'', fecha:'' }],
     can_d1:'60', can_p1:'80', can_d2:'30', can_p2:'50', can_d3:'15', can_p3:'25', can_p4:'0' };
 }
 // El modelo en blanco: los datos de BeTravel y la estructura, sin nada del cliente ni del viaje.
@@ -362,7 +365,7 @@ const SECCIONES = [
     { k:'rep_pct', l:'% de pasajeros reemplazables sin costo', ocultaSi:'rep_no' }, { k:'rep_dias', l:'Días de anticipación para reemplazos', ocultaSi:'rep_no' } ] },
   { id:'cancel', titulo:'Política de cancelación', hint:'Los tramos se calculan sobre el monto abonado. Deben respetar lo que cobran los proveedores.', campos:[
     { k:'can_d1', l:'Más de (días)' }, { k:'can_p1', l:'Se reintegra (%)' }, { k:'can_d2', l:'Entre ese tramo y (días)' }, { k:'can_p2', l:'Se reintegra (%)' },
-    { k:'can_d3', l:'Entre ese tramo y (días)' }, { k:'can_p3', l:'Se reintegra (%)' }, { k:'can_p4', l:'Menos que el último tramo: se reintegra (%)', full:true } ] },
+    { k:'can_d3', l:'Entre ese tramo y (días)' }, { k:'can_p3', l:'Se reintegra (%)' }, { k:'can_p4', l:'Menos que el último tramo: se reintegra (%)', full:true } ], provs:true },
   { id:'adic', titulo:'Cláusulas adicionales', hint:'Si se completa, se agrega una cláusula antes de la conformidad.', campos:[
     { k:'adicionales', l:'Texto de la cláusula adicional', t:'textarea', full:true, filas:5 } ] },
   { id:'agencia', titulo:'Datos de BeTravel', hint:'Se repiten en todos los contratos. "Guardar como datos de BeTravel" los deja como valores iniciales.', campos:[
@@ -415,6 +418,8 @@ function cuerpoContrato(V){
   const reint = p => { const n = numero(p); return !isNaN(n) && n > 0 ? `se reintegra el ${fmtNum(n)}% del monto abonado` : 'no se realizará reintegro alguno'; };
   const d1 = val('can_d1', 10), d2 = val('can_d2', 10), d3 = val('can_d3', 10);
 
+  // Políticas de cancelación de los proveedores: se omiten las filas vacías (en el modelo en blanco se muestran para completar)
+  const provsFilas = (Array.isArray(V.provs) ? V.provs : Object.values(V.provs || {})).filter(p => p && (BLANK || String(p.proveedor || '').trim() || String(p.politica || '').trim() || p.fecha));
   // Condición fiscal y medios de pago
   const fiscal = t('cl_fiscal');
   const fiscalHTML = `Responsable inscripto en IVA ${x(fiscal === 'Responsable inscripto')} / Monotributista ${x(fiscal === 'Monotributista')} / Exento ${x(fiscal === 'Exento')} / Consumidor final ${x(fiscal === 'Consumidor final')}`;
@@ -455,7 +460,7 @@ function cuerpoContrato(V){
     <p>${V.rep_no ? '4.2. Reemplazos de pasajeros: una vez entregada la nómina definitiva no se admitirán reemplazos ni cambios de pasajeros.' : `4.2. Reemplazos de pasajeros: se admitirá el reemplazo de hasta el ${val('rep_pct', 12)}% de los pasajeros sin costo adicional, siempre que se notifique con al menos ${val('rep_dias', 12)} días de anticipación. Los reemplazos fuera de plazo podrán incurrir en costos adicionales a cargo de EL CLIENTE.`}</p>
     <p>4.3. Reducciones en la cantidad de pasajeros: toda reducción de pasajeros confirmados será tratada conforme a la política de cancelación parcial establecida en la Cláusula 5.</p>`]);
   cl.push(['CLÁUSULA 5 – POLÍTICA DE CANCELACIÓN', `
-    <p>5.1. Cancelación total por parte de EL CLIENTE:</p>
+    <p>5.1. Cancelación total por parte de EL CLIENTE${provsFilas.length ? ', sin perjuicio de lo dispuesto en el punto 5.5' : ''}:</p>
     <ul class="ind">
       <li>Con más de ${d1} días de anticipación: ${reint(V.can_p1)}.</li>
       <li>Entre ${d2} y ${d1} días de anticipación: ${reint(V.can_p2)}.</li>
@@ -464,7 +469,9 @@ function cuerpoContrato(V){
     </ul>
     <p>5.2. Cancelación parcial (reducción de pasajeros): el costo no reintegrable por cada pasajero dado de baja seguirá el mismo escalado de porcentajes indicado en el punto 5.1, calculado sobre el valor individual de cada pasajero.</p>
     <p>5.3. Cancelación por parte de LA AGENCIA: en caso de que LA AGENCIA cancele el programa por causas imputables a la misma, se reintegrará el 100% de los montos abonados por EL CLIENTE, sin perjuicio de otras acciones que correspondan.</p>
-    <p>5.4. Toda comunicación de cancelación deberá realizarse por escrito (correo electrónico o carta documento) dirigida al representante de LA AGENCIA.</p>`]);
+    <p>5.4. Toda comunicación de cancelación deberá realizarse por escrito (correo electrónico o carta documento) dirigida al representante de LA AGENCIA.</p>${provsFilas.length ? `
+    <p>5.5. Políticas de cancelación de los proveedores: la cancelación o modificación de los servicios que se detallan a continuación se rige por las condiciones del respectivo proveedor, que prevalecen sobre la escala del punto 5.1 y que EL CLIENTE declara conocer y aceptar:</p>
+    <ul class="ind">${provsFilas.map(p => `<li>${String(p.servicio || '').trim() ? esc(String(p.servicio).trim()) : blank(30)}${String(p.proveedor || '').trim() ? ' (' + esc(String(p.proveedor).trim()) + ')' : ''}: ${String(p.politica || '').trim() ? esc(String(p.politica).trim()) : 'según las condiciones del proveedor'}${p.fecha ? `; sin cargo de cancelación hasta el ${esc(fechaLarga(p.fecha))}` : ''}.</li>`).join('')}</ul>` : ''}`]);
   cl.push(['CLÁUSULA 6 – RESPONSABILIDADES', `
     <p>6.1. LA AGENCIA actuará como coordinadora e intermediaria entre EL CLIENTE y los proveedores de servicios (aerolíneas, hoteles, transportistas, etc.), y no será responsable por demoras, cancelaciones o modificaciones imputables a dichos terceros.</p>
     <p>6.2. EL CLIENTE es responsable de garantizar que todos los pasajeros cuenten con la documentación requerida (DNI, pasaporte, visados) vigente y en regla. LA AGENCIA no asume responsabilidad por el rechazo de ingreso de pasajeros por irregularidades documentales.</p>
@@ -553,6 +560,7 @@ function abrirContrato(id){
   if (!c) return;
   const v = { ...valoresNuevos(), ...(c.valores || {}) };
   v.pagos = normPagos(c.valores && c.valores.pagos);
+  v.provs = normProvs(c.valores && c.valores.provs, v.provs);
   editing = { id, estado:c.estado || 'borrador', creadoEn:c.creadoEn || Date.now(), creadoPor:c.creadoPor || '', valores:v };
   entrarEditor(false);
 }
@@ -560,6 +568,7 @@ function abrirModelo(){
   editing = { id:null, estado:'borrador', modelo:true, valores: valoresModelo() };
   entrarEditor(true);
 }
+function normProvs(p, def){ const l = Array.isArray(p) ? p.filter(Boolean) : Object.values(p || {}); return l.length ? l.map(x => ({ servicio:'', proveedor:'', politica:'', fecha:'', ...x })) : (p === undefined ? def : []); }
 function normPagos(p){ const l = Array.isArray(p) ? p.filter(Boolean) : Object.values(p || {}); return l.length ? l.map(x => ({ concepto:'', pct:'', monto:'', fecha:'', detalle:'', ...x })) : valoresNuevos().pagos; }
 function entrarEditor(modelo){
   showBanner('');
@@ -594,6 +603,17 @@ function campoHTML(c){
   else ctl = `<input type="${c.t === 'date' ? 'date' : 'text'}" data-k="${k}" value="${esc(v)}">`;
   return `<div class="${cls}"${oc}><label>${esc(c.l)}</label>${ctl}</div>`;
 }
+function provsHTML(){
+  const P = editing.valores.provs;
+  return `<div class="pagos-cab">Servicios sujetos a la política del proveedor (servicio · proveedor · sin cargo hasta)</div>` + P.map((p, i) => `<div class="provs-fila" data-i="${i}">
+      <input data-v="servicio" value="${esc(p.servicio)}" placeholder="Servicio (ej: Aéreo)" list="dl-servicios">
+      <input data-v="proveedor" value="${esc(p.proveedor)}" placeholder="Proveedor">
+      <input data-v="fecha" type="date" value="${esc(p.fecha)}" title="Fecha hasta la que se cancela sin cargo">
+      <button class="x-btn" title="Quitar" onclick="quitarProv(${i})">✕</button>
+      <input class="pagos-detalle" data-v="politica" value="${esc(p.politica)}" placeholder="Política según su contrato (ej: aéreo no reembolsable desde la emisión)">
+    </div>`).join('') + `<datalist id="dl-servicios"><option value="Transporte aéreo"><option value="Alojamiento"><option value="Traslados"><option value="Asistencia al viajero"><option value="Actividades"></datalist>
+    <div class="sub-actions"><button class="btn outline small" onclick="agregarProv()">+ Agregar servicio</button></div>`;
+}
 function pagosHTML(){
   const P = editing.valores.pagos;
   const total = numero(editing.valores.total);
@@ -619,6 +639,7 @@ function pintarForm(){
       ${s.hint ? `<div class="card-hint">${esc(s.hint)}</div>` : ''}
       <div class="grid">${s.id === 'viaje' ? extra : ''}${s.campos.map(campoHTML).join('')}</div>
       ${s.pagos ? `<div id="pagos-box" style="margin:10px 0">${pagosHTML()}</div>` : ''}
+      ${s.provs ? `<div id="provs-box" style="margin:10px 0">${provsHTML()}</div>` : ''}
       ${s.campos2 ? `<div class="grid">${s.campos2.map(campoHTML).join('')}</div>
         <div class="sub-actions"><button class="btn outline small" onclick="usarDatosCobro()">Usar los datos de cobro de la agencia</button></div>` : ''}
       ${s.agenciaBtns ? `<div class="sub-actions"><button class="btn outline small" onclick="guardarAgencia()">Guardar como datos de BeTravel</button></div>` : ''}
@@ -632,6 +653,8 @@ function pintarForm(){
       editing.valores[el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value;
       if (el.dataset.k === 'rep_no') document.querySelectorAll('#form [data-oculta-si="rep_no"]').forEach(w => w.classList.toggle('hidden', el.checked));
       if (el.dataset.k === 'total' || el.dataset.k === 'moneda') refrescarPlaceholdersPago();
+    } else if (el.dataset.v){
+      editing.valores.provs[+el.closest('.provs-fila').dataset.i][el.dataset.v] = el.value;
     } else if (el.dataset.p){
       const i = +el.closest('.pagos-fila').dataset.i;
       editing.valores.pagos[i][el.dataset.p] = el.value;
@@ -647,6 +670,8 @@ function refrescarPlaceholdersPago(){
     fila.querySelector('[data-p="monto"]').placeholder = !isNaN(pct) && !isNaN(total) ? fmtNum(Math.round(total * pct) / 100) : 'monto';
   });
 }
+function agregarProv(){ editing.valores.provs.push({ servicio:'', proveedor:'', politica:'', fecha:'' }); document.getElementById('provs-box').innerHTML = provsHTML(); programarRender(); programarGuardado(); }
+function quitarProv(i){ editing.valores.provs.splice(i, 1); document.getElementById('provs-box').innerHTML = provsHTML(); programarRender(); programarGuardado(); }
 function agregarPago(){ editing.valores.pagos.push({ concepto:'Pago', pct:'', monto:'', fecha:'', detalle:'' }); document.getElementById('pagos-box').innerHTML = pagosHTML(); programarRender(); programarGuardado(); }
 function quitarPago(i){ editing.valores.pagos.splice(i, 1); document.getElementById('pagos-box').innerHTML = pagosHTML(); programarRender(); programarGuardado(); }
 function programarRender(){ clearTimeout(renderTimer); renderTimer = setTimeout(pintarDoc, 120); }
@@ -688,6 +713,11 @@ function traerCotizacion(){
   if (c.fechaFin) V.regreso = c.fechaFin;
   if (c.moneda === 'USD' || c.moneda === 'ARS') V.moneda = c.moneda;
   if (c.titulo && !String(V.ev_detalle || '').trim()) V.ev_detalle = c.titulo;
+  // Servicios de la cotización con su proveedor, para completar la política de cada uno (solo si todavía no se cargó nada).
+  const vacias = !(V.provs || []).some(p => String(p.proveedor || '').trim() || String(p.politica || '').trim());
+  const rotulo = { 'Aéreo':'Transporte aéreo', 'Hotel':'Alojamiento' };
+  const srv = (Array.isArray(c.servicios) ? c.servicios : Object.values(c.servicios || {})).filter(x => x && x.activo !== false && ['Aéreo', 'Hotel', 'Traslados', 'Crucero', 'Tren', 'Autos'].includes(x.tipo));
+  if (vacias && srv.length) V.provs = srv.map(x => ({ servicio: (rotulo[x.tipo] || x.tipo) + (x.concepto ? ' – ' + x.concepto : '') + (x.modo && x.modo !== 'incluido' && x.modo !== 'adicional' ? ` (opción ${x.modo})` : ''), proveedor: String(x.proveedor || ''), politica:'', fecha:'' }));
   pintarForm(); pintarDoc(); programarGuardado();
 }
 
