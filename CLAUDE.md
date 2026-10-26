@@ -43,6 +43,7 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 ├── becorporate.html         ← Página Be•Corporate (MICE / corporativo)
 ├── vacacional.html          ← Página Be•Travel · Vacacional (premium)
 ├── becommunity.html         ← Página Be•Community (grupos de afinidad)
+├── pasajeros.html           ← Formulario público de pasajeros de un grupo (`?g=token`, noindex; escribe en Firebase `grupos`)
 ├── style.css
 ├── robots.txt / sitemap.xml
 ├── *.jpg                    ← imágenes (hero, editorial, etc.)
@@ -54,6 +55,7 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
     ├── kanban.html           ← CRM interno (Firebase)
     ├── gestioninterna.html    ← Finanzas / Reservas / Facturas de proveedores (Firebase)
     ├── cotizador.html         ← Cotizaciones con itinerario (hoteles por tipo de habitación) → propuesta PDF (A4 vertical) y "Convertir en reserva" (Firebase)
+    ├── grupos.html            ← Grupos de pasajeros (admin/agente): link del formulario, respuestas, habitaciones compartidas vinculadas, export Excel/PDF (Firebase `grupos`)
     ├── contratos.html         ← Contratos de servicios de viaje de grupo (solo admin): formulario → vista previa A4 → PDF, y modelo en blanco (Firebase `finanzas/contratos`)
     └── SEGURIDAD_FIREBASE.md  ← Pasos manuales: sembrar admin, publicar reglas, backups
 ```
