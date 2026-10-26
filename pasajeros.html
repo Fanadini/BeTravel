@@ -38,6 +38,7 @@ textarea{min-height:80px;resize:vertical}
 .msg{background:var(--white);border:1px solid var(--beige-d);border-radius:12px;padding:28px 22px;text-align:center}
 .msg h2{font-size:18px;color:var(--teal);margin-bottom:8px}
 .msg p{font-size:14px;color:rgba(43,43,43,.8)}
+.btn-sec{max-width:260px;margin:18px auto 0;display:block}
 .combo{position:relative}
 .sugs{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--white);border:1.5px solid var(--beige-d);border-radius:8px;max-height:240px;overflow-y:auto;z-index:20;box-shadow:0 6px 18px rgba(15,61,62,.12)}
 .sug{padding:10px 12px;font-size:14px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center}
@@ -181,13 +182,19 @@ const GID = (new URLSearchParams(location.search).get('g') || '').trim();
 let INVITADOS = [];
 const OTRO = '__otro';
 
-function mostrarMsg(titulo, texto){
+function mostrarMsg(titulo, texto, accion){
   $('form').classList.add('hidden');
   const e = $('estado'); e.classList.remove('hidden');
   e.innerHTML = '<h2></h2><p></p>';
   e.querySelector('h2').textContent = titulo;
   e.querySelector('p').textContent = texto;
+  if (accion){
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-sec';
+    b.textContent = accion.texto; b.addEventListener('click', accion.onClick); e.appendChild(b);
+  }
 }
+// Recarga con el mismo ?g= para dejar el formulario en blanco, sin estado arrastrado
+const nuevoFormulario = () => { location.href = location.pathname + location.search; };
 
 if (!/^[A-Za-z0-9_-]{8,64}$/.test(GID)){
   mostrarMsg('Enlace no válido', 'Verifique que el enlace esté completo o solicite uno nuevo a Be•Travel.');
@@ -342,7 +349,7 @@ $('form').addEventListener('submit', e => {
   up['respuestas/' + rid] = d;
   up['nombres/' + rid] = { n: (d.nombre + ' ' + d.apellido).slice(0, 200) };
   base.update(up).then(() => {
-    mostrarMsg('Datos recibidos', 'Gracias, ' + d.nombre + '. Recibimos su información. Si necesita corregir algún dato, escríbanos.');
+    mostrarMsg('Datos recibidos', 'Gracias, ' + d.nombre + '. Recibimos su información. Si necesita corregir algún dato, escríbanos.', { texto:'Cargar otro formulario', onClick: nuevoFormulario });
     window.scrollTo(0, 0);
   }, err => {
     console.error(err);
