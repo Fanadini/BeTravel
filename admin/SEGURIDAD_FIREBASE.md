@@ -66,6 +66,15 @@ Hasta que se publiquen las reglas (paso 2), Firebase rechaza los guardados en es
 
 La redacción con IA no pasa por Firebase: usa un Worker de Cloudflare con Workers AI, sin costo en el plan gratuito (ver `infra/redactor/LEEME.md`).
 
+## 5. Grupos y formulario de pasajeros (`pasajeros.html` + `admin/grupos.html`)
+
+Nodo `grupos/{token}` con `meta` (nombre, estado, lista de invitados), `respuestas` y `habitaciones`:
+
+- El pasajero abre `pasajeros.html?g={token}` sin login. El token es el id del grupo (22 caracteres al azar) y es la única barrera de escritura: quien tenga el link puede cargar una respuesta.
+- Las reglas permiten **solo crear** respuestas nuevas (no editar ni borrar) y solo si `meta/activo` es `true`; validan campos, largos, fechas y el consentimiento. **Cerrá el grupo** desde `admin/grupos.html` (pestaña Ajustes) cuando termine la recolección: es lo que frena el spam.
+- `meta` se lee con el token (nombre, estado y lista de invitados para armar los desplegables). Las respuestas (pasaporte, salud, contacto) **no tienen lectura pública**: solo las leen y escriben cuentas habilitadas con rol `admin` o `agente`, no `cotizador`. Tampoco se puede listar `grupos` sin login.
+- **Hay que volver a publicar `database.rules.json` (paso 2)** antes de usar el formulario; mientras tanto el pasajero ve un aviso de error y el panel muestra el banner rojo.
+
 ## Notas
 
 - Estas reglas son un primer borrador (ver plan de implementación). Cubren: lectura de `finanzas`/`kanban` solo para usuarios logueados, escritura de `reparto`/`facturacion`/`facturas` solo para admins, y escritura pública pero de solo-creación (no edición/borrado) en `kanban/prospectos` para que el formulario del sitio pueda cargar leads sin login.

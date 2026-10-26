@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Be•Travel Admin — Grupos</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --teal:#0F3D3E;--teal-h:#0c3233;--teal-l:rgba(15,61,62,.07);--teal-m:rgba(15,61,62,.14);
+  --beige:#E6E1D8;--beige-d:#D5CEC3;--bronze:#B08A5A;--dark:#2B2B2B;--white:#fff;
+  --board:#e8e3da;--red:#b83232;--green:#2f8f4e;--amber:#7a5a2c;
+}
+html,body{height:100%}
+body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;overflow:hidden}
+.nav{background:var(--teal);height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:300;gap:10px;flex-shrink:0}
+.nav-brand{font-size:15px;font-weight:600;color:var(--beige);letter-spacing:-.3px;white-space:nowrap}
+.nav-brand span{color:var(--bronze)}
+.nav-right{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.nav-user{font-size:11px;color:rgba(230,225,216,.6);white-space:nowrap}
+.nav-btn{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:6px 12px;border-radius:6px;border:1px solid rgba(230,225,216,.2);background:rgba(255,255,255,.08);color:rgba(230,225,216,.75);cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-block}
+.nav-btn:hover{background:rgba(255,255,255,.16);color:var(--beige)}
+.loading-overlay{position:fixed;inset:0;background:rgba(15,61,62,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:14px}
+.loading-overlay.hidden{display:none}
+.spinner{width:32px;height:32px;border-radius:50%;border:3px solid rgba(230,225,216,.15);border-top-color:var(--bronze);animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:12px;color:rgba(230,225,216,.5)}
+.login-screen{position:fixed;inset:0;background:var(--teal);display:flex;align-items:center;justify-content:center;z-index:1100;padding:20px}
+.login-screen.hidden{display:none}
+.login-box{background:var(--white);border-radius:16px;padding:40px 36px;width:100%;max-width:380px;text-align:center}
+.login-logo{font-size:22px;font-weight:600;color:var(--teal);letter-spacing:-.5px;margin-bottom:6px}
+.login-logo span{color:var(--bronze)}
+.login-subtitle{font-size:12px;color:rgba(43,43,43,.45);margin-bottom:32px}
+.google-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 16px;border-radius:9px;border:1.5px solid var(--beige-d);background:var(--white);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--dark);cursor:pointer;text-decoration:none}
+.google-btn:hover{border-color:rgba(15,61,62,.3);background:var(--beige)}
+.login-error{font-size:11px;color:var(--red);margin-top:14px;min-height:16px}
+
+.main{flex:1;min-height:0;display:flex;flex-direction:column}
+.banner{display:none;background:rgba(184,50,50,.1);border:1px solid rgba(184,50,50,.3);color:var(--red);font-size:12px;line-height:1.5;padding:10px 14px;margin:12px 18px 0;border-radius:8px}
+.banner.show{display:block}
+.btn{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:8px 14px;border-radius:7px;border:1.5px solid var(--teal);background:var(--teal);color:var(--beige);cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--teal-h)}
+.btn.outline{background:transparent;color:var(--teal)}
+.btn.outline:hover{background:var(--teal-l)}
+.btn.small{padding:5px 10px;font-size:11px}
+.btn.danger{border-color:var(--red);color:var(--red);background:transparent}
+.hidden{display:none!important}
+.scroll{flex:1;overflow-y:auto;padding:18px}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.section-head h2{font-size:15px;font-weight:600;color:var(--teal)}
+.row-btns{display:flex;gap:8px;flex-wrap:wrap}
+.lista{background:var(--white);border:1px solid var(--beige-d);border-radius:10px;overflow:auto}
+.lista table{width:100%;border-collapse:collapse;font-size:12px}
+.lista th{text-align:left;font-weight:600;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:rgba(43,43,43,.55);padding:9px 12px;border-bottom:1px solid var(--beige-d);white-space:nowrap}
+.lista td{padding:9px 12px;border-bottom:1px solid rgba(213,206,195,.5);vertical-align:middle}
+.lista tr.fila{cursor:pointer}
+.lista tr.fila:hover{background:var(--teal-l)}
+.vacio{padding:30px;text-align:center;font-size:12px;color:rgba(43,43,43,.5)}
+.pill{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--teal-l);color:var(--teal);white-space:nowrap}
+.pill.ok{background:rgba(47,143,78,.12);color:var(--green)}
+.pill.warn{background:rgba(176,138,90,.2);color:var(--amber)}
+.pill.bad{background:rgba(184,50,50,.12);color:var(--red)}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 18px;background:var(--white);border-bottom:1px solid var(--beige-d)}
+.toolbar .grow{flex:1}
+.gtitle{font-size:14px;font-weight:600;color:var(--teal)}
+.tabs{display:flex;gap:6px;padding:10px 18px 0;flex-wrap:wrap}
+.tab{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:7px 14px;border-radius:7px 7px 0 0;border:1px solid var(--beige-d);border-bottom:none;background:rgba(255,255,255,.5);cursor:pointer;color:rgba(43,43,43,.7)}
+.tab.on{background:var(--white);color:var(--teal);font-weight:600}
+.card{background:var(--white);border:1px solid var(--beige-d);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.card h3{font-size:13px;font-weight:600;color:var(--teal);margin-bottom:8px}
+.hint{font-size:11px;line-height:1.5;color:rgba(43,43,43,.6);margin-bottom:8px}
+.linkbox{display:flex;gap:8px;flex-wrap:wrap}
+.linkbox input{flex:1;min-width:220px}
+input[type=text],input[type=date],select,textarea{font-family:'Inter',sans-serif;font-size:12px;padding:7px 9px;border-radius:7px;border:1.5px solid var(--beige-d);background:var(--white);outline:none;color:var(--dark)}
+input:focus,select:focus,textarea:focus{border-color:var(--teal)}
+textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
+.hab{background:var(--white);border:1px solid var(--beige-d);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.hab-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--teal-l);font-size:12px;font-weight:600;color:var(--teal);flex-wrap:wrap}
+.hab-head .grow{flex:1}
+.hab-body{padding:6px 14px 10px}
+.ocu{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(213,206,195,.5);font-size:12px;flex-wrap:wrap}
+.ocu:last-child{border-bottom:none}
+.ocu .nom{flex:1;min-width:160px}
+.ocu .sub{font-size:10.5px;color:rgba(43,43,43,.55)}
+.alertas{padding:0 14px 10px;font-size:11px;color:var(--amber);line-height:1.5}
+.alertas.red{color:var(--red)}
+.modal-bg{position:fixed;inset:0;background:rgba(15,61,62,.55);z-index:900;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--white);border-radius:12px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;padding:20px}
+.modal h3{font-size:15px;color:var(--teal);margin-bottom:12px}
+.det{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:12px;margin-bottom:14px}
+.det dt{color:rgba(43,43,43,.55)}
+.det dd{white-space:pre-wrap;word-break:break-word}
+
+/* ── IMPRESIÓN (PDF) ── */
+#print-area{display:none}
+@page{size:A4 landscape;margin:12mm}
+@media print{
+  html,body{height:auto!important;overflow:visible!important;background:#fff!important;display:block!important}
+  body>*:not(#print-area){display:none!important}
+  #print-area{display:block!important;font-family:'Inter',sans-serif;color:#000;font-size:9pt}
+  #print-area h1{font-size:13pt;font-weight:600;margin-bottom:1mm}
+  #print-area .sub{font-size:8.5pt;color:#444;margin-bottom:4mm}
+  #print-area table{width:100%;border-collapse:collapse}
+  #print-area th{text-align:left;font-size:7.5pt;text-transform:uppercase;letter-spacing:.4pt;border-bottom:1.2px solid #000;padding:1.5mm 2mm}
+  #print-area td{padding:1.6mm 2mm;border-bottom:.5px solid #999;vertical-align:top}
+  #print-area tr{break-inside:avoid;page-break-inside:avoid}
+  #print-area td.g{border-top:1px solid #000;font-weight:600}
+}
+@media(max-width:700px){.nav-user{display:none}.scroll{padding:12px}.det{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">Be<span>•</span>Travel</div>
+    <div class="login-subtitle">Grupos y pasajeros</div>
+    <button class="google-btn" onclick="loginWithGoogle()">Continuar con Google</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+<div class="login-screen hidden" id="noacceso-screen">
+  <div class="login-box">
+    <div class="login-logo">Be<span>•</span>Travel</div>
+    <div class="login-subtitle">Acceso restringido</div>
+    <p style="font-size:13px;line-height:1.55;color:#2B2B2B;margin-bottom:22px" id="noacceso-msg"></p>
+    <a class="google-btn" href="cotizador.html" style="margin-bottom:10px">Ir al Cotizador</a>
+    <button class="google-btn" onclick="logout()">Salir y usar otra cuenta</button>
+  </div>
+</div>
+<div class="loading-overlay" id="lo"><div class="spinner"></div><div class="loading-text">Conectando con Firebase…</div></div>
+
+<div class="nav">
+  <div class="nav-brand">Be<span>•</span>Travel Admin — Grupos</div>
+  <div class="nav-right">
+    <span class="nav-user" id="nav-user-name"></span>
+    <a class="nav-btn" href="cotizador.html">Cotizador</a>
+    <a class="nav-btn" href="gestioninterna.html">Gestión interna</a>
+    <a class="nav-btn" href="kanban.html">Prospectos</a>
+    <button class="nav-btn" onclick="logout()">Salir</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="banner" id="banner"></div>
+
+  <!-- LISTA DE GRUPOS -->
+  <div class="scroll" id="view-list">
+    <div class="section-head">
+      <h2>Grupos</h2>
+      <button class="btn" onclick="nuevoGrupo()">+ Nuevo grupo</button>
+    </div>
+    <div class="lista" id="lista-grupos"></div>
+  </div>
+
+  <!-- DETALLE DE GRUPO -->
+  <div class="hidden" id="view-group" style="flex:1;min-height:0;display:flex;flex-direction:column">
+    <div class="toolbar">
+      <button class="btn outline small" onclick="volverLista()">← Grupos</button>
+      <span class="gtitle" id="g-titulo"></span>
+      <span class="pill" id="g-estado"></span>
+      <span class="grow"></span>
+      <button class="btn outline small" onclick="exportarExcel()">Excel</button>
+      <button class="btn outline small" onclick="imprimir('rooming')">PDF rooming list</button>
+      <button class="btn outline small" onclick="imprimir('lista')">PDF pasajeros</button>
+    </div>
+    <div class="tabs" id="tabs">
+      <button class="tab on" data-t="resp" onclick="setTab('resp')">Respuestas</button>
+      <button class="tab" data-t="hab" onclick="setTab('hab')">Habitaciones</button>
+      <button class="tab" data-t="cfg" onclick="setTab('cfg')">Ajustes</button>
+    </div>
+    <div class="scroll" id="tab-body" style="background:var(--white);border-top:1px solid var(--beige-d)"></div>
+  </div>
+</div>
+
+<div id="print-area"></div>
+<div id="modal-root"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script>
+// ── FIREBASE ───────────────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey:"AIzaSyARJ-zVCszUxJ_Fs1UBBtMiQvjuDF98IYI",
+  authDomain:"betravel-kanban.firebaseapp.com",
+  databaseURL:"https://betravel-kanban-default-rtdb.firebaseio.com",
+  projectId:"betravel-kanban",
+  storageBucket:"betravel-kanban.firebasestorage.app",
+  messagingSenderId:"644328296494",
+  appId:"1:644328296494:web:aec3842de80021159f8fbf",
+});
+const db = firebase.database();
+const auth = firebase.auth();
+const GRUPOS_REF = db.ref('grupos');
+const META_USUARIOS_REF = db.ref('finanzas/meta/usuarios');
+
+// ── AUTH (admin y agente; el cotizador no entra) ───────────────────────────
+let CURRENT_USER = { email:'', nombre:'', rol:'' };
+function emailKey(email){ return (email||'').toLowerCase().replace(/\./g, ','); }
+function loginWithGoogle(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  document.getElementById('login-error').textContent = '';
+  auth.signInWithPopup(provider).catch(err => {
+    document.getElementById('login-error').textContent = 'Error al iniciar sesión. Intentá de nuevo.';
+    console.error(err);
+  });
+}
+function logout(){ auth.signOut(); }
+function verificarAcceso(email){
+  return META_USUARIOS_REF.child(emailKey(email)).once('value').then(s => {
+    if (s.exists()) return { perfil: s.val() || {}, sinConfigurar: false };
+    return META_USUARIOS_REF.once('value').then(all => Object.keys(all.val() || {}).length ? null : { perfil: {}, sinConfigurar: true }, () => null);
+  }, () => null);
+}
+function mostrarSinAcceso(email, esCotizador){
+  document.getElementById('noacceso-msg').innerHTML = esCotizador
+    ? `La cuenta <strong>${esc(email)}</strong> tiene rol de cotizador y no accede a los datos de pasajeros.`
+    : `La cuenta <strong>${esc(email)}</strong> no está habilitada para el panel interno. Pedile a un administrador que la agregue a la lista de usuarios.`;
+  document.getElementById('noacceso-screen').classList.remove('hidden');
+  document.getElementById('lo').classList.add('hidden');
+}
+let listenersAttached = false;
+auth.onAuthStateChanged(user => {
+  const loginScreen = document.getElementById('login-screen');
+  if (!user){
+    document.getElementById('noacceso-screen').classList.add('hidden');
+    loginScreen.classList.remove('hidden');
+    document.getElementById('lo').classList.add('hidden');
+    return;
+  }
+  loginScreen.classList.add('hidden');
+  const nombreGoogle = user.displayName ? user.displayName.split(' ')[0] : user.email;
+  document.getElementById('nav-user-name').textContent = nombreGoogle;
+  CURRENT_USER = { email:user.email, nombre: user.displayName || nombreGoogle, rol:'' };
+  verificarAcceso(user.email).then(acc => {
+    if (!acc){ mostrarSinAcceso(user.email); return; }
+    CURRENT_USER.rol = acc.sinConfigurar || acc.perfil.rol === 'admin' ? 'admin' : (acc.perfil.rol || 'agente');
+    if (CURRENT_USER.rol === 'cotizador'){ mostrarSinAcceso(user.email, true); return; }
+    if (!listenersAttached){ attachListeners(); listenersAttached = true; }
+  });
+});
+function showBanner(msg){ const b = document.getElementById('banner'); b.textContent = msg; b.classList.toggle('show', !!msg); }
+function handleWriteError(err){
+  console.error(err);
+  if (String(err && (err.code||err.message)).toUpperCase().includes('PERMISSION')){
+    showBanner('Firebase rechazó la operación: falta publicar las reglas actualizadas (database.rules.json) o tu cuenta no está habilitada. Ver admin/SEGURIDAD_FIREBASE.md.');
+  } else showBanner('No se pudo guardar. Revisá la conexión e intentá de nuevo.');
+}
+
+// ── UTILIDADES ─────────────────────────────────────────────────────────────
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+function fmtFecha(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || ''); }
+const CAPACIDAD = { 'Single':1, 'Doble':2, 'Triple':3, 'Cuádruple':4 };
+const TIPOS = Object.keys(CAPACIDAD);
+function tipoPorTamano(n){ return n <= 1 ? 'Single' : n === 2 ? 'Doble' : n === 3 ? 'Triple' : 'Cuádruple'; }
+function nuevoToken(){
+  const a = new Uint8Array(16); crypto.getRandomValues(a);
+  return Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 22);
+}
+function linkPublico(gid){ return new URL('../pasajeros.html?g=' + gid, location.href).href; }
+
+// ── ESTADO ─────────────────────────────────────────────────────────────────
+let GRUPOS = {};          // { gid: { meta, respuestas:{rid:{}}, habitaciones:{hid:{}} } }
+let GID_ABIERTO = null;
+let TAB = 'resp';
+
+function attachListeners(){
+  GRUPOS_REF.on('value', snap => {
+    GRUPOS = snap.val() || {};
+    document.getElementById('lo').classList.add('hidden');
+    showBanner('');
+    render();
+  }, err => { document.getElementById('lo').classList.add('hidden'); handleWriteError(err); });
+}
+
+// ── ACCIONES ───────────────────────────────────────────────────────────────
+function nuevoGrupo(){
+  const nombre = (prompt('Nombre del grupo (ej. Boda Catalina y Augusto):') || '').trim();
+  if (!nombre) return;
+  const gid = nuevoToken();
+  GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email })
+    .then(() => abrirGrupo(gid), handleWriteError);
+}
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'resp'; render(); }
+function volverLista(){ GID_ABIERTO = null; render(); }
+function setTab(t){ TAB = t; render(); }
+function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
+function copiarLink(){
+  const inp = document.getElementById('link-input');
+  inp.select();
+  (navigator.clipboard ? navigator.clipboard.writeText(inp.value) : Promise.reject()).catch(() => document.execCommand('copy'));
+  const b = document.getElementById('btn-copiar'); const t = b.textContent; b.textContent = 'Copiado'; setTimeout(() => b.textContent = t, 1500);
+}
+function guardarAjustes(){
+  const inv = document.getElementById('inp-invitados').value.split('\n').map(x => x.trim()).filter(Boolean);
+  const nombre = document.getElementById('inp-nombre').value.trim();
+  const fecha = document.getElementById('inp-fechaviaje').value;
+  const base = GID_ABIERTO + '/meta/';
+  const up = {};
+  if (nombre) up[base + 'nombre'] = nombre;
+  up[base + 'invitados'] = inv.length ? inv : null;
+  up[base + 'fechaViaje'] = fecha || null;
+  GRUPOS_REF.update(up).then(() => showBanner(''), handleWriteError);
+}
+function eliminarGrupo(){
+  const g = GRUPOS[GID_ABIERTO];
+  if (!confirm(`Eliminar el grupo "${g.meta.nombre}" con todas sus respuestas y habitaciones? No se puede deshacer.`)) return;
+  const gid = GID_ABIERTO; GID_ABIERTO = null;
+  GRUPOS_REF.child(gid).remove().catch(handleWriteError);
+}
+function borrarRespuesta(rid){
+  const g = GRUPOS[GID_ABIERTO]; const r = g.respuestas[rid];
+  if (!confirm(`Eliminar la respuesta de ${r.nombre} ${r.apellido}?`)) return;
+  const up = {}; up[`${GID_ABIERTO}/respuestas/${rid}`] = null;
+  Object.entries(g.habitaciones || {}).forEach(([hid, h]) => { if (h.pasajeros && h.pasajeros[rid]) up[`${GID_ABIERTO}/habitaciones/${hid}/pasajeros/${rid}`] = null; });
+  GRUPOS_REF.update(up).catch(handleWriteError);
+  cerrarModal();
+}
+
+// ── VÍNCULOS ENTRE PASAJEROS ───────────────────────────────────────────────
+// Resuelve "compartiCon" a una respuesta del mismo grupo: primero por la lista de invitados (nombre exacto),
+// luego por "nombre apellido" o "apellido nombre" normalizados.
+function indiceNombres(resps){
+  const idx = {};
+  Object.entries(resps).forEach(([rid, r]) => {
+    [r.invitado, `${r.nombre} ${r.apellido}`, `${r.apellido} ${r.nombre}`].forEach(n => { const k = norm(n); if (k && !idx[k]) idx[k] = rid; });
+  });
+  return idx;
+}
+function resolverCompanero(rid, r, idx){
+  if (r.comparte !== 'Sí' || !r.compartiCon) return null;
+  const t = idx[norm(r.compartiCon)];
+  return t && t !== rid ? t : null;
+}
+// Sugiere habitaciones: componentes conexos del grafo de "comparte con"
+function sugerirHabitaciones(resps){
+  const ids = Object.keys(resps), idx = indiceNombres(resps), padre = {};
+  ids.forEach(i => padre[i] = i);
+  const raiz = i => padre[i] === i ? i : (padre[i] = raiz(padre[i]));
+  ids.forEach(i => { const t = resolverCompanero(i, resps[i], idx); if (t) padre[raiz(i)] = raiz(t); });
+  const grupos = {};
+  ids.forEach(i => { (grupos[raiz(i)] = grupos[raiz(i)] || []).push(i); });
+  return Object.values(grupos).map(m => {
+    m.sort((a, b) => (resps[a].apellido || '').localeCompare(resps[b].apellido || '', 'es'));
+    const decl = m.map(i => resps[i].tipoHabitacion).filter(Boolean);
+    const cuenta = t => decl.filter(x => x === t).length;
+    const comun = [...new Set(decl)].sort((a, b) => cuenta(b) - cuenta(a))[0];
+    return { tipo: m.length > 1 && CAPACIDAD[comun] >= m.length ? comun : (m.length > 1 ? tipoPorTamano(m.length) : (comun || 'Single')), pasajeros: Object.fromEntries(m.map(i => [i, true])) };
+  }).sort((a, b) => nombreHab(a, resps).localeCompare(nombreHab(b, resps), 'es'));
+}
+function nombreHab(h, resps){ const m = Object.keys(h.pasajeros || {}).map(i => resps[i]).filter(Boolean); return m.length ? (m[0].apellido || '') + ' ' + (m[0].nombre || '') : ''; }
+function alertasHabitacion(h, resps, idx){
+  const out = [], ids = Object.keys(h.pasajeros || {}).filter(i => resps[i]);
+  const cap = CAPACIDAD[h.tipo] || 0;
+  if (ids.length > cap) out.push(`Hay ${ids.length} ocupantes y la habitación ${h.tipo} admite ${cap}.`);
+  else if (ids.length < cap && ids.length > 0 && cap > 1) out.push(`Faltan ${cap - ids.length} ocupante(s) para completar la habitación ${h.tipo}.`);
+  ids.forEach(i => {
+    const r = resps[i], nom = `${r.nombre} ${r.apellido}`;
+    if (r.comparte === 'Sí'){
+      const t = resolverCompanero(i, r, idx);
+      if (!r.compartiCon) out.push(`${nom} indicó que comparte pero no dijo con quién.`);
+      else if (!t) out.push(`${nom}: "${r.compartiCon}" no coincide con ninguna respuesta.`);
+      else if (!h.pasajeros[t]) out.push(`${nom} pidió compartir con ${resps[t].nombre} ${resps[t].apellido}, que está en otra habitación.`);
+      else { const rt = resps[t]; if (rt.comparte !== 'Sí' || resolverCompanero(t, rt, idx) !== i) out.push(`El vínculo ${nom} → ${rt.nombre} ${rt.apellido} no es recíproco.`); }
+    } else if (ids.length > 1) out.push(`${nom} indicó que no comparte habitación.`);
+    if (r.tipoHabitacion && r.tipoHabitacion !== h.tipo) out.push(`${nom} pidió habitación ${r.tipoHabitacion}.`);
+  });
+  return out;
+}
+function estadoVinculo(rid, r, resps, idx){
+  if (r.comparte !== 'Sí') return { txt: r.tipoHabitacion === 'Single' ? 'Individual' : 'No comparte', cls:'' };
+  if (!r.compartiCon) return { txt:'Sin compañero', cls:'bad' };
+  const t = resolverCompanero(rid, r, idx);
+  if (!t) return { txt:'No encontrado', cls:'bad' };
+  const rt = resps[t];
+  return resolverCompanero(t, rt, idx) === rid ? { txt:'Recíproco', cls:'ok' } : { txt:'Sin confirmar', cls:'warn' };
+}
+function venceProximo(r, meta){
+  if (!meta.fechaViaje || !r.vencimiento) return false;
+  const lim = new Date(meta.fechaViaje + 'T00:00:00'); lim.setMonth(lim.getMonth() + 6);
+  return new Date(r.vencimiento + 'T00:00:00') < lim;
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────
+function render(){
+  const enGrupo = GID_ABIERTO && GRUPOS[GID_ABIERTO] && GRUPOS[GID_ABIERTO].meta;
+  document.getElementById('view-list').classList.toggle('hidden', !!enGrupo);
+  document.getElementById('view-group').classList.toggle('hidden', !enGrupo);
+  if (!enGrupo){ GID_ABIERTO = null; renderLista(); return; }
+  const g = GRUPOS[GID_ABIERTO];
+  document.getElementById('g-titulo').textContent = g.meta.nombre;
+  const est = document.getElementById('g-estado'); est.textContent = g.meta.activo ? 'Recibiendo respuestas' : 'Cerrado'; est.className = 'pill ' + (g.meta.activo ? 'ok' : 'warn');
+  document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.t === TAB));
+  const body = document.getElementById('tab-body');
+  const scroll = body.scrollTop;
+  body.innerHTML = TAB === 'resp' ? htmlRespuestas(g) : TAB === 'hab' ? htmlHabitaciones(g) : htmlAjustes(g);
+  body.scrollTop = scroll;
+}
+function renderLista(){
+  const ids = Object.keys(GRUPOS).filter(id => GRUPOS[id].meta).sort((a, b) => (GRUPOS[b].meta.creado || 0) - (GRUPOS[a].meta.creado || 0));
+  const el = document.getElementById('lista-grupos');
+  if (!ids.length){ el.innerHTML = '<div class="vacio">Todavía no hay grupos. Creá uno con "+ Nuevo grupo" y compartí el link con los pasajeros.</div>'; return; }
+  el.innerHTML = '<table><thead><tr><th>Grupo</th><th>Respuestas</th><th>Invitados</th><th>Estado</th></tr></thead><tbody>' + ids.map(id => {
+    const g = GRUPOS[id], n = Object.keys(g.respuestas || {}).length, inv = g.meta.invitados ? Object.keys(g.meta.invitados).length : 0;
+    return `<tr class="fila" onclick="abrirGrupo('${esc(id)}')"><td><strong>${esc(g.meta.nombre)}</strong></td><td>${n}</td><td>${inv || '—'}</td><td><span class="pill ${g.meta.activo ? 'ok' : 'warn'}">${g.meta.activo ? 'Abierto' : 'Cerrado'}</span></td></tr>`;
+  }).join('') + '</tbody></table>';
+}
+function respuestasOrdenadas(g){
+  return Object.entries(g.respuestas || {}).sort((a, b) => `${a[1].apellido} ${a[1].nombre}`.localeCompare(`${b[1].apellido} ${b[1].nombre}`, 'es'));
+}
+function habitacionDe(g, rid){
+  for (const [hid, h] of Object.entries(g.habitaciones || {})) if (h.pasajeros && h.pasajeros[rid]) return { hid, h };
+  return null;
+}
+function htmlRespuestas(g){
+  const resps = g.respuestas || {}, idx = indiceNombres(resps), lista = respuestasOrdenadas(g);
+  const invitados = g.meta.invitados ? Object.values(g.meta.invitados) : [];
+  const respondieron = new Set(Object.values(resps).map(r => norm(r.invitado)).filter(Boolean));
+  const faltan = invitados.filter(n => !respondieron.has(norm(n)));
+  let html = `<div class="section-head"><h2>${lista.length} respuesta${lista.length === 1 ? '' : 's'}${invitados.length ? ` de ${invitados.length} invitados` : ''}</h2></div>`;
+  if (faltan.length) html += `<div class="card"><h3>Pendientes (${faltan.length})</h3><div class="hint" style="margin:0">${faltan.map(esc).join(' · ')}</div></div>`;
+  if (!lista.length) return html + '<div class="vacio">Todavía no hay respuestas. Compartí el link desde la pestaña Ajustes.</div>';
+  html += '<div class="lista"><table><thead><tr><th>Pasajero</th><th>Pasaporte</th><th>Vence</th><th>Habitación pedida</th><th>Comparte con</th><th>Vínculo</th><th>Asignada</th></tr></thead><tbody>';
+  lista.forEach(([rid, r]) => {
+    const v = estadoVinculo(rid, r, resps, idx), hb = habitacionDe(g, rid);
+    html += `<tr class="fila" onclick="verRespuesta('${esc(rid)}')"><td><strong>${esc(r.apellido)}, ${esc(r.nombre)}</strong></td><td>${esc(r.pasaporte)}</td>`
+      + `<td>${fmtFecha(r.vencimiento)}${venceProximo(r, g.meta) ? ' <span class="pill bad" title="Vence antes de los 6 meses posteriores al viaje">&lt; 6 meses</span>' : ''}</td>`
+      + `<td>${esc(r.tipoHabitacion)}${r.tipoCama ? ' · ' + esc(r.tipoCama) : ''}</td><td>${esc(r.compartiCon || '—')}</td>`
+      + `<td><span class="pill ${v.cls}">${v.txt}</span></td><td>${hb ? esc(hb.h.tipo) : '<span class="pill warn">Sin asignar</span>'}</td></tr>`;
+  });
+  return html + '</tbody></table></div>';
+}
+const CAMPOS = [
+  ['invitado','Nombre en la lista'],['nombre','Nombre'],['apellido','Apellido'],['nacimiento','Nacimiento'],['nacionalidad','Nacionalidad'],
+  ['pasaporte','Pasaporte'],['paisPasaporte','País emisor'],['lugarPasaporte','Lugar de emisión'],['emision','Emisión'],['vencimiento','Vencimiento'],
+  ['email','Correo'],['telefono','Teléfono'],['emergencia','Contacto de emergencia'],['tipoHabitacion','Tipo de habitación'],['tipoCama','Tipo de cama'],
+  ['comparte','Comparte habitación'],['compartiCon','Comparte con'],['restricciones','Restricciones alimentarias'],['movilidad','Movilidad / asistencia'],['medicas','Condiciones médicas'],
+];
+const FECHAS = new Set(['nacimiento','emision','vencimiento']);
+function verRespuesta(rid){
+  const r = GRUPOS[GID_ABIERTO].respuestas[rid]; if (!r) return;
+  const rows = CAMPOS.filter(([k]) => r[k]).map(([k, l]) => `<dt>${l}</dt><dd>${esc(FECHAS.has(k) ? fmtFecha(r[k]) : r[k])}</dd>`).join('');
+  const ts = r.ts ? new Date(r.ts).toLocaleString('es-AR') : '';
+  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl><div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+}
+function cerrarModal(){ document.getElementById('modal-root').innerHTML = ''; }
+
+function htmlHabitaciones(g){
+  const resps = g.respuestas || {}, idx = indiceNombres(resps);
+  const guardadas = g.habitaciones || {};
+  const hay = Object.keys(guardadas).length;
+  const lista = hay ? Object.entries(guardadas).map(([hid, h]) => [hid, h]) : sugerirHabitaciones(resps).map((h, i) => ['s' + i, h]);
+  if (!Object.keys(resps).length) return '<div class="vacio">Cuando lleguen respuestas, acá se arman las habitaciones.</div>';
+  const roomOptions = (actual) => lista.map(([hid, h], i) => `<option value="${esc(hid)}" ${hid === actual ? 'selected' : ''}>Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)}</option>`).join('');
+  let html = `<div class="section-head"><h2>${hay ? 'Habitaciones' : 'Habitaciones sugeridas'}</h2><div class="row-btns">`
+    + (hay ? `<button class="btn outline small" onclick="agregarHabitacion()">+ Habitación vacía</button><button class="btn outline small" onclick="regenerarHabitaciones()">Volver a sugerir</button>`
+           : `<button class="btn" onclick="guardarSugeridas()">Guardar habitaciones sugeridas</button>`) + '</div></div>';
+  if (!hay) html += '<div class="hint">Armadas automáticamente a partir de los vínculos "comparte con". Revisalas y guardalas para poder ajustarlas a mano.</div>';
+  const asignados = new Set();
+  lista.forEach(([hid, h], i) => {
+    const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]); ids.forEach(x => asignados.add(x));
+    const al = alertasHabitacion(h, resps, idx);
+    html += `<div class="hab"><div class="hab-head"><span>Hab. ${i + 1}</span><span class="grow"></span>`
+      + (hay ? `<select onchange="cambiarTipo('${esc(hid)}', this.value)">${TIPOS.map(t => `<option ${t === h.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select>` : `<span class="pill">${esc(h.tipo)}</span>`)
+      + (hay && !ids.length ? `<button class="btn danger small" onclick="borrarHabitacion('${esc(hid)}')">Eliminar</button>` : '') + '</div><div class="hab-body">';
+    if (!ids.length) html += '<div class="vacio" style="padding:10px">Sin ocupantes</div>';
+    ids.forEach(rid => {
+      const r = resps[rid];
+      html += `<div class="ocu"><div class="nom"><strong>${esc(r.apellido)}, ${esc(r.nombre)}</strong><div class="sub">${esc(r.tipoCama || '')}${r.restricciones && !/^ninguna?\.?$/i.test(r.restricciones.trim()) ? ' · ' + esc(r.restricciones) : ''}</div></div>`
+        + (hay ? `<select onchange="moverPasajero('${esc(rid)}', this.value)">${roomOptions(hid)}</select>` : '') + '</div>';
+    });
+    html += '</div>' + (al.length ? `<div class="alertas">${al.map(a => '• ' + esc(a)).join('<br>')}</div>` : '') + '</div>';
+  });
+  const sin = Object.keys(resps).filter(x => !asignados.has(x));
+  if (sin.length){
+    html += `<div class="card"><h3>Sin habitación (${sin.length})</h3>` + sin.map(rid => {
+      const r = resps[rid];
+      return `<div class="ocu"><div class="nom"><strong>${esc(r.apellido)}, ${esc(r.nombre)}</strong></div>` + (hay ? `<select onchange="moverPasajero('${esc(rid)}', this.value)"><option value="">Asignar a…</option>${roomOptions('')}</select>` : '') + '</div>';
+    }).join('') + '</div>';
+  }
+  return html;
+}
+function htmlAjustes(g){
+  const inv = g.meta.invitados ? Object.values(g.meta.invitados).join('\n') : '';
+  return `<div class="card"><h3>Link para pasajeros</h3><div class="hint">Cualquiera que tenga este link puede cargar datos mientras el grupo esté abierto. Cerrá el grupo cuando termine la recolección.</div>
+    <div class="linkbox"><input type="text" id="link-input" readonly value="${esc(linkPublico(GID_ABIERTO))}"><button class="btn" id="btn-copiar" onclick="copiarLink()">Copiar link</button>
+    ${g.meta.activo ? '<button class="btn outline" onclick="setActivo(false)">Cerrar grupo</button>' : '<button class="btn outline" onclick="setActivo(true)">Reabrir grupo</button>'}</div></div>
+    <div class="card"><h3>Datos del grupo</h3>
+      <div class="linkbox" style="margin-bottom:10px"><input type="text" id="inp-nombre" value="${esc(g.meta.nombre)}" placeholder="Nombre del grupo"></div>
+      <div class="hint">Fecha de regreso del viaje (opcional): se usa para marcar pasaportes que vencen antes de los 6 meses posteriores.</div>
+      <input type="date" id="inp-fechaviaje" value="${esc(g.meta.fechaViaje || '')}"></div>
+    <div class="card"><h3>Lista de invitados (opcional)</h3>
+      <div class="hint">Un nombre por línea, con nombre y apellido. Si la cargás, el formulario muestra desplegables para elegir quién es cada uno y con quién comparte, y los vínculos quedan exactos. Sin lista, se vinculan por coincidencia de nombre.</div>
+      <textarea id="inp-invitados">${esc(inv)}</textarea></div>
+    <div class="row-btns"><button class="btn" onclick="guardarAjustes()">Guardar ajustes</button><button class="btn danger" onclick="eliminarGrupo()">Eliminar grupo</button></div>`;
+}
+
+// ── HABITACIONES: ESCRITURA ────────────────────────────────────────────────
+function guardarSugeridas(){
+  const g = GRUPOS[GID_ABIERTO], hs = sugerirHabitaciones(g.respuestas || {}), up = {};
+  hs.forEach(h => { up[`${GID_ABIERTO}/habitaciones/${GRUPOS_REF.push().key}`] = h; });
+  GRUPOS_REF.update(up).catch(handleWriteError);
+}
+function regenerarHabitaciones(){
+  if (!confirm('Se reemplazan las habitaciones actuales por una nueva sugerencia. Se pierden los ajustes manuales. ¿Continuar?')) return;
+  const g = GRUPOS[GID_ABIERTO], up = {};
+  up[`${GID_ABIERTO}/habitaciones`] = null;
+  GRUPOS_REF.update(up).then(() => { const n = {}; sugerirHabitaciones(g.respuestas || {}).forEach(h => { n[`${GID_ABIERTO}/habitaciones/${GRUPOS_REF.push().key}`] = h; }); return GRUPOS_REF.update(n); }).catch(handleWriteError);
+}
+function agregarHabitacion(){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones`).push({ tipo:'Doble' }).catch(handleWriteError); }
+function cambiarTipo(hid, tipo){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}/tipo`).set(tipo).catch(handleWriteError); }
+function borrarHabitacion(hid){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}`).remove().catch(handleWriteError); }
+function moverPasajero(rid, destino){
+  if (!destino) return;
+  const g = GRUPOS[GID_ABIERTO], up = {}, actual = habitacionDe(g, rid);
+  if (actual) up[`${GID_ABIERTO}/habitaciones/${actual.hid}/pasajeros/${rid}`] = null;
+  up[`${GID_ABIERTO}/habitaciones/${destino}/pasajeros/${rid}`] = true;
+  GRUPOS_REF.update(up).catch(handleWriteError);
+}
+
+// ── EXPORTAR: FILAS ────────────────────────────────────────────────────────
+function filasHabitaciones(g){
+  const resps = g.respuestas || {}, filas = [];
+  const hs = Object.keys(g.habitaciones || {}).length ? Object.values(g.habitaciones) : sugerirHabitaciones(resps);
+  const asignados = new Set();
+  hs.forEach((h, i) => {
+    const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]);
+    ids.forEach(x => { asignados.add(x); filas.push({ n: i + 1, tipo: h.tipo, primero: filas.length === 0 || filas[filas.length - 1].n !== i + 1, r: resps[x] }); });
+  });
+  Object.keys(resps).filter(x => !asignados.has(x)).forEach(x => filas.push({ n:'—', tipo:'Sin asignar', primero:true, r: resps[x] }));
+  return filas;
+}
+const COLS_PAX = [
+  ['Apellido', r => r.apellido], ['Nombre', r => r.nombre], ['Fecha de nacimiento', r => fmtFecha(r.nacimiento)], ['Nacionalidad', r => r.nacionalidad],
+  ['Pasaporte', r => r.pasaporte], ['País emisor', r => r.paisPasaporte], ['Lugar de emisión', r => r.lugarPasaporte], ['Emisión', r => fmtFecha(r.emision)], ['Vencimiento', r => fmtFecha(r.vencimiento)],
+  ['Correo', r => r.email], ['Teléfono', r => r.telefono], ['Contacto de emergencia', r => r.emergencia],
+  ['Habitación pedida', r => r.tipoHabitacion], ['Tipo de cama', r => r.tipoCama], ['Comparte con', r => r.compartiCon],
+  ['Restricciones alimentarias', r => r.restricciones], ['Movilidad / asistencia', r => r.movilidad], ['Condiciones médicas', r => r.medicas],
+];
+
+// ── EXPORTAR: EXCEL (.xlsx generado sin librerías) ─────────────────────────
+const CRC_T = (() => { const t = []; for (let n = 0; n < 256; n++){ let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b){ let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function zipStore(files){   // files: [{name, data(Uint8Array)}] sin compresión
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  const u16 = v => [v & 255, v >>> 8 & 255], u32 = v => [v & 255, v >>> 8 & 255, v >>> 16 & 255, v >>> 24 & 255];
+  files.forEach(f => {
+    const nm = enc.encode(f.name), crc = crc32(f.data);
+    const lh = Uint8Array.from([0x50,0x4b,3,4, 20,0, 0,8, 0,0, 0,0,0x21,0, ...u32(crc), ...u32(f.data.length), ...u32(f.data.length), ...u16(nm.length), 0,0]);
+    parts.push(lh, nm, f.data);
+    central.push(Uint8Array.from([0x50,0x4b,1,2, 20,0, 20,0, 0,8, 0,0, 0,0,0x21,0, ...u32(crc), ...u32(f.data.length), ...u32(f.data.length), ...u16(nm.length), 0,0, 0,0, 0,0, 0,0, 0,0,0,0, ...u32(off)]), nm);
+    off += lh.length + nm.length + f.data.length;
+  });
+  const cs = central.reduce((a, b) => a + b.length, 0);
+  const end = Uint8Array.from([0x50,0x4b,5,6, 0,0, 0,0, ...u16(files.length), ...u16(files.length), ...u32(cs), ...u32(off), 0,0]);
+  return new Blob([...parts, ...central, end], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+function colLetra(i){ let s = ''; i++; while (i > 0){ const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+const xmlEsc = s => String(s == null ? '' : s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+function hojaXml(cabecera, filas){
+  const todas = [cabecera, ...filas];
+  const anchos = cabecera.map((_, c) => Math.min(48, Math.max(10, ...todas.map(f => String(f[c] == null ? '' : f[c]).split('\n').reduce((m, l) => Math.max(m, l.length), 0))) + 2));
+  const celda = (v, r, c, s) => `<c r="${colLetra(c)}${r}" t="inlineStr"${s ? ` s="${s}"` : ''}><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+  const rows = todas.map((f, i) => `<row r="${i + 1}">` + f.map((v, c) => celda(v, i + 1, c, i === 0 ? 1 : 2)).join('') + '</row>').join('');
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+    + '<cols>' + anchos.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + `</cols><sheetData>${rows}</sheetData></worksheet>`;
+}
+function armarXlsx(hojas){
+  const enc = new TextEncoder(), X = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const files = [
+    ['[Content_Types].xml', X + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' + hojas.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') + '</Types>'],
+    ['_rels/.rels', X + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml', X + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + hojas.map((h, i) => `<sheet name="${xmlEsc(h.nombre)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets></workbook>'],
+    ['xl/_rels/workbook.xml.rels', X + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + hojas.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') + `<Relationship Id="rId${hojas.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ['xl/styles.xml', X + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="10"/><name val="Calibri"/></font><font><b/><sz val="10"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'],
+    ...hojas.map((h, i) => [`xl/worksheets/sheet${i + 1}.xml`, hojaXml(h.cabecera, h.filas)]),
+  ].map(([name, xml]) => ({ name, data: enc.encode(xml) }));
+  return zipStore(files);
+}
+function exportarExcel(){
+  const g = GRUPOS[GID_ABIERTO], resps = g.respuestas || {};
+  const pax = respuestasOrdenadas(g).map(([, r]) => COLS_PAX.map(([, f]) => f(r) || ''));
+  const hab = filasHabitaciones(g).map(f => [f.n, f.tipo, f.r.apellido, f.r.nombre, f.r.pasaporte, fmtFecha(f.r.vencimiento), f.r.tipoCama || '', f.r.restricciones || '', f.r.movilidad || '']);
+  const blob = armarXlsx([
+    { nombre:'Pasajeros', cabecera: COLS_PAX.map(c => c[0]), filas: pax },
+    { nombre:'Habitaciones', cabecera:['Habitación','Tipo','Apellido','Nombre','Pasaporte','Vencimiento','Tipo de cama','Restricciones alimentarias','Movilidad / asistencia'], filas: hab },
+  ]);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = (g.meta.nombre || 'grupo').replace(/[^\w\-]+/g, '_') + '.xlsx';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+// ── EXPORTAR: PDF (impresión del navegador) ────────────────────────────────
+function imprimir(tipo){
+  const g = GRUPOS[GID_ABIERTO], resps = g.respuestas || {};
+  let html = `<h1>${esc(g.meta.nombre)}</h1><div class="sub">${tipo === 'rooming' ? 'Rooming list' : 'Listado de pasajeros'} · ${new Date().toLocaleDateString('es-AR')}</div>`;
+  if (tipo === 'rooming'){
+    html += '<table><thead><tr><th>Hab.</th><th>Tipo</th><th>Pasajero</th><th>Pasaporte</th><th>Vence</th><th>Cama</th><th>Observaciones</th></tr></thead><tbody>';
+    filasHabitaciones(g).forEach(f => {
+      const obs = [f.r.restricciones, f.r.movilidad].filter(x => x && !/^ninguna?\.?$/i.test(x.trim())).join(' · ');
+      html += `<tr><td class="${f.primero ? 'g' : ''}">${f.primero ? f.n : ''}</td><td class="${f.primero ? 'g' : ''}">${f.primero ? esc(f.tipo) : ''}</td><td class="${f.primero ? 'g' : ''}">${esc(f.r.apellido)}, ${esc(f.r.nombre)}</td><td class="${f.primero ? 'g' : ''}">${esc(f.r.pasaporte)}</td><td class="${f.primero ? 'g' : ''}">${fmtFecha(f.r.vencimiento)}</td><td class="${f.primero ? 'g' : ''}">${esc(f.r.tipoCama || '')}</td><td class="${f.primero ? 'g' : ''}">${esc(obs)}</td></tr>`;
+    });
+  } else {
+    html += '<table><thead><tr><th>Pasajero</th><th>Nacimiento</th><th>Nacionalidad</th><th>Pasaporte</th><th>Emisión</th><th>Vence</th><th>Contacto</th><th>Notas</th></tr></thead><tbody>';
+    respuestasOrdenadas(g).forEach(([, r]) => {
+      const notas = [r.restricciones && !/^ninguna?\.?$/i.test(r.restricciones.trim()) ? 'Alim.: ' + r.restricciones : '', r.movilidad && !/^ninguna?\.?$/i.test(r.movilidad.trim()) ? 'Mov.: ' + r.movilidad : '', r.medicas ? 'Méd.: ' + r.medicas : ''].filter(Boolean).join(' · ');
+      html += `<tr><td><strong>${esc(r.apellido)}, ${esc(r.nombre)}</strong></td><td>${fmtFecha(r.nacimiento)}</td><td>${esc(r.nacionalidad)}</td><td>${esc(r.pasaporte)}<br>${esc(r.paisPasaporte)}</td><td>${fmtFecha(r.emision)}</td><td>${fmtFecha(r.vencimiento)}</td><td>${esc(r.email)}<br>${esc(r.telefono)}</td><td>${esc(notas)}</td></tr>`;
+    });
+  }
+  html += '</tbody></table>';
+  document.getElementById('print-area').innerHTML = html;
+  window.print();
+}
+</script>
+</body>
+</html>

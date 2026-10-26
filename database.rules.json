@@ -90,6 +90,46 @@
       }
     },
 
+    "grupos": {
+      ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
+      "$gid": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
+        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
+        "meta": {
+          ".read": true
+        },
+        "respuestas": {
+          "$rid": {
+            ".write": "!data.exists() && newData.exists() && root.child('grupos').child($gid).child('meta').child('activo').val() === true",
+            ".validate": "newData.hasChildren(['nombre','apellido','nacimiento','nacionalidad','pasaporte','paisPasaporte','emision','vencimiento','email','telefono','emergencia','tipoHabitacion','comparte','consentimiento','ts'])",
+          "invitado": { ".validate": "newData.isString() && newData.val().length <= 120" },
+          "nombre": { ".validate": "newData.isString() && newData.val().length <= 100 && newData.val().length > 0" },
+          "apellido": { ".validate": "newData.isString() && newData.val().length <= 100 && newData.val().length > 0" },
+          "nacimiento": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
+          "nacionalidad": { ".validate": "newData.isString() && newData.val().length <= 100 && newData.val().length > 0" },
+          "pasaporte": { ".validate": "newData.isString() && newData.val().length <= 30 && newData.val().length > 0" },
+          "paisPasaporte": { ".validate": "newData.isString() && newData.val().length <= 100 && newData.val().length > 0" },
+          "lugarPasaporte": { ".validate": "newData.isString() && newData.val().length <= 100" },
+          "emision": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
+          "vencimiento": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
+          "email": { ".validate": "newData.isString() && newData.val().length <= 120 && newData.val().length > 0" },
+          "telefono": { ".validate": "newData.isString() && newData.val().length <= 40 && newData.val().length > 0" },
+          "emergencia": { ".validate": "newData.isString() && newData.val().length <= 300 && newData.val().length > 0" },
+          "tipoHabitacion": { ".validate": "newData.isString() && (newData.val() === 'Single' || newData.val() === 'Doble' || newData.val() === 'Triple' || newData.val() === 'Cuádruple')" },
+          "tipoCama": { ".validate": "newData.isString() && (newData.val() === 'Twin' || newData.val() === 'Matrimonial')" },
+          "comparte": { ".validate": "newData.isString() && (newData.val() === 'Sí' || newData.val() === 'No')" },
+          "compartiCon": { ".validate": "newData.isString() && newData.val().length <= 120" },
+          "restricciones": { ".validate": "newData.isString() && newData.val().length <= 500" },
+          "movilidad": { ".validate": "newData.isString() && newData.val().length <= 500" },
+          "medicas": { ".validate": "newData.isString() && newData.val().length <= 1000" },
+          "consentimiento": { ".validate": "newData.val() === true" },
+          "ts": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
+          }
+        }
+      }
+    },
+
     "kanban": {
       ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
 

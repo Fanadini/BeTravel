@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Datos de pasajeros | Be•Travel</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--teal:#0F3D3E;--beige:#E6E1D8;--beige-d:#D5CEC3;--dark:#2B2B2B;--bronze:#B08A5A;--white:#fff;--red:#b83232}
+body{font-family:'Inter',sans-serif;background:var(--beige);color:var(--dark);-webkit-font-smoothing:antialiased;line-height:1.5}
+.top{background:var(--teal);padding:16px 20px}
+.brand{font-size:17px;font-weight:600;color:var(--beige);letter-spacing:-.3px}
+.brand span{color:var(--bronze)}
+.wrap{max-width:640px;margin:0 auto;padding:24px 16px 60px}
+h1{font-size:22px;font-weight:600;color:var(--teal);letter-spacing:-.4px;margin-bottom:6px}
+.lead{font-size:14px;color:rgba(43,43,43,.75);margin-bottom:22px}
+.card{background:var(--white);border:1px solid var(--beige-d);border-radius:12px;padding:20px;margin-bottom:16px}
+.card h2{font-size:13px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--teal);margin-bottom:14px}
+.fld{margin-bottom:14px}
+.fld:last-child{margin-bottom:0}
+.fld label,.fld .lbl{display:block;font-size:13px;font-weight:500;margin-bottom:5px}
+.req{color:var(--red)}
+.hint{font-size:12px;color:rgba(43,43,43,.6);margin-top:4px}
+input[type=text],input[type=email],input[type=tel],input[type=date],select,textarea{width:100%;font-family:'Inter',sans-serif;font-size:15px;padding:10px 12px;border:1.5px solid var(--beige-d);border-radius:8px;background:var(--white);color:var(--dark);outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--teal)}
+textarea{min-height:80px;resize:vertical}
+.opts{display:flex;flex-wrap:wrap;gap:8px 18px}
+.opt{display:flex;align-items:center;gap:7px;font-size:14px;cursor:pointer}
+.opt input{width:17px;height:17px;accent-color:var(--teal)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.err{font-size:12px;color:var(--red);margin-top:4px;display:none}
+.fld.bad .err{display:block}
+.fld.bad input,.fld.bad select,.fld.bad textarea{border-color:var(--red)}
+.btn{width:100%;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;padding:13px;border-radius:9px;border:none;background:var(--teal);color:var(--beige);cursor:pointer}
+.btn:disabled{opacity:.55;cursor:default}
+.msg{background:var(--white);border:1px solid var(--beige-d);border-radius:12px;padding:28px 22px;text-align:center}
+.msg h2{font-size:18px;color:var(--teal);margin-bottom:8px}
+.msg p{font-size:14px;color:rgba(43,43,43,.8)}
+.hp{position:absolute;left:-9999px;opacity:0;height:0;overflow:hidden}
+.hidden{display:none!important}
+.alert{background:rgba(184,50,50,.08);border:1px solid rgba(184,50,50,.3);color:var(--red);font-size:13px;padding:10px 12px;border-radius:8px;margin-bottom:12px}
+@media(max-width:520px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="top"><div class="brand">Be<span>•</span>Travel</div></div>
+<div class="wrap">
+
+  <div class="msg" id="estado"><p>Cargando…</p></div>
+
+  <form id="form" class="hidden" novalidate autocomplete="off">
+    <h1 id="titulo"></h1>
+    <p class="lead">Completen sus datos tal como figuran en el pasaporte. La información se utiliza únicamente para organizar el viaje del grupo.</p>
+
+    <div class="hp" aria-hidden="true"><label>Sitio web<input type="text" id="hp" tabindex="-1" autocomplete="off"></label></div>
+
+    <div class="card" id="card-lista">
+      <h2>Identificación</h2>
+      <div class="fld" data-f="invitado">
+        <label for="invitado">Seleccione su nombre en la lista <span class="req">*</span></label>
+        <select id="invitado"></select>
+        <div class="err">Seleccione una opción.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Datos personales</h2>
+      <div class="grid2">
+        <div class="fld" data-f="nombre"><label for="nombre">Nombre completo (como figura en el pasaporte) <span class="req">*</span></label><input type="text" id="nombre" maxlength="100" autocomplete="given-name"><div class="err">Campo obligatorio.</div></div>
+        <div class="fld" data-f="apellido"><label for="apellido">Apellido completo (como figura en el pasaporte) <span class="req">*</span></label><input type="text" id="apellido" maxlength="100" autocomplete="family-name"><div class="err">Campo obligatorio.</div></div>
+      </div>
+      <div class="grid2" style="margin-top:14px">
+        <div class="fld" data-f="nacimiento"><label for="nacimiento">Fecha de nacimiento <span class="req">*</span></label><input type="date" id="nacimiento" min="1900-01-01"><div class="err">Ingrese una fecha válida.</div></div>
+        <div class="fld" data-f="nacionalidad"><label for="nacionalidad">Nacionalidad <span class="req">*</span></label><input type="text" id="nacionalidad" maxlength="100"><div class="err">Campo obligatorio.</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Pasaporte</h2>
+      <div class="grid2">
+        <div class="fld" data-f="pasaporte"><label for="pasaporte">Número de pasaporte <span class="req">*</span></label><input type="text" id="pasaporte" maxlength="30" autocapitalize="characters"><div class="err">Campo obligatorio.</div></div>
+        <div class="fld" data-f="paisPasaporte"><label for="paisPasaporte">País emisor <span class="req">*</span></label><input type="text" id="paisPasaporte" maxlength="100"><div class="err">Campo obligatorio.</div></div>
+      </div>
+      <div class="fld" style="margin-top:14px" data-f="lugarPasaporte"><label for="lugarPasaporte">Lugar de emisión</label><input type="text" id="lugarPasaporte" maxlength="100"></div>
+      <div class="grid2" style="margin-top:14px">
+        <div class="fld" data-f="emision"><label for="emision">Fecha de emisión <span class="req">*</span></label><input type="date" id="emision"><div class="err">Ingrese una fecha válida.</div></div>
+        <div class="fld" data-f="vencimiento"><label for="vencimiento">Fecha de vencimiento <span class="req">*</span></label><input type="date" id="vencimiento"><div class="err" id="err-venc">Ingrese una fecha válida posterior a hoy.</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Contacto</h2>
+      <div class="grid2">
+        <div class="fld" data-f="email"><label for="email">Correo electrónico <span class="req">*</span></label><input type="email" id="email" maxlength="120" autocomplete="email"><div class="err">Ingrese un correo válido.</div></div>
+        <div class="fld" data-f="telefono"><label for="telefono">Teléfono / WhatsApp (con código de país) <span class="req">*</span></label><input type="tel" id="telefono" maxlength="40" autocomplete="tel"><div class="err">Campo obligatorio.</div></div>
+      </div>
+      <div class="fld" style="margin-top:14px" data-f="emergencia"><label for="emergencia">Contacto de emergencia (nombre, parentesco y teléfono) <span class="req">*</span></label><textarea id="emergencia" maxlength="300"></textarea><div class="err">Campo obligatorio.</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Alojamiento</h2>
+      <div class="fld" data-f="tipoHabitacion">
+        <span class="lbl">Tipo de habitación <span class="req">*</span></span>
+        <div class="opts" id="opts-hab">
+          <label class="opt"><input type="radio" name="tipoHabitacion" value="Single"> Single (individual)</label>
+          <label class="opt"><input type="radio" name="tipoHabitacion" value="Doble"> Doble</label>
+          <label class="opt"><input type="radio" name="tipoHabitacion" value="Triple"> Triple</label>
+          <label class="opt"><input type="radio" name="tipoHabitacion" value="Cuádruple"> Cuádruple</label>
+        </div>
+        <div class="err">Seleccione una opción.</div>
+      </div>
+      <div class="fld hidden" id="blk-cama" data-f="tipoCama">
+        <span class="lbl">Tipo de cama</span>
+        <div class="opts">
+          <label class="opt"><input type="radio" name="tipoCama" value="Twin"> Twin (camas separadas, sujeto a disponibilidad)</label>
+          <label class="opt"><input type="radio" name="tipoCama" value="Matrimonial"> Matrimonial (cama doble)</label>
+        </div>
+      </div>
+      <div class="fld hidden" id="blk-comparte" data-f="comparte">
+        <span class="lbl">¿Comparte habitación con otro pasajero del grupo? <span class="req">*</span></span>
+        <div class="opts">
+          <label class="opt"><input type="radio" name="comparte" value="Sí"> Sí</label>
+          <label class="opt"><input type="radio" name="comparte" value="No"> No</label>
+        </div>
+        <div class="err">Seleccione una opción.</div>
+      </div>
+      <div class="fld hidden" id="blk-con" data-f="compartiCon">
+        <label for="compartiConSel" id="lbl-con">Si comparte, ¿con quién? (nombre y apellido) <span class="req">*</span></label>
+        <select id="compartiConSel" class="hidden"></select>
+        <input type="text" id="compartiConTxt" maxlength="120" class="hidden" placeholder="Nombre y apellido">
+        <div class="err">Indique con quién comparte.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Salud y asistencia</h2>
+      <div class="fld"><label for="restricciones">Restricciones alimentarias / alergias (indicar "Ninguna" si no tiene) <span class="req">*</span></label><textarea id="restricciones" maxlength="500"></textarea><div class="err">Campo obligatorio.</div></div>
+      <div class="fld"><label for="movilidad">Necesidades de movilidad o asistencia especial (indicar "Ninguna" si no tiene) <span class="req">*</span></label><textarea id="movilidad" maxlength="500"></textarea><div class="err">Campo obligatorio.</div></div>
+      <div class="fld"><label for="medicas">Condiciones médicas relevantes para el viaje (opcional)</label><textarea id="medicas" maxlength="1000"></textarea></div>
+    </div>
+
+    <div class="card">
+      <div class="fld" data-f="consentimiento">
+        <label class="opt" style="align-items:flex-start"><input type="checkbox" id="consentimiento" style="margin-top:3px"> <span>Acepto el tratamiento de mis datos personales para la organización del viaje (Ley 25.326). <span class="req">*</span></span></label>
+        <div class="err">Debe aceptar para continuar.</div>
+      </div>
+    </div>
+
+    <div class="alert hidden" id="alerta"></div>
+    <button type="submit" class="btn" id="enviar">Enviar datos</button>
+  </form>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+// Sin login: el grupo se identifica con un token no adivinable en la URL (?g=...).
+// Las reglas de Firebase solo permiten crear respuestas nuevas mientras el grupo esté activo.
+firebase.initializeApp({
+  apiKey:"AIzaSyARJ-zVCszUxJ_Fs1UBBtMiQvjuDF98IYI",
+  authDomain:"betravel-kanban.firebaseapp.com",
+  databaseURL:"https://betravel-kanban-default-rtdb.firebaseio.com",
+  projectId:"betravel-kanban",
+  storageBucket:"betravel-kanban.firebasestorage.app",
+  messagingSenderId:"644328296494",
+  appId:"1:644328296494:web:aec3842de80021159f8fbf",
+});
+const $ = id => document.getElementById(id);
+const GID = (new URLSearchParams(location.search).get('g') || '').trim();
+let INVITADOS = [];
+const OTRO = '__otro';
+
+function mostrarMsg(titulo, texto){
+  $('form').classList.add('hidden');
+  const e = $('estado'); e.classList.remove('hidden');
+  e.innerHTML = '<h2></h2><p></p>';
+  e.querySelector('h2').textContent = titulo;
+  e.querySelector('p').textContent = texto;
+}
+
+if (!/^[A-Za-z0-9_-]{8,64}$/.test(GID)){
+  mostrarMsg('Enlace no válido', 'Verifique que el enlace esté completo o solicite uno nuevo a Be•Travel.');
+} else {
+  firebase.database().ref('grupos/' + GID + '/meta').once('value').then(s => {
+    const meta = s.val();
+    if (!meta) return mostrarMsg('Enlace no válido', 'Verifique que el enlace esté completo o solicite uno nuevo a Be•Travel.');
+    if (meta.activo !== true) return mostrarMsg('Formulario cerrado', 'Este formulario ya no recibe respuestas. Si necesita modificar sus datos, escríbanos.');
+    iniciar(meta);
+  }, () => mostrarMsg('No pudimos cargar el formulario', 'Revise su conexión e intente nuevamente en unos minutos.'));
+}
+
+function iniciar(meta){
+  document.title = 'Datos de pasajeros — ' + meta.nombre + ' | Be•Travel';
+  $('titulo').textContent = 'Lista de pasajeros — ' + meta.nombre;
+  INVITADOS = meta.invitados ? Object.values(meta.invitados).filter(Boolean) : [];
+  if (INVITADOS.length){
+    const sel = $('invitado');
+    sel.innerHTML = '<option value="">Seleccione…</option>' + INVITADOS.map(n => '<option></option>').join('') + '<option value="' + OTRO + '">Mi nombre no figura en la lista</option>';
+    INVITADOS.forEach((n, i) => { sel.options[i + 1].value = n; sel.options[i + 1].textContent = n; });
+    const con = $('compartiConSel');
+    con.innerHTML = '<option value="">Seleccione…</option>' + INVITADOS.map(n => '<option></option>').join('') + '<option value="' + OTRO + '">Otra persona (indicar nombre)</option>';
+    INVITADOS.forEach((n, i) => { con.options[i + 1].value = n; con.options[i + 1].textContent = n; });
+  } else {
+    $('card-lista').classList.add('hidden');
+  }
+  $('estado').classList.add('hidden');
+  $('form').classList.remove('hidden');
+  actualizarCondicionales();
+}
+
+const radio = name => { const r = document.querySelector('input[name="' + name + '"]:checked'); return r ? r.value : ''; };
+
+function actualizarCondicionales(){
+  const hab = radio('tipoHabitacion');
+  const compartible = hab && hab !== 'Single';
+  $('blk-cama').classList.toggle('hidden', !compartible);
+  $('blk-comparte').classList.toggle('hidden', !compartible);
+  const comparte = compartible && radio('comparte') === 'Sí';
+  $('blk-con').classList.toggle('hidden', !comparte);
+  const usaLista = INVITADOS.length > 0;
+  $('compartiConSel').classList.toggle('hidden', !usaLista);
+  $('compartiConTxt').classList.toggle('hidden', usaLista && $('compartiConSel').value !== OTRO);
+}
+document.querySelectorAll('input[name="tipoHabitacion"], input[name="comparte"]').forEach(r => r.addEventListener('change', actualizarCondicionales));
+$('compartiConSel').addEventListener('change', actualizarCondicionales);
+
+function marcar(f, ok){ const el = document.querySelector('[data-f="' + f + '"]'); if (el) el.classList.toggle('bad', !ok); return ok; }
+const val = id => $(id).value.trim();
+const fechaOk = v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v + 'T00:00:00'));
+const hoy = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+
+function validar(){
+  let ok = true;
+  const chk = (f, cond) => { if (!marcar(f, cond)) ok = false; };
+  if (INVITADOS.length) chk('invitado', !!val('invitado'));
+  ['nombre', 'apellido', 'nacionalidad', 'pasaporte', 'paisPasaporte', 'telefono', 'emergencia'].forEach(f => chk(f, !!val(f)));
+  chk('nacimiento', fechaOk(val('nacimiento')) && val('nacimiento') < hoy());
+  chk('emision', fechaOk(val('emision')) && val('emision') <= hoy());
+  chk('vencimiento', fechaOk(val('vencimiento')) && val('vencimiento') > hoy());
+  chk('email', /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('email')));
+  chk('tipoHabitacion', !!radio('tipoHabitacion'));
+  const hab = radio('tipoHabitacion');
+  const compartible = hab && hab !== 'Single';
+  if (compartible){
+    chk('comparte', !!radio('comparte'));
+    if (radio('comparte') === 'Sí') chk('compartiCon', !!conQuien());
+  } else { marcar('comparte', true); marcar('compartiCon', true); }
+  chk('consentimiento', $('consentimiento').checked);
+  // Restricciones y movilidad piden "Ninguna" explícito, igual que el formulario original
+  ['restricciones', 'movilidad'].forEach(id => { const el = $(id).closest('.fld'); const bad = !val(id); el.classList.toggle('bad', bad); if (bad) ok = false; });
+  return ok;
+}
+function conQuien(){
+  if (INVITADOS.length){ const v = $('compartiConSel').value; return v === OTRO ? val('compartiConTxt') : v; }
+  return val('compartiConTxt');
+}
+
+$('form').addEventListener('submit', e => {
+  e.preventDefault();
+  if ($('hp').value) return;   // honeypot: los bots completan este campo
+  $('alerta').classList.add('hidden');
+  if (!validar()){
+    const primero = document.querySelector('.fld.bad');
+    if (primero) primero.scrollIntoView({ behavior:'smooth', block:'center' });
+    return;
+  }
+  const hab = radio('tipoHabitacion');
+  const compartible = hab !== 'Single';
+  const comparte = compartible ? radio('comparte') : 'No';
+  const d = {
+    nombre: val('nombre'), apellido: val('apellido'), nacimiento: val('nacimiento'), nacionalidad: val('nacionalidad'),
+    pasaporte: val('pasaporte'), paisPasaporte: val('paisPasaporte'), emision: val('emision'), vencimiento: val('vencimiento'),
+    email: val('email'), telefono: val('telefono'), emergencia: val('emergencia'),
+    tipoHabitacion: hab, comparte,
+    restricciones: val('restricciones'), movilidad: val('movilidad'),
+    consentimiento: true, ts: Date.now(),
+  };
+  if (INVITADOS.length && val('invitado') && val('invitado') !== OTRO) d.invitado = val('invitado');
+  if (val('lugarPasaporte')) d.lugarPasaporte = val('lugarPasaporte');
+  if (compartible && radio('tipoCama')) d.tipoCama = radio('tipoCama');
+  if (comparte === 'Sí') d.compartiCon = conQuien();
+  if (val('medicas')) d.medicas = val('medicas');
+
+  const btn = $('enviar'); btn.disabled = true; btn.textContent = 'Enviando…';
+  firebase.database().ref('grupos/' + GID + '/respuestas').push().set(d).then(() => {
+    mostrarMsg('Datos recibidos', 'Gracias, ' + d.nombre + '. Recibimos su información. Si necesita corregir algún dato, escríbanos.');
+    window.scrollTo(0, 0);
+  }, err => {
+    console.error(err);
+    btn.disabled = false; btn.textContent = 'Enviar datos';
+    const a = $('alerta'); a.classList.remove('hidden');
+    a.textContent = 'No pudimos guardar sus datos. Verifique su conexión e intente nuevamente. Si el problema continúa, escríbanos.';
+  });
+});
+</script>
+</body>
+</html>
