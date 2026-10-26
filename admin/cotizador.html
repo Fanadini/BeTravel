@@ -2245,7 +2245,7 @@ function renderServiciosFoot(){
     }
     const paxS = parseInt(c.pasajeros, 10) || 0;
     if (!tieneHab(s) && s.costoModo !== 'persona' && paxS > 0 && num(s.precio) > 0) html += `<span>${tieneTar(s) ? 'Venta promedio por persona' : 'Venta por persona'}: <b>${fmtMoney(num(s.precio) / paxS, m)}</b></span>`;
-    html += `<span>Ganancia: <b>${fmtMoney(ganancia, m)}</b></span>`;
+    html += `<span>Ganancia bruta: <b>${fmtMoney(ganancia, m)}</b></span>`;
     if (m !== c.moneda){
       const conv = convertir(num(s.precio), m, c.moneda, c.tipoCambio);
       html += conv.ok
@@ -2504,7 +2504,7 @@ function aplicarHabitaciones(s, hoteles, origen){
     if (h.regimen && !String(dest.detalle).trim()) dest.detalle = h.regimen;
     sincHab(dest);
   });
-  if (modo === 'venta') avisos.push('Los precios se cargaron como precio de venta y el costo quedó en 0: completá los costos para ver la ganancia.');
+  if (modo === 'venta') avisos.push('Los precios se cargaron como precio de venta y el costo quedó en 0: completá los costos para ver la ganancia bruta.');
   if (hoteles.length > 1) avisos.push(`La cotización tenía ${hoteles.length} hoteles: el primero se cargó acá y los demás como servicios nuevos, justo debajo (con el mismo "En la propuesta"). Revisá a cuál opción corresponde cada uno.`);
   if (hoteles.some(h => h.moneda && h.moneda !== c.moneda) && !num(c.tipoCambio)) avisos.push(`Hay precios en ${hoteles.find(h => h.moneda !== c.moneda).moneda}, distinta de la moneda de la propuesta: cargá el tipo de cambio de referencia para que se sumen.`);
   CAPTURA_HAB.set(s, { img: origen.img || '', texto: origen.texto || '', avisos,
@@ -3111,8 +3111,8 @@ function renderTotales(){
   const c = editing.data, m = c.moneda;
   const lineas = t => `
     <div class="tot-line"><span>Costo neto</span><b>${fmtMoney(t.costo, m)}</b></div>
-    <div class="tot-line"><span>Ganancia</span><b>${fmtMoney(t.margen, m)}</b></div>
-    <div class="tot-line"><span>Margen sobre venta</span><b>${fmtNum(round2(t.margenPct))}%</b></div>
+    <div class="tot-line"><span>Ganancia bruta</span><b>${fmtMoney(t.margen, m)}</b></div>
+    <div class="tot-line"><span>Margen bruto sobre venta</span><b>${fmtNum(round2(t.margenPct))}%</b></div>
     <div class="tot-sep"></div>
     <div class="tot-line big"><span>Precio total</span><b>${fmtMoney(t.precio, m)}</b></div>
     <div class="tot-line"><span>Por persona</span><b>${t.porPersona!=null ? fmtMoney(t.porPersona, m) : '—'}</b></div>`;
@@ -3137,7 +3137,7 @@ function renderTotales(){
     const ta = sumarServicios(c, adic);
     html += `<div class="opc-block"><div class="opc-titulo">Adicionales (no suman al total)</div>
       <div class="tot-line"><span>Precio</span><b>${fmtMoney(ta.precio, m)}</b></div>
-      <div class="tot-line"><span>Ganancia</span><b>${fmtMoney(ta.margen, m)}</b></div></div>`;
+      <div class="tot-line"><span>Ganancia bruta</span><b>${fmtMoney(ta.margen, m)}</b></div></div>`;
   }
   if (sumarServicios(c, srvActivos(c)).faltaTC) html += `<div class="tot-warn">⚠ Hay servicios en otra moneda sin T.C. de referencia: no están sumados.</div>`;
   el.innerHTML = html;
