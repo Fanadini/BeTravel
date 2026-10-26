@@ -98,6 +98,15 @@
         "meta": {
           ".read": true
         },
+        "nombres": {
+          ".read": true,
+          "$rid": {
+            ".write": "!data.exists() && newData.exists() && root.child('grupos').child($gid).child('meta').child('activo').val() === true",
+            ".validate": "newData.hasChild('n')",
+            "n": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200" },
+            "$other": { ".validate": false }
+          }
+        },
         "respuestas": {
           "$rid": {
             ".write": "!data.exists() && newData.exists() && root.child('grupos').child($gid).child('meta').child('activo').val() === true",
@@ -118,6 +127,7 @@
           "tipoHabitacion": { ".validate": "newData.isString() && (newData.val() === 'Single' || newData.val() === 'Doble' || newData.val() === 'Triple' || newData.val() === 'Cuádruple')" },
           "tipoCama": { ".validate": "newData.isString() && (newData.val() === 'Twin' || newData.val() === 'Matrimonial')" },
           "comparte": { ".validate": "newData.isString() && (newData.val() === 'Sí' || newData.val() === 'No')" },
+          "compartiConId": { ".validate": "newData.isString() && newData.val().length <= 40" },
           "compartiCon": { ".validate": "newData.isString() && newData.val().length <= 120" },
           "restricciones": { ".validate": "newData.isString() && newData.val().length <= 500" },
           "movilidad": { ".validate": "newData.isString() && newData.val().length <= 500" },
