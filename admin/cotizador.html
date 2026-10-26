@@ -233,6 +233,10 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .ia-modal{position:fixed;inset:0;background:rgba(20,24,24,.6);z-index:950;display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
 .ia-modal.open{display:flex}
 .ia-box{background:var(--white);border-radius:12px;width:100%;max-width:760px;padding:20px 22px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.inf-tabla{width:100%;border-collapse:collapse;font-size:12px}
+.inf-tabla th{text-align:left;font-size:10px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:rgba(43,43,43,.55);padding:7px 8px;border-bottom:1px solid var(--beige-d)}
+.inf-tabla td{padding:7px 8px;border-bottom:1px solid rgba(213,206,195,.5);vertical-align:top}
+.inf-tabla .r{text-align:right;white-space:nowrap}
 .ia-box h2{font-size:15px;font-weight:600;color:var(--teal);margin-bottom:4px}
 .ia-res-dia{border-left:3px solid var(--teal);padding-left:10px;margin-bottom:10px}
 .ia-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
@@ -590,6 +594,18 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
       <button class="new-btn outline" onclick="cerrarIA()">Cerrar</button>
       <button class="new-btn outline" id="ia-generar" onclick="generarIA()">Generar</button>
       <button class="new-btn" id="ia-aplicar" style="display:none" onclick="aplicarIA()">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<div class="ia-modal" id="contador-modal">
+  <div class="ia-box" style="max-width:1000px">
+    <h2>Informe para el contador</h2>
+    <div id="contador-body"></div>
+    <div class="ia-actions">
+      <button class="new-btn outline" onclick="cerrarInformeContador()">Cerrar</button>
+      <button class="new-btn outline" onclick="copiarTablaContador()">Copiar tabla</button>
+      <button class="new-btn" onclick="descargarCSVContador()">Descargar Excel (CSV)</button>
     </div>
   </div>
 </div>
@@ -1377,6 +1393,7 @@ function renderEditor(){
             <button class="new-btn outline" onclick="abrirDeck(true)">Descargar PDF</button>
             ${CURRENT_USER.rol === 'cotizador' ? '' : `<button class="new-btn outline" onclick="convertirEnReserva()">${c.reservaId ? 'Ver reserva →' : 'Convertir en reserva'}</button>`}
             <button class="new-btn outline" onclick="duplicarCotizacion()">Duplicar</button>
+            <button class="new-btn outline solo-admin" style="${CURRENT_USER.rol === 'admin' ? '' : 'display:none'}" onclick="abrirInformeContador()" title="Costo y venta de cada producto, para compartir con el contador">Informe para contador</button>
           </div>
           <div style="text-align:center"><button class="link-danger" onclick="eliminarCotizacion()">Eliminar cotización</button></div>
           <div class="save-status" id="save-status"></div>
@@ -3172,6 +3189,79 @@ function asignarCodigoReserva(){
     return META_RES_COUNTER_REF.transaction(n => Math.max(Number(n) || 0, maxExisting) + 1);
   }).then(res => 'BeT' + res.snapshot.val());
 }
+// Líneas de un servicio con su costo y su precio de venta: un hotel se abre por tipo de habitación y un aéreo por tipo de
+// pasajero; el resto es una sola línea. La usan "Convertir en reserva" y el informe para el contador.
+function lineasServicio(s, concepto){
+  return tieneHab(s)
+    ? s.habitaciones.filter(h => num(h.cantidad) > 0).map(h => ({ concepto: `${s.concepto || 'Hotel'} — ${fmtNum(num(h.cantidad))} × ${habNombre(h)}${habPorNoche(s) ? ' × ' + habNoches(s) + ' noche' + (habNoches(s) === 1 ? '' : 's') : ''}`.slice(0, 300), precio: habTotalPrecio(h, s), costo: habTotalCosto(h, s) }))
+    : tieneTar(s)
+      ? s.tarifas.filter(x => num(x.cantidad) > 0).map(x => ({ concepto: `${concepto} — ${fmtNum(num(x.cantidad))} × ${paxEtiqueta(x.tipo)}`.slice(0, 300), precio: tarTotalPrecio(x), costo: tarTotalCosto(x) }))
+      : [{ concepto, precio: num(s.precio), costo: num(s.costo) }];
+}
+// ── INFORME PARA EL CONTADOR (solo admin) ─────────────────────────────────
+// Costo y valor de venta de cada producto de la cotización, para compartir con el contador. No incluye márgenes ni markups.
+function filasContador(c){
+  const filas = [];
+  srvActivos(c).forEach(s => {
+    const modo = modoDe(s), m = s.moneda || c.moneda;
+    const grupo = modo === 'incluido' ? 'Incluido' : modo === 'adicional' ? 'Adicional' : nombreOpcion(c, modo);
+    const concepto = [s.concepto || s.tipo, s.vuelos ? rutaVuelos(s.vuelos) : ''].filter(Boolean).join(' — ');
+    lineasServicio(s, concepto).forEach(l => filas.push({ grupo, modo, tipo: s.tipo || 'Otro', proveedor: String(s.proveedor || ''), producto: sinNegrita(l.concepto), moneda: m, costo: round2(l.costo), venta: round2(l.precio) }));
+  });
+  return filas;
+}
+function subtotalesContador(filas){
+  const ac = {}, orden = [];
+  filas.forEach(f => { const k = f.grupo + '|' + f.moneda; if (!ac[k]){ ac[k] = { grupo: f.grupo, moneda: f.moneda, costo: 0, venta: 0 }; orden.push(k); } ac[k].costo += f.costo; ac[k].venta += f.venta; });
+  return orden.map(k => ({ ...ac[k], costo: round2(ac[k].costo), venta: round2(ac[k].venta) }));
+}
+function abrirInformeContador(){
+  if (CURRENT_USER.rol !== 'admin' || !editing) return;
+  const c = editing.data, filas = filasContador(c), subs = subtotalesContador(filas);
+  const mon = m => m === 'USD' ? 'US$' : '$';
+  const num2 = n => (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const tc = num(c.tipoCambio) > 0 ? `Tipo de cambio de referencia: US$ 1 = $ ${fmtNum(num(c.tipoCambio))}. ` : '';
+  document.getElementById('contador-body').innerHTML = !filas.length
+    ? '<p class="card-hint">No hay servicios tildados en esta cotización.</p>'
+    : `<p class="card-hint" style="margin:0 0 10px"><strong>${escHtml([c.codigo, c.titulo || c.cliente].filter(Boolean).join(' · '))}</strong>${c.cliente ? ' · Cliente: ' + escHtml(c.cliente) : ''}. ${escHtml(tc)}Cada línea va en la moneda del servicio; no se convierte. Los importes son totales de cada línea (cantidad por valor unitario).</p>
+      <div style="overflow-x:auto"><table class="inf-tabla"><thead><tr><th>Grupo</th><th>Tipo</th><th>Producto</th><th>Proveedor</th><th>Mon.</th><th class="r">Costo</th><th class="r">Venta</th></tr></thead><tbody>${filas.map(f => `<tr><td>${escHtml(f.grupo)}</td><td>${escHtml(f.tipo)}</td><td>${escHtml(f.producto)}</td><td>${escHtml(f.proveedor)}</td><td>${mon(f.moneda)}</td><td class="r">${num2(f.costo)}</td><td class="r">${num2(f.venta)}</td></tr>`).join('')}</tbody></table></div>
+      <h3 style="font-size:12px;margin:14px 0 6px;color:var(--teal)">Subtotales</h3>
+      <div style="overflow-x:auto"><table class="inf-tabla"><thead><tr><th>Grupo</th><th>Mon.</th><th class="r">Costo</th><th class="r">Venta</th></tr></thead><tbody>${subs.map(x => `<tr><td>${escHtml(x.grupo)}</td><td>${mon(x.moneda)}</td><td class="r">${num2(x.costo)}</td><td class="r">${num2(x.venta)}</td></tr>`).join('')}</tbody></table></div>
+      <p class="card-hint" style="margin-top:8px">Las opciones y los adicionales son alternativas: no se suman a lo incluido.</p>`;
+  document.getElementById('contador-modal').classList.add('open');
+}
+function cerrarInformeContador(){ document.getElementById('contador-modal').classList.remove('open'); }
+// Excel en español: separador ";" y coma decimal, con BOM para que respete los acentos.
+function csvContador(c){
+  const filas = filasContador(c), subs = subtotalesContador(filas);
+  const cel = v => { const t = String(v == null ? '' : v); return /[";\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  const dec = n => String(round2(n)).replace('.', ',');
+  const lineas = [
+    ['Cotización', c.codigo || '', 'Cliente', c.cliente || '', 'Título', c.titulo || ''],
+    [],
+    ['Grupo', 'Tipo', 'Producto', 'Proveedor', 'Moneda', 'Costo', 'Venta'],
+    ...filas.map(f => [f.grupo, f.tipo, f.producto, f.proveedor, f.moneda, dec(f.costo), dec(f.venta)]),
+    [],
+    ['Subtotales', '', '', '', '', '', ''],
+    ...subs.map(x => [x.grupo, '', '', '', x.moneda, dec(x.costo), dec(x.venta)]),
+  ];
+  return '\ufeff' + lineas.map(l => l.map(cel).join(';')).join('\r\n');
+}
+function descargarCSVContador(){
+  if (CURRENT_USER.rol !== 'admin' || !editing) return;
+  const c = editing.data, blob = new Blob([csvContador(c)], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Contador - ${String(c.codigo || 'cotizacion').replace(/[^\w\- ]+/g, '')}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function copiarTablaContador(){
+  if (CURRENT_USER.rol !== 'admin' || !editing) return;
+  const filas = filasContador(editing.data);
+  const txt = [['Grupo', 'Tipo', 'Producto', 'Proveedor', 'Moneda', 'Costo', 'Venta'], ...filas.map(f => [f.grupo, f.tipo, f.producto, f.proveedor, f.moneda, String(f.costo).replace('.', ','), String(f.venta).replace('.', ',')])].map(l => l.join('\t')).join('\n');
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => alert('Tabla copiada: pegala en Excel, Google Sheets o un mail.'), () => alert('No se pudo copiar. Usá "Descargar Excel".'));
+}
 // Crea la reserva en Gestión interna con el mismo formato que usa ese panel:
 // ítems cotizados = precio de venta; costos = costo neto. Solo pasan los
 // servicios tildados de lo incluido + la opción que eligió el cliente (+ los
@@ -3206,11 +3296,7 @@ function convertirEnReserva(){
     const tc = m !== c.moneda ? (num(c.tipoCambio) || '') : '';
     const concepto = [s.concepto, s.vuelos ? rutaVuelos(s.vuelos) : '', sinNegrita(s.detalle)].filter(Boolean).join(' — ').slice(0, 300);
     // Hotel por tipo de habitación: un ítem cotizado y un costo por cada tipo, para ver el detalle en la reserva.
-    const lineas = tieneHab(s)
-      ? s.habitaciones.filter(h => num(h.cantidad) > 0).map(h => ({ concepto: `${s.concepto || 'Hotel'} — ${fmtNum(num(h.cantidad))} × ${habNombre(h)}${habPorNoche(s) ? ' × ' + habNoches(s) + ' noche' + (habNoches(s) === 1 ? '' : 's') : ''}`.slice(0, 300), precio: habTotalPrecio(h, s), costo: habTotalCosto(h, s) }))
-      : tieneTar(s)
-        ? s.tarifas.filter(x => num(x.cantidad) > 0).map(x => ({ concepto: `${concepto} — ${fmtNum(num(x.cantidad))} × ${paxEtiqueta(x.tipo)}`.slice(0, 300), precio: tarTotalPrecio(x), costo: tarTotalCosto(x) }))
-        : [{ concepto, precio: num(s.precio), costo: num(s.costo) }];
+    const lineas = lineasServicio(s, concepto);
     lineas.forEach(l => {
       cotizado[RESERVAS_REF.push().key] = { tipo: s.tipo||'Otro', concepto: l.concepto, monto: l.precio, moneda: m, tipoCambio: tc };
       costos[RESERVAS_REF.push().key] = {
