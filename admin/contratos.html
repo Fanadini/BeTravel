@@ -357,7 +357,9 @@ const SECCIONES = [
   { id:'servicios', titulo:'Servicios incluidos', hint:'Una línea por servicio. Las líneas que terminan en ":" quedan con un espacio en blanco para completar.', campos:[
     { k:'servicios', l:'Servicios incluidos', t:'textarea', full:true, filas:7 }, { k:'no_incl', l:'Servicios no incluidos', t:'textarea', full:true } ] },
   { id:'nomina', titulo:'Nómina y reemplazos', campos:[
-    { k:'nom_dias', l:'Días de anticipación para la nómina definitiva' }, { k:'rep_pct', l:'% de pasajeros reemplazables sin costo' }, { k:'rep_dias', l:'Días de anticipación para reemplazos' } ] },
+    { k:'nom_dias', l:'Días de anticipación para la nómina definitiva', full:true },
+    { k:'rep_no', l:'No hay posibilidad de cambios: no se admiten reemplazos de pasajeros', t:'check', full:true },
+    { k:'rep_pct', l:'% de pasajeros reemplazables sin costo', ocultaSi:'rep_no' }, { k:'rep_dias', l:'Días de anticipación para reemplazos', ocultaSi:'rep_no' } ] },
   { id:'cancel', titulo:'Política de cancelación', hint:'Los tramos se calculan sobre el monto abonado. Deben respetar lo que cobran los proveedores.', campos:[
     { k:'can_d1', l:'Más de (días)' }, { k:'can_p1', l:'Se reintegra (%)' }, { k:'can_d2', l:'Entre ese tramo y (días)' }, { k:'can_p2', l:'Se reintegra (%)' },
     { k:'can_d3', l:'Entre ese tramo y (días)' }, { k:'can_p3', l:'Se reintegra (%)' }, { k:'can_p4', l:'Menos que el último tramo: se reintegra (%)', full:true } ] },
@@ -450,7 +452,7 @@ function cuerpoContrato(V){
     <p>Servicios NO incluidos: ${esc(t('no_incl') || NO_INCL_DEF)}.</p>`]);
   cl.push(['CLÁUSULA 4 – NÓMINA DE PASAJEROS Y MODIFICACIONES', `
     <p>4.1. EL CLIENTE deberá entregar a LA AGENCIA la nómina definitiva de pasajeros (con nombre completo, DNI / Pasaporte y datos de contacto) con un mínimo de ${val('nom_dias', 12)} días de anticipación a la fecha de salida.</p>
-    <p>4.2. Reemplazos de pasajeros: se admitirá el reemplazo de hasta el ${val('rep_pct', 12)}% de los pasajeros sin costo adicional, siempre que se notifique con al menos ${val('rep_dias', 12)} días de anticipación. Los reemplazos fuera de plazo podrán incurrir en costos adicionales a cargo de EL CLIENTE.</p>
+    <p>${V.rep_no ? '4.2. Reemplazos de pasajeros: una vez entregada la nómina definitiva no se admitirán reemplazos ni cambios de pasajeros.' : `4.2. Reemplazos de pasajeros: se admitirá el reemplazo de hasta el ${val('rep_pct', 12)}% de los pasajeros sin costo adicional, siempre que se notifique con al menos ${val('rep_dias', 12)} días de anticipación. Los reemplazos fuera de plazo podrán incurrir en costos adicionales a cargo de EL CLIENTE.`}</p>
     <p>4.3. Reducciones en la cantidad de pasajeros: toda reducción de pasajeros confirmados será tratada conforme a la política de cancelación parcial establecida en la Cláusula 5.</p>`]);
   cl.push(['CLÁUSULA 5 – POLÍTICA DE CANCELACIÓN', `
     <p>5.1. Cancelación total por parte de EL CLIENTE:</p>
@@ -583,13 +585,14 @@ function setEstado(v){ if (editing){ editing.estado = v; programarGuardado(); } 
 // ── FORMULARIO ─────────────────────────────────────────────────────────────
 function campoHTML(c){
   const V = editing.valores, k = c.k, v = V[k] == null ? '' : V[k];
-  const cls = 'fld' + (c.full ? ' full' : '');
+  const cls = 'fld' + (c.full ? ' full' : '') + (c.ocultaSi && V[c.ocultaSi] ? ' hidden' : '');
+  const oc = c.ocultaSi ? ` data-oculta-si="${c.ocultaSi}"` : '';
   if (c.t === 'check') return `<div class="${cls}"><label class="chk"><input type="checkbox" data-k="${k}" ${v ? 'checked' : ''}> ${esc(c.l)}</label></div>`;
   let ctl;
   if (c.t === 'select') ctl = `<select data-k="${k}">${c.opts.map(o => { const [val, txt] = Array.isArray(o) ? o : [o, o || '—']; return `<option value="${esc(val)}" ${val === v ? 'selected' : ''}>${esc(txt)}</option>`; }).join('')}</select>`;
   else if (c.t === 'textarea') ctl = `<textarea data-k="${k}" rows="${c.filas || 3}">${esc(v)}</textarea>`;
   else ctl = `<input type="${c.t === 'date' ? 'date' : 'text'}" data-k="${k}" value="${esc(v)}">`;
-  return `<div class="${cls}"><label>${esc(c.l)}</label>${ctl}</div>`;
+  return `<div class="${cls}"${oc}><label>${esc(c.l)}</label>${ctl}</div>`;
 }
 function pagosHTML(){
   const P = editing.valores.pagos;
@@ -627,6 +630,7 @@ function pintarForm(){
     const el = e.target;
     if (el.dataset.k){
       editing.valores[el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value;
+      if (el.dataset.k === 'rep_no') document.querySelectorAll('#form [data-oculta-si="rep_no"]').forEach(w => w.classList.toggle('hidden', el.checked));
       if (el.dataset.k === 'total' || el.dataset.k === 'moneda') refrescarPlaceholdersPago();
     } else if (el.dataset.p){
       const i = +el.closest('.pagos-fila').dataset.i;
