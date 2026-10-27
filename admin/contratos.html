@@ -16,11 +16,6 @@ html,body{height:100%}
 body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;overflow:hidden}
 
 /* ── NAV (igual al resto del panel) ── */
-.nav{background:var(--teal);height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:300;gap:10px;flex-shrink:0}
-.nav-brand{font-size:15px;font-weight:600;color:var(--beige);letter-spacing:-.3px;white-space:nowrap}
-.nav-brand span{color:var(--bronze)}
-.nav-right{display:flex;align-items:center;gap:7px;flex-shrink:0}
-.nav-user{font-size:11px;color:rgba(230,225,216,.6);white-space:nowrap}
 .nav-btn{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:6px 12px;border-radius:6px;border:1px solid rgba(230,225,216,.2);background:rgba(255,255,255,.08);color:rgba(230,225,216,.75);cursor:pointer;transition:all .18s;white-space:nowrap;text-decoration:none;display:inline-block}
 .nav-btn:hover{background:rgba(255,255,255,.16);color:var(--beige);border-color:rgba(230,225,216,.4)}
 
@@ -136,9 +131,18 @@ details.card[open]>summary::after{content:'–'}
   .form{width:auto;border-right:none;overflow:visible}
   .paper-wrap{overflow:visible;padding-top:10px}
   .paper{padding:14mm 10mm}
+  .doc{text-align:left}
+  .doc .blank{max-width:100%}
+  .pagos-fila{grid-template-columns:minmax(0,1fr) 64px minmax(0,1fr) 28px}
+  .pagos-fila [data-p="fecha"]{grid-column:1/4}
+  .pagos-fila .x-btn{grid-row:1;grid-column:4}
+  .provs-fila{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 28px}
+  .provs-fila [data-v="fecha"]{grid-column:1/3}
+  .provs-fila .x-btn{grid-row:1;grid-column:3}
+  .toolbar{padding:8px 12px}
+  .pagos-fila,.provs-fila{padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--beige-d)}
   #view-edit[data-tab="form"] .paper-wrap{display:none}
   #view-edit[data-tab="doc"] .form{display:none}
-  .nav-user{display:none}
   #view-list{padding:12px}
   .lista .col-hide{display:none}
 }
@@ -175,16 +179,8 @@ details.card[open]>summary::after{content:'–'}
   <div class="loading-text">Conectando con Firebase…</div>
 </div>
 
-<div class="nav">
-  <div class="nav-brand">Be<span>•</span>Travel Admin — Contratos</div>
-  <div class="nav-right">
-    <span class="nav-user" id="nav-user-name"></span>
-    <a class="nav-btn" href="cotizador.html">Cotizador</a>
-    <a class="nav-btn" href="gestioninterna.html">Gestión interna</a>
-    <a class="nav-btn" href="kanban.html">Prospectos</a>
-    <button class="nav-btn" onclick="logout()">Salir</button>
-  </div>
-</div>
+<script src="nav.js"></script>
+<script>AdminNav.mount({ pagina:'contratos' });</script>
 
 <div class="main" id="main">
   <div class="banner" id="banner"></div>
@@ -291,6 +287,7 @@ auth.onAuthStateChanged(user => {
     if (!acc){ mostrarSinAcceso(user.email); return; }
     CURRENT_USER.rol = acc.sinConfigurar || acc.perfil.rol === 'admin' ? 'admin' : (acc.perfil.rol || 'agente');
     if (CURRENT_USER.rol !== 'admin'){ mostrarSinAcceso(user.email, true); return; }
+    AdminNav.setUser({ rol: CURRENT_USER.rol, nombre: CURRENT_USER.nombre });
     if (acc.perfil.nombre) CURRENT_USER.nombre = acc.perfil.nombre;
     if (!listenersAttached){ attachListeners(); listenersAttached = true; }
   });
