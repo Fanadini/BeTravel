@@ -88,6 +88,22 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
 .det dt{color:rgba(43,43,43,.55)}
 .det dd{white-space:pre-wrap;word-break:break-word}
 
+.fq{border:1px solid var(--beige-d);border-radius:10px;background:var(--white);margin-bottom:8px}
+.fq.sec{background:var(--teal-l);border-color:var(--teal-m)}
+.fq-row{display:flex;align-items:center;gap:10px;padding:8px 10px}
+.fq-h{cursor:grab;color:rgba(43,43,43,.4);font-size:14px;letter-spacing:-2px;user-select:none}
+.fq-t{flex:1;min-width:0;cursor:pointer;font-size:12px}
+.fq-s{font-size:10.5px;color:rgba(43,43,43,.55);margin-top:1px}
+.fq-edit{padding:4px 14px 14px;border-top:1px solid var(--beige-d)}
+.fq-f{display:flex;flex-direction:column;gap:3px;margin-top:10px;min-width:0;flex:1}
+.fq-f label{font-size:10.5px;font-weight:500;color:rgba(43,43,43,.65)}
+.fq-f input,.fq-f select,.fq-f textarea{width:100%;font-size:12px}
+.fq-f textarea{min-height:70px}
+.fq-g{display:flex;gap:10px;flex-wrap:wrap}
+.chk{display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0}
+.opts-chk{display:flex;flex-wrap:wrap;gap:2px 16px;margin-top:4px}
+.btn:disabled{opacity:.4;cursor:default}
+
 /* ── IMPRESIÓN (PDF) ── */
 #print-area{display:none}
 @page{size:A4 landscape;margin:12mm}
@@ -159,6 +175,7 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
     <div class="tabs" id="tabs">
       <button class="tab on" data-t="resp" onclick="setTab('resp')">Respuestas</button>
       <button class="tab" data-t="hab" onclick="setTab('hab')">Habitaciones</button>
+      <button class="tab" data-t="form" onclick="setTab('form')">Formulario</button>
       <button class="tab" data-t="cfg" onclick="setTab('cfg')">Ajustes</button>
     </div>
     <div class="scroll" id="tab-body" style="background:var(--white);border-top:1px solid var(--beige-d)"></div>
@@ -168,6 +185,7 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
 <div id="print-area"></div>
 <div id="modal-root"></div>
 
+<script src="../form-default.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -273,12 +291,12 @@ function nuevoGrupo(){
   const nombre = (prompt('Nombre del grupo (ej. Boda Catalina y Augusto):') || '').trim();
   if (!nombre) return;
   const gid = nuevoToken();
-  GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email })
+  GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email, form: limpiarForm(window.FORM_DEFAULT) })
     .then(() => abrirGrupo(gid), handleWriteError);
 }
-function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'resp'; render(); }
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'resp'; DRAFT_GID = null; render(); }
 function volverLista(){ GID_ABIERTO = null; render(); }
-function setTab(t){ TAB = t; render(); }
+function setTab(t){ if (TAB === 'form' && t !== 'form' && DIRTY && !confirm('Hay cambios sin guardar en el formulario. ¿Salir igualmente?')) return; TAB = t; FORM_RENDER = true; render(); }
 function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
 function copiarLink(){
   const inp = document.getElementById('link-input');
@@ -388,6 +406,12 @@ function render(){
   const est = document.getElementById('g-estado'); est.textContent = g.meta.activo ? 'Recibiendo respuestas' : 'Cerrado'; est.className = 'pill ' + (g.meta.activo ? 'ok' : 'warn');
   document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.t === TAB));
   const body = document.getElementById('tab-body');
+  if (TAB === 'form'){
+    if (!FORM_RENDER && body.dataset.tab === 'form' && body.dataset.gid === GID_ABIERTO) return;   // no pisar lo que se está editando
+    FORM_RENDER = false; body.dataset.tab = 'form'; body.dataset.gid = GID_ABIERTO;
+    const sc = body.scrollTop; body.innerHTML = htmlFormulario(g); body.scrollTop = sc; return;
+  }
+  body.dataset.tab = TAB;
   const scroll = body.scrollTop;
   body.innerHTML = TAB === 'resp' ? htmlRespuestas(g) : TAB === 'hab' ? htmlHabitaciones(g) : htmlAjustes(g);
   body.scrollTop = scroll;
@@ -435,7 +459,7 @@ const CAMPOS = [
 const FECHAS = new Set(['nacimiento','emision','vencimiento']);
 function verRespuesta(rid){
   const r = GRUPOS[GID_ABIERTO].respuestas[rid]; if (!r) return;
-  const rows = CAMPOS.filter(([k]) => r[k]).map(([k, l]) => `<dt>${l}</dt><dd>${esc(FECHAS.has(k) ? fmtFecha(r[k]) : r[k])}</dd>`).join('');
+  const rows = columnasForm(GRUPOS[GID_ABIERTO]).filter(c => r[c.id] != null && r[c.id] !== '').map(c => `<dt>${esc(c.etiqueta)}</dt><dd>${esc(valorTxt(r, c))}</dd>`).join('');
   const ts = r.ts ? new Date(r.ts).toLocaleString('es-AR') : '';
   document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl><div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
@@ -489,6 +513,125 @@ function htmlAjustes(g){
       <div class="hint">Un nombre por línea, con nombre y apellido. Si la cargás, el formulario muestra desplegables para elegir quién es cada uno y con quién comparte, y los vínculos quedan exactos. Sin lista, se vinculan por coincidencia de nombre.</div>
       <textarea id="inp-invitados">${esc(inv)}</textarea></div>
     <div class="row-btns"><button class="btn" onclick="guardarAjustes()">Guardar ajustes</button><button class="btn danger" onclick="eliminarGrupo()">Eliminar grupo</button></div>`;
+}
+
+
+// ── FORMULARIO: preguntas del grupo ────────────────────────────────────────
+const TIPOS_Q = { corto:'Texto corto', largo:'Texto largo', fecha:'Fecha', email:'Correo electrónico', tel:'Teléfono', numero:'Número', radio:'Opción única', lista:'Desplegable', multiple:'Selección múltiple', casilla:'Casilla de verificación', companero:'Buscador de pasajeros', texto:'Texto informativo', seccion:'Sección (título)' };
+const CON_OPCIONES = ['radio', 'lista', 'multiple'];
+const clonar = o => JSON.parse(JSON.stringify(o));
+function listaForm(meta){
+  const f = meta && meta.form;
+  const arr = !f ? window.FORM_DEFAULT : Array.isArray(f) ? f : Object.keys(f).sort((a, b) => a - b).map(k => f[k]);
+  return arr.filter(q => q && q.id && q.tipo);
+}
+function limpiarForm(arr){   // Firebase no acepta undefined ni vacíos
+  return clonar(arr).map(q => {
+    ['ayuda', 'etiqueta'].forEach(k => { if (q[k] != null) q[k] = String(q[k]).trim(); });
+    Object.keys(q).forEach(k => { if (q[k] === undefined || q[k] === '' && k !== 'etiqueta' || (Array.isArray(q[k]) && !q[k].length) || q[k] === false) delete q[k]; });
+    if (!CON_OPCIONES.includes(q.tipo)) delete q.opciones;
+    if (q.mostrarSi && (!q.mostrarSi.id || !(q.mostrarSi.valores || []).length)) delete q.mostrarSi;
+    return q;
+  });
+}
+// Columnas para detalle y Excel: las preguntas actuales del formulario y, aparte, datos de preguntas ya eliminadas
+function columnasForm(g){
+  const cols = listaForm(g.meta).filter(q => !['seccion', 'texto'].includes(q.tipo)).map(q => ({ id:q.id, etiqueta:q.etiqueta, tipo:q.tipo }));
+  const ids = new Set(cols.map(c => c.id));
+  CAMPOS.forEach(([k, l]) => { if (!ids.has(k) && Object.values(g.respuestas || {}).some(r => r[k])) cols.push({ id:k, etiqueta:l + ' (pregunta eliminada)', tipo: FECHAS.has(k) ? 'fecha' : 'corto' }); });
+  return cols;
+}
+const valorTxt = (r, c) => { const v = r[c.id]; return v === true ? 'Sí' : v == null ? '' : (c.tipo === 'fecha' || FECHAS.has(c.id)) ? fmtFecha(v) : String(v); };
+
+// ── FORMULARIO: constructor ────────────────────────────────────────────────
+let DRAFT = [], DRAFT_GID = null, DRAFT_INTRO = '', DIRTY = false, FORM_RENDER = false;
+const OPEN = new Set();
+function marcar(){ DIRTY = true; const e = document.getElementById('f-dirty'); if (e) e.textContent = 'Cambios sin guardar'; }
+function redibujarForm(){ FORM_RENDER = true; render(); }
+function idNuevo(){ return 'q' + Math.random().toString(36).slice(2, 8); }
+function fSet(i, k, v){ if (v === '' || v === false) delete DRAFT[i][k]; else DRAFT[i][k] = v; marcar(); }
+function fTipo(i, t){
+  const q = DRAFT[i]; q.tipo = t; marcar();
+  if (CON_OPCIONES.includes(t) && !(q.opciones || []).length) q.opciones = ['Opción 1', 'Opción 2'];
+  if (t === 'seccion' || t === 'texto'){ delete q.requerido; delete q.mostrarSi; }
+  redibujarForm();
+}
+function fOpciones(i, txt){ DRAFT[i].opciones = txt.split('\n').map(x => x.trim()).filter(Boolean); marcar(); }
+function fMover(i, d){ const j = i + d; if (j < 0 || j >= DRAFT.length) return; [DRAFT[i], DRAFT[j]] = [DRAFT[j], DRAFT[i]]; marcar(); redibujarForm(); }
+function fBorrar(i){
+  const q = DRAFT[i]; if (q.bloqueada) return;
+  if (!confirm(`¿Eliminar "${q.etiqueta || 'esta pregunta'}"? Las respuestas ya recibidas se conservan.`)) return;
+  DRAFT.splice(i, 1);
+  DRAFT.forEach(x => { if (x.mostrarSi && x.mostrarSi.id === q.id) delete x.mostrarSi; });
+  marcar(); redibujarForm();
+}
+function fAbrir(i){ const id = DRAFT[i].id; OPEN.has(id) ? OPEN.delete(id) : OPEN.add(id); redibujarForm(); }
+function fAgregar(){
+  const tipo = document.getElementById('f-nuevo-tipo').value;
+  const q = { id: idNuevo(), tipo, etiqueta: tipo === 'seccion' ? 'Nueva sección' : 'Nueva pregunta' };
+  if (CON_OPCIONES.includes(tipo)) q.opciones = ['Opción 1', 'Opción 2'];
+  DRAFT.push(q); OPEN.add(q.id); marcar(); redibujarForm();
+  setTimeout(() => { const b = document.getElementById('tab-body'); b.scrollTop = b.scrollHeight; }, 30);
+}
+function fCond(i, id){ if (!id) delete DRAFT[i].mostrarSi; else DRAFT[i].mostrarSi = { id, valores:[] }; marcar(); redibujarForm(); }
+function fCondVal(i, valor, on){
+  const m = DRAFT[i].mostrarSi; if (!m) return;
+  const set = new Set(m.valores || []); on ? set.add(valor) : set.delete(valor); m.valores = [...set]; marcar();
+}
+let DRAG_I = null;
+function fDrag(ev, i){ DRAG_I = i; ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', String(i)); } catch (e) {} }
+function fDrop(ev, i){
+  ev.preventDefault(); if (DRAG_I == null || DRAG_I === i) return;
+  const [q] = DRAFT.splice(DRAG_I, 1); DRAFT.splice(i, 0, q); DRAG_I = null; marcar(); redibujarForm();
+}
+function fRestaurar(){
+  if (!confirm('Se reemplaza el formulario por el modelo original y se pierden los cambios. Las respuestas ya recibidas se conservan. ¿Continuar?')) return;
+  DRAFT = clonar(window.FORM_DEFAULT); marcar(); redibujarForm();
+}
+function fGuardar(){
+  for (const q of DRAFT){
+    if (q.tipo !== 'seccion' && !String(q.etiqueta || '').trim()){ alert('Hay una pregunta sin texto. Completala o eliminala.'); return; }
+    if (CON_OPCIONES.includes(q.tipo) && (q.opciones || []).length < 1){ alert(`"${q.etiqueta}" necesita al menos una opción.`); return; }
+  }
+  const intro = (document.getElementById('f-intro').value || '').trim();
+  const up = {}; up[`${GID_ABIERTO}/meta/form`] = limpiarForm(DRAFT); up[`${GID_ABIERTO}/meta/intro`] = intro || null;
+  GRUPOS_REF.update(up).then(() => { DIRTY = false; showBanner(''); const e = document.getElementById('f-dirty'); if (e) e.textContent = 'Guardado'; }, handleWriteError);
+}
+function htmlFormulario(g){
+  if (DRAFT_GID !== GID_ABIERTO){ DRAFT = clonar(listaForm(g.meta)); DRAFT_GID = GID_ABIERTO; DRAFT_INTRO = g.meta.intro || ''; DIRTY = false; }
+  const ids = DRAFT.map(q => q.id);
+  let html = `<div class="section-head"><h2>Formulario para pasajeros</h2><div class="row-btns"><span class="estado-guardado" id="f-dirty" style="font-size:11px;color:rgba(43,43,43,.55);align-self:center">${DIRTY ? 'Cambios sin guardar' : ''}</span>
+    <a class="btn outline small" href="${esc(linkPublico(GID_ABIERTO))}" target="_blank" rel="noopener">Ver formulario</a><button class="btn small" onclick="fGuardar()">Guardar formulario</button></div></div>
+    <div class="hint">Cambiá el orden con las flechas o arrastrando, editá cada pregunta con el lápiz y guardá. Los cambios solo afectan a quienes abran el formulario después de guardar. Los datos del pasajero (nombre, apellido) no se pueden eliminar. Las preguntas marcadas con candado mantienen su formato porque las usan el panel de habitaciones y las reglas de seguridad.</div>
+    <div class="card"><h3>Texto de introducción</h3><textarea id="f-intro" style="min-height:60px" placeholder="Completen sus datos tal como figuran en el pasaporte…" oninput="marcar()">${esc(DRAFT_INTRO)}</textarea></div>`;
+  DRAFT.forEach((q, i) => {
+    const abierta = OPEN.has(q.id), sec = q.tipo === 'seccion', bloqueo = q.fija || q.bloqueada;
+    html += `<div class="fq ${sec ? 'sec' : ''}" ondragover="event.preventDefault()" ondrop="fDrop(event,${i})">
+      <div class="fq-row" draggable="true" ondragstart="fDrag(event,${i})"><span class="fq-h" title="Arrastrar">⋮⋮</span>
+        <div class="fq-t" onclick="fAbrir(${i})"><strong>${esc(q.etiqueta || (sec ? '(sección sin título)' : '(sin texto)'))}</strong>${q.requerido ? ' <span style="color:var(--red)">*</span>' : ''}<div class="fq-s">${esc(TIPOS_Q[q.tipo] || q.tipo)}${q.mostrarSi ? ' · condicional' : ''}${q.fija ? ' · 🔒' : ''}</div></div>
+        <div class="row-btns" style="gap:4px;flex-wrap:nowrap"><button class="btn outline small" onclick="fMover(${i},-1)" ${i === 0 ? 'disabled' : ''} title="Subir">↑</button><button class="btn outline small" onclick="fMover(${i},1)" ${i === DRAFT.length - 1 ? 'disabled' : ''} title="Bajar">↓</button><button class="btn outline small" onclick="fAbrir(${i})">${abierta ? 'Cerrar' : 'Editar'}</button>${q.bloqueada ? '' : `<button class="btn danger small" onclick="fBorrar(${i})" title="Eliminar">✕</button>`}</div></div>`;
+    if (abierta){
+      html += '<div class="fq-edit">';
+      html += `<div class="fq-f"><label>${sec ? 'Título de la sección' : q.tipo === 'texto' ? 'Texto' : 'Pregunta'}</label>${q.tipo === 'texto' ? `<textarea oninput="fSet(${i},'etiqueta',this.value)">${esc(q.etiqueta)}</textarea>` : `<input type="text" value="${esc(q.etiqueta)}" oninput="fSet(${i},'etiqueta',this.value)">`}</div>`;
+      if (!sec && q.tipo !== 'texto'){
+        html += `<div class="fq-f"><label>Texto de ayuda (opcional)</label><input type="text" value="${esc(q.ayuda || '')}" oninput="fSet(${i},'ayuda',this.value)"></div>`;
+        html += `<div class="fq-g"><div class="fq-f"><label>Tipo</label><select onchange="fTipo(${i},this.value)" ${q.fija ? 'disabled' : ''}>${Object.entries(TIPOS_Q).filter(([k]) => k !== 'companero' || q.tipo === 'companero').map(([k, l]) => `<option value="${k}" ${k === q.tipo ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          <div class="fq-f"><label>Ancho</label><select onchange="fSet(${i},'mitad',this.value==='1')"><option value="0">Completo</option><option value="1" ${q.mitad ? 'selected' : ''}>Mitad (junto a la siguiente)</option></select></div></div>`;
+        html += `<label class="chk"><input type="checkbox" ${q.requerido ? 'checked' : ''} onchange="fSet(${i},'requerido',this.checked)"> Obligatoria</label>`;
+        if (CON_OPCIONES.includes(q.tipo)) html += `<div class="fq-f"><label>Opciones (una por línea)</label><textarea ${q.fija ? 'disabled' : ''} onchange="fOpciones(${i},this.value);redibujarForm()">${esc((q.opciones || []).join('\n'))}</textarea></div>`;
+        const prev = DRAFT.slice(0, i).filter(x => CON_OPCIONES.includes(x.tipo) || x.tipo === 'casilla');
+        if (prev.length){
+          const m = q.mostrarSi, src = m && DRAFT.find(x => x.id === m.id), vals = src ? (CON_OPCIONES.includes(src.tipo) ? (src.opciones || []) : ['Sí']) : [];
+          html += `<div class="fq-f"><label>Mostrar solo si…</label><select onchange="fCond(${i},this.value)"><option value="">Siempre</option>${prev.map(x => `<option value="${esc(x.id)}" ${m && m.id === x.id ? 'selected' : ''}>${esc(x.etiqueta)}</option>`).join('')}</select>
+            ${src ? `<div class="opts-chk">${vals.map(v => `<label class="chk"><input type="checkbox" ${(m.valores || []).includes(v) ? 'checked' : ''} onchange="fCondVal(${i},${esc(JSON.stringify(v)).replace(/'/g, '&#39;')},this.checked)"> ${esc(v)}</label>`).join('')}</div>` : ''}</div>`;
+        }
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  html += `<div class="card" style="margin-top:12px"><h3>Agregar</h3><div class="row-btns"><select id="f-nuevo-tipo">${Object.entries(TIPOS_Q).filter(([k]) => k !== 'companero').map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><button class="btn" onclick="fAgregar()">+ Agregar</button><span class="grow" style="flex:1"></span><button class="btn outline" onclick="fRestaurar()">Restaurar formulario original</button></div></div>`;
+  return html;
 }
 
 // ── HABITACIONES: ESCRITURA ────────────────────────────────────────────────
@@ -575,10 +718,11 @@ function armarXlsx(hojas){
 }
 function exportarExcel(){
   const g = GRUPOS[GID_ABIERTO], resps = g.respuestas || {};
-  const pax = respuestasOrdenadas(g).map(([, r]) => COLS_PAX.map(([, f]) => f(r) || ''));
+  const cols = columnasForm(g);
+  const pax = respuestasOrdenadas(g).map(([, r]) => cols.map(c => valorTxt(r, c)));
   const hab = filasHabitaciones(g).map(f => [f.n, f.tipo, f.r.apellido, f.r.nombre, f.r.pasaporte, fmtFecha(f.r.vencimiento), f.r.tipoCama || '', f.r.restricciones || '', f.r.movilidad || '']);
   const blob = armarXlsx([
-    { nombre:'Pasajeros', cabecera: COLS_PAX.map(c => c[0]), filas: pax },
+    { nombre:'Pasajeros', cabecera: cols.map(c => c.etiqueta), filas: pax },
     { nombre:'Habitaciones', cabecera:['Habitación','Tipo','Apellido','Nombre','Pasaporte','Vencimiento','Tipo de cama','Restricciones alimentarias','Movilidad / asistencia'], filas: hab },
   ]);
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);

@@ -29,7 +29,10 @@ textarea{min-height:80px;resize:vertical}
 .opts{display:flex;flex-wrap:wrap;gap:8px 18px}
 .opt{display:flex;align-items:center;gap:7px;font-size:14px;cursor:pointer}
 .opt input{width:17px;height:17px;accent-color:var(--teal)}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid .fld{margin:0;grid-column:1/-1}
+.grid .fld.half{grid-column:auto}
+.info{font-size:13px;color:rgba(43,43,43,.75);white-space:pre-line}
 .err{font-size:12px;color:var(--red);margin-top:4px;display:none}
 .fld.bad .err{display:block}
 .fld.bad input,.fld.bad select,.fld.bad textarea{border-color:var(--red)}
@@ -48,7 +51,7 @@ textarea{min-height:80px;resize:vertical}
 .hp{position:absolute;left:-9999px;opacity:0;height:0;overflow:hidden}
 .hidden{display:none!important}
 .alert{background:rgba(184,50,50,.08);border:1px solid rgba(184,50,50,.3);color:var(--red);font-size:13px;padding:10px 12px;border-radius:8px;margin-bottom:12px}
-@media(max-width:520px){.grid2{grid-template-columns:1fr}}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.grid .fld.half{grid-column:1/-1}}
 </style>
 <link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="favicon-512.png">
@@ -62,7 +65,7 @@ textarea{min-height:80px;resize:vertical}
 
   <form id="form" class="hidden" novalidate autocomplete="off">
     <h1 id="titulo"></h1>
-    <p class="lead">Completen sus datos tal como figuran en el pasaporte. La información se utiliza únicamente para organizar el viaje del grupo.</p>
+    <p class="lead" id="intro"></p>
 
     <div class="hp" aria-hidden="true"><label>Sitio web<input type="text" id="hp" tabindex="-1" autocomplete="off"></label></div>
 
@@ -75,102 +78,20 @@ textarea{min-height:80px;resize:vertical}
       </div>
     </div>
 
-    <div class="card">
-      <h2>Datos personales</h2>
-      <div class="grid2">
-        <div class="fld" data-f="nombre"><label for="nombre">Nombre completo (como figura en el pasaporte) <span class="req">*</span></label><input type="text" id="nombre" maxlength="100" autocomplete="given-name"><div class="err">Campo obligatorio.</div></div>
-        <div class="fld" data-f="apellido"><label for="apellido">Apellido completo (como figura en el pasaporte) <span class="req">*</span></label><input type="text" id="apellido" maxlength="100" autocomplete="family-name"><div class="err">Campo obligatorio.</div></div>
-      </div>
-      <div class="grid2" style="margin-top:14px">
-        <div class="fld" data-f="nacimiento"><label for="nacimiento">Fecha de nacimiento <span class="req">*</span></label><input type="date" id="nacimiento" min="1900-01-01"><div class="err">Ingrese una fecha válida.</div></div>
-        <div class="fld" data-f="nacionalidad"><label for="nacionalidad">Nacionalidad <span class="req">*</span></label><input type="text" id="nacionalidad" maxlength="100"><div class="err">Campo obligatorio.</div></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Pasaporte</h2>
-      <div class="grid2">
-        <div class="fld" data-f="pasaporte"><label for="pasaporte">Número de pasaporte <span class="req">*</span></label><input type="text" id="pasaporte" maxlength="30" autocapitalize="characters"><div class="err">Campo obligatorio.</div></div>
-        <div class="fld" data-f="paisPasaporte"><label for="paisPasaporte">País emisor <span class="req">*</span></label><input type="text" id="paisPasaporte" maxlength="100"><div class="err">Campo obligatorio.</div></div>
-      </div>
-      <div class="fld" style="margin-top:14px" data-f="lugarPasaporte"><label for="lugarPasaporte">Lugar de emisión</label><input type="text" id="lugarPasaporte" maxlength="100"></div>
-      <div class="grid2" style="margin-top:14px">
-        <div class="fld" data-f="emision"><label for="emision">Fecha de emisión <span class="req">*</span></label><input type="date" id="emision"><div class="err">Ingrese una fecha válida.</div></div>
-        <div class="fld" data-f="vencimiento"><label for="vencimiento">Fecha de vencimiento <span class="req">*</span></label><input type="date" id="vencimiento"><div class="err" id="err-venc">Ingrese una fecha válida posterior a hoy.</div></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Contacto</h2>
-      <div class="grid2">
-        <div class="fld" data-f="email"><label for="email">Correo electrónico <span class="req">*</span></label><input type="email" id="email" maxlength="120" autocomplete="email"><div class="err">Ingrese un correo válido.</div></div>
-        <div class="fld" data-f="telefono"><label for="telefono">Teléfono / WhatsApp (con código de país) <span class="req">*</span></label><input type="tel" id="telefono" maxlength="40" autocomplete="tel"><div class="err">Campo obligatorio.</div></div>
-      </div>
-      <div class="fld" style="margin-top:14px" data-f="emergencia"><label for="emergencia">Contacto de emergencia (nombre, parentesco y teléfono) <span class="req">*</span></label><textarea id="emergencia" maxlength="300"></textarea><div class="err">Campo obligatorio.</div></div>
-    </div>
-
-    <div class="card">
-      <h2>Alojamiento</h2>
-      <div class="fld" data-f="tipoHabitacion">
-        <span class="lbl">Tipo de habitación <span class="req">*</span></span>
-        <div class="opts" id="opts-hab">
-          <label class="opt"><input type="radio" name="tipoHabitacion" value="Single"> Single (individual)</label>
-          <label class="opt"><input type="radio" name="tipoHabitacion" value="Doble"> Doble</label>
-          <label class="opt"><input type="radio" name="tipoHabitacion" value="Triple"> Triple</label>
-          <label class="opt"><input type="radio" name="tipoHabitacion" value="Cuádruple"> Cuádruple</label>
-        </div>
-        <div class="err">Seleccione una opción.</div>
-      </div>
-      <div class="fld hidden" id="blk-cama" data-f="tipoCama">
-        <span class="lbl">Tipo de cama</span>
-        <div class="opts">
-          <label class="opt"><input type="radio" name="tipoCama" value="Twin"> Twin (camas separadas, sujeto a disponibilidad)</label>
-          <label class="opt"><input type="radio" name="tipoCama" value="Matrimonial"> Matrimonial (cama doble)</label>
-        </div>
-      </div>
-      <div class="fld hidden" id="blk-comparte" data-f="comparte">
-        <span class="lbl">¿Comparte habitación con otro pasajero del grupo? <span class="req">*</span></span>
-        <div class="opts">
-          <label class="opt"><input type="radio" name="comparte" value="Sí"> Sí</label>
-          <label class="opt"><input type="radio" name="comparte" value="No"> No</label>
-        </div>
-        <div class="err">Seleccione una opción.</div>
-      </div>
-      <div class="fld hidden" id="blk-con" data-f="compartiCon">
-        <label for="compartiConSel" id="lbl-con">Si comparte, ¿con quién? (nombre y apellido) <span class="req">*</span></label>
-        <div class="combo">
-          <input type="text" id="compartiConTxt" maxlength="120" placeholder="Buscar por nombre o apellido" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="sugs">
-          <div class="sugs hidden" id="sugs" role="listbox"></div>
-        </div>
-        <div class="hint" id="hint-con">Elija a la persona de la lista. Si todavía no completó el formulario, escriba su nombre y apellido.</div>
-        <div class="err">Indique con quién comparte.</div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Salud y asistencia</h2>
-      <div class="fld"><label for="restricciones">Restricciones alimentarias / alergias (indicar "Ninguna" si no tiene) <span class="req">*</span></label><textarea id="restricciones" maxlength="500"></textarea><div class="err">Campo obligatorio.</div></div>
-      <div class="fld"><label for="movilidad">Necesidades de movilidad o asistencia especial (indicar "Ninguna" si no tiene) <span class="req">*</span></label><textarea id="movilidad" maxlength="500"></textarea><div class="err">Campo obligatorio.</div></div>
-      <div class="fld"><label for="medicas">Condiciones médicas relevantes para el viaje (opcional)</label><textarea id="medicas" maxlength="1000"></textarea></div>
-    </div>
-
-    <div class="card">
-      <div class="fld" data-f="consentimiento">
-        <label class="opt" style="align-items:flex-start"><input type="checkbox" id="consentimiento" style="margin-top:3px"> <span>Acepto el tratamiento de mis datos personales para la organización del viaje (Ley 25.326). <span class="req">*</span></span></label>
-        <div class="err">Debe aceptar para continuar.</div>
-      </div>
-    </div>
+    <div id="campos"></div>
 
     <div class="alert hidden" id="alerta"></div>
     <button type="submit" class="btn" id="enviar">Enviar datos</button>
   </form>
 </div>
 
+<script src="form-default.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
 // Sin login: el grupo se identifica con un token no adivinable en la URL (?g=...).
 // Las reglas de Firebase solo permiten crear respuestas nuevas mientras el grupo esté activo.
+// Las preguntas vienen de grupos/{g}/meta/form (armado en admin/grupos.html) o de FORM_DEFAULT.
 firebase.initializeApp({
   apiKey:"AIzaSyARJ-zVCszUxJ_Fs1UBBtMiQvjuDF98IYI",
   authDomain:"betravel-kanban.firebaseapp.com",
@@ -182,8 +103,9 @@ firebase.initializeApp({
 });
 const $ = id => document.getElementById(id);
 const GID = (new URLSearchParams(location.search).get('g') || '').trim();
-let INVITADOS = [];
 const OTRO = '__otro';
+const INTRO_DEF = 'Completen sus datos tal como figuran en el pasaporte. La información se utiliza únicamente para organizar el viaje del grupo.';
+let INVITADOS = [], FORM = [], Q = {};
 
 function mostrarMsg(titulo, texto, accion){
   $('form').classList.add('hidden');
@@ -210,54 +132,147 @@ if (!/^[A-Za-z0-9_-]{8,64}$/.test(GID)){
   }, () => mostrarMsg('No pudimos cargar el formulario', 'Revise su conexión e intente nuevamente en unos minutos.'));
 }
 
+function listaForm(meta){
+  const f = meta.form;
+  const arr = !f ? window.FORM_DEFAULT : Array.isArray(f) ? f : Object.keys(f).sort((a, b) => a - b).map(k => f[k]);
+  return arr.filter(q => q && q.id && q.tipo);
+}
+
 function iniciar(meta){
   document.title = 'Datos de pasajeros — ' + meta.nombre + ' | Be•Travel';
   $('titulo').textContent = 'Lista de pasajeros — ' + meta.nombre;
+  $('intro').textContent = meta.intro || INTRO_DEF;
   INVITADOS = meta.invitados ? Object.values(meta.invitados).filter(Boolean) : [];
   if (INVITADOS.length){
     const sel = $('invitado');
-    sel.innerHTML = '<option value="">Seleccione…</option>' + INVITADOS.map(n => '<option></option>').join('') + '<option value="' + OTRO + '">Mi nombre no figura en la lista</option>';
+    sel.innerHTML = '<option value="">Seleccione…</option>' + INVITADOS.map(() => '<option></option>').join('') + '<option value="' + OTRO + '">Mi nombre no figura en la lista</option>';
     INVITADOS.forEach((n, i) => { sel.options[i + 1].value = n; sel.options[i + 1].textContent = n; });
   } else {
     $('card-lista').classList.add('hidden');
   }
+  FORM = listaForm(meta); Q = {}; FORM.forEach(q => { Q[q.id] = q; });
+  construir();
   $('estado').classList.add('hidden');
   $('form').classList.remove('hidden');
-  actualizarCondicionales();
-  escucharNombres();
+  actualizar();
+  if (FORM.some(q => q.tipo === 'companero')) escucharNombres();
 }
 
-const radio = name => { const r = document.querySelector('input[name="' + name + '"]:checked'); return r ? r.value : ''; };
-
-function actualizarCondicionales(){
-  const hab = radio('tipoHabitacion');
-  const compartible = hab && hab !== 'Single';
-  $('blk-cama').classList.toggle('hidden', !compartible);
-  $('blk-comparte').classList.toggle('hidden', !compartible);
-  const comparte = compartible && radio('comparte') === 'Sí';
-  $('blk-con').classList.toggle('hidden', !comparte);
+// ── Construcción dinámica ──────────────────────────────────────────────────
+function el(tag, cls, txt){ const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+function construir(){
+  const cont = $('campos'); cont.innerHTML = '';
+  let grid = null;
+  const nuevaCard = (titulo) => {
+    const card = el('div', 'card');
+    if (titulo) card.appendChild(el('h2', null, titulo));
+    grid = el('div', 'grid'); card.appendChild(grid); cont.appendChild(card);
+  };
+  FORM.forEach(q => {
+    if (q.tipo === 'seccion'){ nuevaCard(q.etiqueta); return; }
+    if (!grid) nuevaCard('');
+    grid.appendChild(campo(q));
+  });
+  // Cards que quedaron vacías (sección sin preguntas)
+  cont.querySelectorAll('.card').forEach(c => { if (!c.querySelector('.fld')) c.remove(); });
 }
-document.querySelectorAll('input[name="tipoHabitacion"], input[name="comparte"]').forEach(r => r.addEventListener('change', actualizarCondicionales));
+function campo(q){
+  const w = el('div', 'fld' + (q.mitad ? ' half' : '')); w.dataset.k = q.id;
+  const cid = 'c_' + q.id;
+  const etq = (forId) => {
+    const l = el('label', null, q.etiqueta); if (forId) l.htmlFor = forId;
+    if (q.requerido){ l.appendChild(document.createTextNode(' ')); l.appendChild(el('span', 'req', '*')); }
+    return l;
+  };
+  const opts = Array.isArray(q.opciones) ? q.opciones : [];
+  if (q.tipo === 'texto'){
+    w.appendChild(el('div', 'info', q.etiqueta)); return w;
+  }
+  if (q.tipo === 'casilla'){
+    const l = el('label', 'opt'); l.style.alignItems = 'flex-start';
+    const i = el('input'); i.type = 'checkbox'; i.id = cid; i.style.marginTop = '3px';
+    l.appendChild(i); const sp = el('span', null, q.etiqueta + (q.requerido ? ' ' : '')); if (q.requerido) sp.appendChild(el('span', 'req', '*')); l.appendChild(sp);
+    w.appendChild(l);
+  } else {
+    w.appendChild(etq(['radio', 'multiple'].includes(q.tipo) ? null : cid));
+    if (['radio', 'multiple'].includes(q.tipo)){
+      const g = el('div', 'opts');
+      opts.forEach(o => {
+        const l = el('label', 'opt'); const i = el('input'); i.type = q.tipo === 'radio' ? 'radio' : 'checkbox'; i.name = 'n_' + q.id; i.value = o;
+        l.appendChild(i); l.appendChild(document.createTextNode(' ' + o)); g.appendChild(l);
+      });
+      w.appendChild(g);
+    } else if (q.tipo === 'lista'){
+      const s = el('select'); s.id = cid;
+      s.appendChild(new Option('Seleccione…', ''));
+      opts.forEach(o => s.appendChild(new Option(o, o)));
+      w.appendChild(s);
+    } else if (q.tipo === 'largo'){
+      const t = el('textarea'); t.id = cid; t.maxLength = q.max || 1000; w.appendChild(t);
+    } else if (q.tipo === 'companero'){
+      const c = el('div', 'combo');
+      const i = el('input'); i.type = 'text'; i.id = cid; i.maxLength = q.max || 120; i.placeholder = 'Buscar por nombre o apellido';
+      i.autocomplete = 'off'; i.setAttribute('role', 'combobox'); i.setAttribute('aria-autocomplete', 'list');
+      const sg = el('div', 'sugs hidden'); sg.id = 'sugs'; sg.setAttribute('role', 'listbox');
+      c.appendChild(i); c.appendChild(sg); w.appendChild(c);
+      enlazarBuscador(i);
+    } else {
+      const i = el('input'); i.id = cid;
+      i.type = { fecha:'date', email:'email', tel:'tel', numero:'number' }[q.tipo] || 'text';
+      if (!['fecha', 'numero'].includes(q.tipo)) i.maxLength = q.max || 200;
+      if (q.tipo === 'fecha') i.min = '1900-01-01';
+      if (q.tipo === 'numero') i.step = 'any';
+      w.appendChild(i);
+    }
+  }
+  if (q.ayuda) w.appendChild(el('div', 'hint', q.ayuda)).id = 'hint_' + q.id;
+  w.appendChild(el('div', 'err', 'Campo obligatorio.'));
+  return w;
+}
+
+// ── Lectura de valores y condiciones ───────────────────────────────────────
+const hoy = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+const fechaOk = v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v + 'T00:00:00'));
+function leer(q){
+  const c = $('c_' + q.id);
+  if (q.tipo === 'radio'){ const r = document.querySelector('input[name="n_' + q.id + '"]:checked'); return r ? r.value : ''; }
+  if (q.tipo === 'multiple') return [...document.querySelectorAll('input[name="n_' + q.id + '"]:checked')].map(x => x.value).join(', ');
+  if (q.tipo === 'casilla') return c && c.checked ? 'Sí' : '';
+  return c ? c.value.trim() : '';
+}
+function visible(q){
+  const m = q.mostrarSi; if (!m || !m.id) return true;
+  const src = Q[m.id]; if (!src || !visible(src)) return false;
+  const v = leer(src), vals = Array.isArray(m.valores) ? m.valores : [];
+  return src.tipo === 'multiple' ? v.split(', ').some(x => vals.includes(x)) : vals.includes(v);
+}
+const valorDe = id => Q[id] && visible(Q[id]) ? leer(Q[id]) : '';
+function actualizar(){
+  FORM.forEach(q => { if (q.tipo === 'seccion') return; const w = document.querySelector('.fld[data-k="' + q.id + '"]'); if (w) w.classList.toggle('hidden', !visible(q)); });
+}
+$('form').addEventListener('change', actualizar);
+$('form').addEventListener('input', actualizar);
 
 // ── Buscador de compañero ──────────────────────────────────────────────────
 // NOMBRES: quienes ya enviaron el formulario (grupos/{g}/nombres, solo nombre completo, sin otros datos).
 let NOMBRES = [], SEL_ID = null, SUG_IDX = -1, SUG_ITEMS = [];
-const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 function escucharNombres(){
   firebase.database().ref('grupos/' + GID + '/nombres').on('value', s => {
     NOMBRES = Object.entries(s.val() || {}).map(([id, o]) => ({ id, n: o && o.n })).filter(x => x.n);
-    if (document.activeElement === $('compartiConTxt')) mostrarSugs();
+    const i = document.querySelector('.combo input');
+    if (i && document.activeElement === i) mostrarSugs(i);
   }, () => {});
 }
 function candidatos(){
-  const yo = norm(val('nombre') + ' ' + val('apellido')), yoInv = norm(val('invitado'));
+  const yo = norm(valorDe('nombre') + ' ' + valorDe('apellido')), yoInv = norm($('invitado').value);
   const vistos = new Set(NOMBRES.map(x => norm(x.n)));
   const items = NOMBRES.filter(x => norm(x.n) !== yo && norm(x.n) !== yoInv).map(x => ({ id: x.id, n: x.n, pend: false }));
   INVITADOS.forEach(n => { const k = norm(n); if (k && !vistos.has(k) && k !== yo && k !== yoInv) items.push({ id: null, n, pend: true }); });
   return items.sort((a, b) => a.pend - b.pend || a.n.localeCompare(b.n, 'es'));
 }
-function mostrarSugs(){
-  const q = norm($('compartiConTxt').value).split(' ').filter(Boolean);
+function mostrarSugs(inp){
+  const q = norm(inp.value).split(' ').filter(Boolean);
   SUG_ITEMS = candidatos().filter(x => q.every(t => norm(x.n).includes(t))).slice(0, 8);
   SUG_IDX = -1;
   const box = $('sugs');
@@ -267,83 +282,78 @@ function mostrarSugs(){
     const d = document.createElement('div'); d.className = 'sug'; d.setAttribute('role', 'option');
     const sp = document.createElement('span'); sp.textContent = x.n; d.appendChild(sp);
     if (x.pend){ const sm = document.createElement('small'); sm.textContent = 'aún no completó'; d.appendChild(sm); }
-    d.addEventListener('mousedown', ev => { ev.preventDefault(); elegir(i); });
+    d.addEventListener('mousedown', ev => { ev.preventDefault(); elegir(inp, i); });
     box.appendChild(d);
   });
   box.classList.remove('hidden');
 }
-function elegir(i){
+function elegir(inp, i){
   const x = SUG_ITEMS[i]; if (!x) return;
-  $('compartiConTxt').value = x.n; SEL_ID = x.id;
+  inp.value = x.n; SEL_ID = x.id;
   $('sugs').classList.add('hidden');
-  $('hint-con').textContent = x.pend ? 'Nombre tomado de la lista de invitados.' : 'Vinculado con ' + x.n + '.';
-  marcar('compartiCon', true);
+  const h = document.getElementById('hint_' + inp.id.slice(2));
+  if (h) h.textContent = x.pend ? 'Nombre tomado de la lista de invitados.' : 'Vinculado con ' + x.n + '.';
+  inp.closest('.fld').classList.remove('bad');
 }
-$('compartiConTxt').addEventListener('input', () => { SEL_ID = null; mostrarSugs(); });
-$('compartiConTxt').addEventListener('focus', mostrarSugs);
-$('compartiConTxt').addEventListener('blur', () => setTimeout(() => $('sugs').classList.add('hidden'), 120));
-$('compartiConTxt').addEventListener('keydown', ev => {
-  const n = SUG_ITEMS.length; if (!n || $('sugs').classList.contains('hidden')) return;
-  if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp'){
-    ev.preventDefault(); SUG_IDX = (SUG_IDX + (ev.key === 'ArrowDown' ? 1 : -1) + n) % n;
-    [...$('sugs').children].forEach((c, i) => c.classList.toggle('on', i === SUG_IDX));
-  } else if (ev.key === 'Enter' && SUG_IDX >= 0){ ev.preventDefault(); elegir(SUG_IDX); }
-  else if (ev.key === 'Escape') $('sugs').classList.add('hidden');
-});
+function enlazarBuscador(inp){
+  inp.addEventListener('input', () => { SEL_ID = null; mostrarSugs(inp); });
+  inp.addEventListener('focus', () => mostrarSugs(inp));
+  inp.addEventListener('blur', () => setTimeout(() => $('sugs').classList.add('hidden'), 120));
+  inp.addEventListener('keydown', ev => {
+    const n = SUG_ITEMS.length; if (!n || $('sugs').classList.contains('hidden')) return;
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp'){
+      ev.preventDefault(); SUG_IDX = (SUG_IDX + (ev.key === 'ArrowDown' ? 1 : -1) + n) % n;
+      [...$('sugs').children].forEach((c, i) => c.classList.toggle('on', i === SUG_IDX));
+    } else if (ev.key === 'Enter' && SUG_IDX >= 0){ ev.preventDefault(); elegir(inp, SUG_IDX); }
+    else if (ev.key === 'Escape') $('sugs').classList.add('hidden');
+  });
+}
 
-function marcar(f, ok){ const el = document.querySelector('[data-f="' + f + '"]'); if (el) el.classList.toggle('bad', !ok); return ok; }
-const val = id => $(id).value.trim();
-const fechaOk = v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v + 'T00:00:00'));
-const hoy = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
-
+// ── Validación y envío ─────────────────────────────────────────────────────
+function error(q, v){
+  if (!v) return q.requerido ? (q.tipo === 'casilla' ? 'Debe aceptar para continuar.' : ['radio', 'lista', 'multiple'].includes(q.tipo) ? 'Seleccione una opción.' : q.tipo === 'companero' ? 'Indique con quién comparte.' : 'Campo obligatorio.') : '';
+  if (q.tipo === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Ingrese un correo válido.';
+  if (q.tipo === 'numero' && isNaN(Number(v))) return 'Ingrese un número válido.';
+  if (q.tipo === 'fecha'){
+    if (!fechaOk(v)) return 'Ingrese una fecha válida.';
+    if (q.id === 'nacimiento' && v >= hoy()) return 'Ingrese una fecha anterior a hoy.';
+    if (q.id === 'emision' && v > hoy()) return 'Ingrese una fecha que no sea futura.';
+    if (q.id === 'vencimiento' && v <= hoy()) return 'Ingrese una fecha posterior a hoy.';
+  }
+  return '';
+}
 function validar(){
   let ok = true;
-  const chk = (f, cond) => { if (!marcar(f, cond)) ok = false; };
-  if (INVITADOS.length) chk('invitado', !!val('invitado'));
-  ['nombre', 'apellido', 'nacionalidad', 'pasaporte', 'paisPasaporte', 'telefono', 'emergencia'].forEach(f => chk(f, !!val(f)));
-  chk('nacimiento', fechaOk(val('nacimiento')) && val('nacimiento') < hoy());
-  chk('emision', fechaOk(val('emision')) && val('emision') <= hoy());
-  chk('vencimiento', fechaOk(val('vencimiento')) && val('vencimiento') > hoy());
-  chk('email', /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('email')));
-  chk('tipoHabitacion', !!radio('tipoHabitacion'));
-  const hab = radio('tipoHabitacion');
-  const compartible = hab && hab !== 'Single';
-  if (compartible){
-    chk('comparte', !!radio('comparte'));
-    if (radio('comparte') === 'Sí') chk('compartiCon', !!conQuien());
-  } else { marcar('comparte', true); marcar('compartiCon', true); }
-  chk('consentimiento', $('consentimiento').checked);
-  // Restricciones y movilidad piden "Ninguna" explícito, igual que el formulario original
-  ['restricciones', 'movilidad'].forEach(id => { const el = $(id).closest('.fld'); const bad = !val(id); el.classList.toggle('bad', bad); if (bad) ok = false; });
+  const inv = document.querySelector('[data-f="invitado"]');
+  if (INVITADOS.length){ const bad = !$('invitado').value; inv.classList.toggle('bad', bad); if (bad) ok = false; }
+  FORM.forEach(q => {
+    if (['seccion', 'texto'].includes(q.tipo)) return;
+    const w = document.querySelector('.fld[data-k="' + q.id + '"]'); if (!w) return;
+    const msg = visible(q) ? error(q, leer(q)) : '';
+    w.classList.toggle('bad', !!msg);
+    if (msg){ w.querySelector('.err').textContent = msg; ok = false; }
+  });
   return ok;
 }
-const conQuien = () => val('compartiConTxt');
 
 $('form').addEventListener('submit', e => {
   e.preventDefault();
   if ($('hp').value) return;   // honeypot: los bots completan este campo
   $('alerta').classList.add('hidden');
   if (!validar()){
-    const primero = document.querySelector('.fld.bad');
+    const primero = document.querySelector('.fld.bad, .card .fld.bad');
     if (primero) primero.scrollIntoView({ behavior:'smooth', block:'center' });
     return;
   }
-  const hab = radio('tipoHabitacion');
-  const compartible = hab !== 'Single';
-  const comparte = compartible ? radio('comparte') : 'No';
-  const d = {
-    nombre: val('nombre'), apellido: val('apellido'), nacimiento: val('nacimiento'), nacionalidad: val('nacionalidad'),
-    pasaporte: val('pasaporte'), paisPasaporte: val('paisPasaporte'), emision: val('emision'), vencimiento: val('vencimiento'),
-    email: val('email'), telefono: val('telefono'), emergencia: val('emergencia'),
-    tipoHabitacion: hab, comparte,
-    restricciones: val('restricciones'), movilidad: val('movilidad'),
-    consentimiento: true, ts: Date.now(),
-  };
-  if (INVITADOS.length && val('invitado') && val('invitado') !== OTRO) d.invitado = val('invitado');
-  if (val('lugarPasaporte')) d.lugarPasaporte = val('lugarPasaporte');
-  if (compartible && radio('tipoCama')) d.tipoCama = radio('tipoCama');
-  if (comparte === 'Sí'){ d.compartiCon = conQuien(); if (SEL_ID) d.compartiConId = SEL_ID; }
-  if (val('medicas')) d.medicas = val('medicas');
+  const d = { ts: Date.now() };
+  if (INVITADOS.length && $('invitado').value && $('invitado').value !== OTRO) d.invitado = $('invitado').value;
+  FORM.forEach(q => {
+    if (['seccion', 'texto'].includes(q.tipo) || !visible(q)) return;
+    const v = leer(q); if (!v) return;
+    d[q.id] = q.id === 'consentimiento' ? true : v;
+    if (q.tipo === 'companero' && q.id === 'compartiCon' && SEL_ID) d.compartiConId = SEL_ID;
+  });
+  if (!d.nombre || !d.apellido){ const a = $('alerta'); a.classList.remove('hidden'); a.textContent = 'Faltan el nombre y el apellido. Escríbanos para resolverlo.'; return; }
 
   const btn = $('enviar'); btn.disabled = true; btn.textContent = 'Enviando…';
   // Se guarda la respuesta completa (solo staff la lee) y, aparte, solo el nombre para el buscador de compañeros.

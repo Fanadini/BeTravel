@@ -73,6 +73,7 @@ Nodo `grupos/{token}` con `meta` (nombre, estado, lista de invitados), `respuest
 - El pasajero abre `pasajeros.html?g={token}` sin login. El token es el id del grupo (22 caracteres al azar) y es la única barrera de escritura: quien tenga el link puede cargar una respuesta.
 - Las reglas permiten **solo crear** respuestas nuevas (no editar ni borrar) y solo si `meta/activo` es `true`; validan campos, largos, fechas y el consentimiento. **Cerrá el grupo** desde `admin/grupos.html` (pestaña Ajustes) cuando termine la recolección: es lo que frena el spam.
 - `meta` se lee con el token (nombre, estado y lista de invitados para armar los desplegables). Las respuestas (pasaporte, salud, contacto) **no tienen lectura pública**: solo las leen y escriben cuentas habilitadas con rol `admin` o `agente`, no `cotizador`. Tampoco se puede listar `grupos` sin login.
+- Las preguntas de cada grupo se arman en `admin/grupos.html` (pestaña Formulario) y se guardan en `grupos/{token}/meta/form`; `form-default.js` en la raíz es el modelo original. Las reglas exigen solo `nombre`, `apellido` y `ts`; las preguntas agregadas se guardan como texto de hasta 1000 caracteres. Algunas preguntas del modelo (fechas, tipo de habitación, cama, comparte, consentimiento) tienen formato fijo porque las reglas y el panel de habitaciones dependen de él.
 - **Hay que volver a publicar `database.rules.json` (paso 2)** antes de usar el formulario; mientras tanto el pasajero ve un aviso de error y el panel muestra el banner rojo.
 
 ## Notas
