@@ -56,6 +56,7 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
     ├── gestioninterna.html    ← Finanzas / Reservas / Facturas de proveedores (Firebase)
     ├── cotizador.html         ← Cotizaciones con itinerario (hoteles por tipo de habitación) → propuesta PDF (A4 vertical) y "Convertir en reserva" (Firebase)
     ├── grupos.html            ← Grupos de pasajeros (admin/agente): link del formulario, respuestas, habitaciones compartidas vinculadas, export Excel/PDF (Firebase `grupos`)
+    ├── nav.js                 ← Encabezado compartido de las páginas de gestión: botones en escritorio y menú hamburguesa en celular; muestra qué página es y los accesos según el rol (`AdminNav.mount` / `AdminNav.setUser`)
     ├── contratos.html         ← Contratos de servicios de viaje de grupo (solo admin): formulario → vista previa A4 → PDF, y modelo en blanco (Firebase `finanzas/contratos`)
     └── SEGURIDAD_FIREBASE.md  ← Pasos manuales: sembrar admin, publicar reglas, backups
 ```
