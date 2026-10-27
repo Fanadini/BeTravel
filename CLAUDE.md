@@ -44,6 +44,7 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 ├── vacacional.html          ← Página Be•Travel · Vacacional (premium)
 ├── becommunity.html         ← Página Be•Community (grupos de afinidad)
 ├── pasajeros.html           ← Formulario público de pasajeros de un grupo (`?g=token`, noindex; escribe en Firebase `grupos`)
+├── form-default.js          ← Preguntas por defecto del formulario de pasajeros (las edita cada grupo desde admin/grupos.html → Formulario)
 ├── style.css
 ├── robots.txt / sitemap.xml
 ├── *.jpg                    ← imágenes (hero, editorial, etc.)

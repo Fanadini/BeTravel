@@ -110,7 +110,7 @@
         "respuestas": {
           "$rid": {
             ".write": "!data.exists() && newData.exists() && root.child('grupos').child($gid).child('meta').child('activo').val() === true",
-            ".validate": "newData.hasChildren(['nombre','apellido','nacimiento','nacionalidad','pasaporte','paisPasaporte','emision','vencimiento','email','telefono','emergencia','tipoHabitacion','comparte','consentimiento','ts'])",
+            ".validate": "newData.hasChildren(['nombre','apellido','ts'])",
           "invitado": { ".validate": "newData.isString() && newData.val().length <= 120" },
           "nombre": { ".validate": "newData.isString() && newData.val().length <= 100 && newData.val().length > 0" },
           "apellido": { ".validate": "newData.isString() && newData.val().length <= 100 && newData.val().length > 0" },
@@ -124,9 +124,9 @@
           "email": { ".validate": "newData.isString() && newData.val().length <= 120 && newData.val().length > 0" },
           "telefono": { ".validate": "newData.isString() && newData.val().length <= 40 && newData.val().length > 0" },
           "emergencia": { ".validate": "newData.isString() && newData.val().length <= 300 && newData.val().length > 0" },
-          "tipoHabitacion": { ".validate": "newData.isString() && (newData.val() === 'Single' || newData.val() === 'Doble' || newData.val() === 'Triple' || newData.val() === 'Cuádruple')" },
-          "tipoCama": { ".validate": "newData.isString() && (newData.val() === 'Twin' || newData.val() === 'Matrimonial')" },
-          "comparte": { ".validate": "newData.isString() && (newData.val() === 'Sí' || newData.val() === 'No')" },
+          "tipoHabitacion": { ".validate": "newData.isString() && newData.val().length <= 100" },
+          "tipoCama": { ".validate": "newData.isString() && newData.val().length <= 100" },
+          "comparte": { ".validate": "newData.isString() && newData.val().length <= 100" },
           "compartiConId": { ".validate": "newData.isString() && newData.val().length <= 40" },
           "compartiCon": { ".validate": "newData.isString() && newData.val().length <= 120" },
           "restricciones": { ".validate": "newData.isString() && newData.val().length <= 500" },
@@ -134,7 +134,7 @@
           "medicas": { ".validate": "newData.isString() && newData.val().length <= 1000" },
           "consentimiento": { ".validate": "newData.val() === true" },
           "ts": { ".validate": "newData.isNumber()" },
-          "$other": { ".validate": false }
+          "$other": { ".validate": "newData.isString() && newData.val().length <= 1000" }
           }
         }
       }
