@@ -1087,8 +1087,31 @@ function habPorNoche(s){ return s.habBase === 'noche'; }
 function habNoches(s){ return habPorNoche(s) ? (num(s.noches) || 1) : 1; }
 function habTotalCosto(h, s){ return round2(num(h.cantidad) * habNoches(s) * num(h.costo)); }
 function habTotalPrecio(h, s){ return round2(num(h.cantidad) * habNoches(s) * num(h.precio)); }
+// ── Unidad en que se carga el costo de un hotel ───────────────────────────
+// Por habitación (lo de siempre), por persona (precio ÷ ocupantes de la línea) o total de la línea (todas las habitaciones y noches).
+// Lo que se carga queda en costoP/precioP o costoT/precioT; el costo y el precio por habitación (h.costo, h.precio) se derivan de ahí,
+// así que el resto del sistema (totales, flyer, reserva, informe) sigue leyendo lo mismo.
+function habCampos(s){ return s.habUnidad === 'persona' ? ['costoP', 'precioP'] : s.habUnidad === 'total' ? ['costoT', 'precioT'] : ['costo', 'precio']; }
+function habOcup(h){ return num(h.ocupantes) || 1; }
+function habDivisor(s, h){ return num(h.cantidad) * habNoches(s); }
+function round4(n){ return Math.round((Number(n) || 0) * 10000) / 10000; }
+function habVal(s, h, cual){ const v = h[habCampos(s)[cual]]; return v == null ? '' : v; }
+function habDesdeFuente(s, h){
+  if (s.habUnidad === 'persona'){ h.costo = num(h.costoP) * habOcup(h); h.precio = num(h.precioP) * habOcup(h); }
+  else if (s.habUnidad === 'total'){ const d = habDivisor(s, h); if (d > 0){ h.costo = num(h.costoT) / d; h.precio = num(h.precioT) / d; } }
+}
+// Al cambiar de unidad, o al pegar una cotización, se expresa lo que vale cada línea en la unidad elegida (el dinero no cambia).
+function habFuenteDesdeCanonico(s, h){
+  if (s.habUnidad === 'persona'){ h.costoP = round4(num(h.costo) / habOcup(h)); h.precioP = round4(num(h.precio) / habOcup(h)); }
+  else if (s.habUnidad === 'total'){ h.costoT = round2(num(h.costo) * habDivisor(s, h)); h.precioT = round2(num(h.precio) * habDivisor(s, h)); }
+}
+function habEtiqueta(s, que){
+  const t = habPorNoche(s) ? 'x noche' : '';
+  return s.habUnidad === 'persona' ? `${que} p/persona${t ? ' ' + t : ''}` : s.habUnidad === 'total' ? `${que} total línea` : `${que} ${t || 'c/u'}`;
+}
 function sincHab(s){
   if (!tieneHab(s)) return;
+  s.habitaciones.forEach(h => habDesdeFuente(s, h));
   s.costo = round2(s.habitaciones.reduce((a, h) => a + habTotalCosto(h, s), 0));
   s.precio = round2(s.habitaciones.reduce((a, h) => a + habTotalPrecio(h, s), 0));
   if (s.costo > 0) s.markup = round2((s.precio / s.costo - 1) * 100);
@@ -1113,8 +1136,14 @@ function tieneTar(s){ return s.tipo === 'Aéreo' && Array.isArray(s.tarifas) && 
 function tarPrecio(x){ return round2(num(x.costo) * (1 + num(x.markup)/100)); }
 function tarTotalCosto(x){ return round2(num(x.cantidad) * num(x.costo)); }
 function tarTotalPrecio(x){ return round2(num(x.cantidad) * num(x.precio)); }
+// Aéreo: la tarifa se carga por pasajero (lo de siempre) o como total de la línea (cantidad × tarifa). Mismo esquema que el hotel.
+function tarCampos(s){ return s.tarUnidad === 'total' ? ['costoT', 'precioT'] : ['costo', 'precio']; }
+function tarVal(s, x, cual){ const v = x[tarCampos(s)[cual]]; return v == null ? '' : v; }
+function tarDesdeFuente(s, x){ if (s.tarUnidad === 'total' && num(x.cantidad) > 0){ x.costo = num(x.costoT) / num(x.cantidad); x.precio = num(x.precioT) / num(x.cantidad); } }
+function tarFuenteDesdeCanonico(s, x){ if (s.tarUnidad === 'total'){ x.costoT = round2(num(x.costo) * num(x.cantidad)); x.precioT = round2(num(x.precio) * num(x.cantidad)); } }
 function sincTar(s){
   if (!tieneTar(s)) return;
+  s.tarifas.forEach(x => tarDesdeFuente(s, x));
   s.costo = round2(s.tarifas.reduce((a, x) => a + tarTotalCosto(x), 0));
   s.precio = round2(s.tarifas.reduce((a, x) => a + tarTotalPrecio(x), 0));
   if (s.costo > 0) s.markup = round2((s.precio / s.costo - 1) * 100);
@@ -2358,23 +2387,24 @@ function onPrecio(i, v){
 function habEditor(s, i){
   const c = editing.data;
   return `<div class="hab-ed">
-    <div class="grid" style="grid-template-columns:140px 190px 200px 90px 1fr">
+    <div class="grid" style="grid-template-columns:140px 170px 190px 190px 90px 1fr">
       <div><label class="fl">Moneda</label><select class="fsel" onchange="setServicio(${i},'moneda',this.value);refrescarHab(${i})">${selOpts(['USD','ARS'],['USD','ARS'],s.moneda||c.moneda)}</select></div>
       <div><label class="fl">Markup % para todas</label><input class="fi" type="number" step="0.1" placeholder="Aplicar a todas" onchange="setMarkupHabs(${i},this.value)"></div>
       <div><label class="fl">El precio de cada habitación es</label><select class="fsel" onchange="setHabBase(${i},this.value)">${selOpts(['estadia','noche'],['por toda la estadía','por noche'],habPorNoche(s)?'noche':'estadia')}</select></div>
+      <div><label class="fl">El costo se carga</label><select class="fsel" onchange="setHabUnidad(${i},this.value)">${selOpts(['', 'persona', 'total'], ['por habitación', 'por persona', 'total de la línea'], s.habUnidad || '')}</select></div>
       <div style="${habPorNoche(s) ? '' : 'visibility:hidden'}"><label class="fl">Noches</label><input class="fi h-noches" type="number" min="1" step="1" value="${escHtml(s.noches||'')}" placeholder="N°" oninput="setHabNoches(${i},this.value)"></div>
-      <div class="hab-hint">El precio total del hotel es la suma de las líneas${habPorNoche(s) ? ' (cantidad × noches × precio)' : ''}. Para mostrar cada precio en la propuesta, activá "Mostrar desglose por servicio". "Menor" es la tarifa por menor y por noche cuando comparte la habitación con adultos: no suma al total del hotel, la usa el flyer. Se aplica el mismo corte de edades que en el aéreo: menor (CHD) de ${EDAD_CHD}, infante (INF) de ${EDAD_INF} sin cargo de habitación.</div>
+      <div class="hab-hint" style="grid-column:1/-1">El precio total del hotel es la suma de las líneas${habPorNoche(s) ? ' (cantidad × noches × precio)' : ''}. "El costo se carga" define si lo que escribís es el valor por habitación, por persona (÷ ocupantes de la línea) o el total de la línea; el hotel suma lo mismo en los tres casos. Para mostrar cada precio en la propuesta, activá "Mostrar desglose por servicio". "Menor" es la tarifa por menor y por noche cuando comparte la habitación con adultos: no suma al total del hotel, la usa el flyer. Se aplica el mismo corte de edades que en el aéreo: menor (CHD) de ${EDAD_CHD}, infante (INF) de ${EDAD_INF} sin cargo de habitación.</div>
     </div>
     <div class="hab-scroll"><div class="hab-tabla">
-      <div class="hab-fila hab-cab"><span>Tipo</span><span>Categoría (visible en la propuesta)</span><span>Cant.</span><span>Ocup.</span><span>Costo ${habPorNoche(s) ? 'x noche' : 'c/u'}</span><span>Markup %</span><span>Venta ${habPorNoche(s) ? 'x noche' : 'c/u'}</span><span>Menor: costo</span><span>Menor: venta</span><span>Total venta</span><span></span></div>
+      <div class="hab-fila hab-cab"><span>Tipo</span><span>Categoría (visible en la propuesta)</span><span>Cant.</span><span>Ocup.</span><span>${habEtiqueta(s, 'Costo')}</span><span>Markup %</span><span>${habEtiqueta(s, 'Venta')}</span><span>Menor: costo</span><span>Menor: venta</span><span>Total venta</span><span></span></div>
       ${s.habitaciones.map((h, k) => `<div class="hab-fila" data-hab="${k}">
         <select class="fsel" onchange="setHabTipo(${i},${k},this.value)">${selOpts(HAB_TIPOS.map(x=>x[0]),HAB_TIPOS.map(x=>x[0]),h.tipo)}</select>
         <input class="fi" value="${escHtml(h.categoria)}" placeholder="Ej: Junior Suite Pool Access" oninput="setHab(${i},${k},'categoria',this.value)">
         <input class="fi h-cantidad" type="number" min="0" step="1" value="${escHtml(h.cantidad)}" oninput="setHab(${i},${k},'cantidad',this.value)">
         <input class="fi h-ocupantes" type="number" min="1" step="1" value="${escHtml(h.ocupantes)}" oninput="setHab(${i},${k},'ocupantes',this.value)">
-        <input class="fi h-costo" type="number" step="0.01" value="${escHtml(h.costo)}" oninput="setHab(${i},${k},'costo',this.value)">
+        <input class="fi h-costo" type="number" step="0.01" value="${escHtml(habVal(s, h, 0))}" oninput="setHab(${i},${k},'costo',this.value)">
         <input class="fi h-markup" type="number" step="0.1" value="${escHtml(h.markup)}" oninput="setHab(${i},${k},'markup',this.value)">
-        <input class="fi h-precio" type="number" step="0.01" value="${escHtml(h.precio)}" oninput="setHab(${i},${k},'precio',this.value)">
+        <input class="fi h-precio" type="number" step="0.01" value="${escHtml(habVal(s, h, 1))}" oninput="setHab(${i},${k},'precio',this.value)">
         <input class="fi h-costoMenor" type="number" step="0.01" value="${escHtml(h.costoMenor || '')}" placeholder="—" oninput="setHab(${i},${k},'costoMenor',this.value)">
         <input class="fi h-precioMenor" type="number" step="0.01" value="${escHtml(h.precioMenor || '')}" placeholder="—" oninput="setHab(${i},${k},'precioMenor',this.value)">
         <b class="h-total">${fmtMoney(habTotalPrecio(h, s), s.moneda || c.moneda)}</b>
@@ -2486,6 +2516,7 @@ function aplicarHabitaciones(s, hoteles, origen){
     if (h.moneda) dest.moneda = h.moneda;
     if (h.hotel && !String(dest.concepto).trim()) dest.concepto = h.hotel;
     if (h.regimen && !String(dest.detalle).trim()) dest.detalle = h.regimen;
+    dest.habitaciones.forEach(x => habFuenteDesdeCanonico(dest, x));
     sincHab(dest);
   });
   if (modo === 'venta') avisos.push('Los precios se cargaron como precio de venta y el costo quedó en 0: completá los costos para ver la ganancia bruta.');
@@ -2534,19 +2565,20 @@ async function procesarHabitaciones(i, { file, texto }){
 function tarEditor(s, i){
   const c = editing.data;
   return `<div class="hab-ed">
-    <div class="grid" style="grid-template-columns:140px 190px 1fr">
+    <div class="grid" style="grid-template-columns:140px 190px 200px 1fr">
       <div><label class="fl">Moneda</label><select class="fsel" onchange="setServicio(${i},'moneda',this.value);refrescarTar(${i})">${selOpts(['USD','ARS'],['USD','ARS'],s.moneda||c.moneda)}</select></div>
       <div><label class="fl">Markup % para todos</label><input class="fi" type="number" step="0.1" placeholder="Aplicar a todos" onchange="setMarkupTars(${i},this.value)"></div>
+      <div><label class="fl">El costo se carga</label><select class="fsel" onchange="setTarUnidad(${i},this.value)">${selOpts(['', 'total'], ['por pasajero', 'total de la línea'], s.tarUnidad || '')}</select></div>
       <div class="hab-hint">Tarifa por pasajero (impuestos incluidos, si el proveedor los suma). El precio del aéreo es la suma de las líneas. Para mostrar cada tarifa en la propuesta, activá "Mostrar desglose por servicio".</div>
     </div>
     <div class="hab-scroll"><div class="hab-tabla tar-tabla">
-      <div class="hab-fila tar-fila hab-cab"><span>Tipo</span><span>Cant.</span><span>Costo neto c/u</span><span>Markup %</span><span>Venta c/u</span><span>Total venta</span><span></span></div>
+      <div class="hab-fila tar-fila hab-cab"><span>Tipo</span><span>Cant.</span><span>${s.tarUnidad === 'total' ? 'Costo neto total línea' : 'Costo neto c/u'}</span><span>Markup %</span><span>${s.tarUnidad === 'total' ? 'Venta total línea' : 'Venta c/u'}</span><span>Total venta</span><span></span></div>
       ${s.tarifas.map((x, k) => `<div class="hab-fila tar-fila" data-tar="${k}">
         <select class="fsel" onchange="setTarTipo(${i},${k},this.value)">${selOpts(PAX_TIPOS.map(a=>a[0]),PAX_TIPOS.map(a=>a[0] + ' · ' + a[1] + (a[0]==='CHD' ? ' · ' + EDAD_CHD : a[0]==='INF' ? ' · ' + EDAD_INF : '')),x.tipo)}</select>
         <input class="fi t-cantidad" type="number" min="0" step="1" value="${escHtml(x.cantidad)}" oninput="setTar(${i},${k},'cantidad',this.value)">
-        <input class="fi t-costo" type="number" step="0.01" value="${escHtml(x.costo)}" oninput="setTar(${i},${k},'costo',this.value)">
+        <input class="fi t-costo" type="number" step="0.01" value="${escHtml(tarVal(s, x, 0))}" oninput="setTar(${i},${k},'costo',this.value)">
         <input class="fi t-markup" type="number" step="0.1" value="${escHtml(x.markup)}" oninput="setTar(${i},${k},'markup',this.value)">
-        <input class="fi t-precio" type="number" step="0.01" value="${escHtml(x.precio)}" oninput="setTar(${i},${k},'precio',this.value)">
+        <input class="fi t-precio" type="number" step="0.01" value="${escHtml(tarVal(s, x, 1))}" oninput="setTar(${i},${k},'precio',this.value)">
         <b class="h-total">${fmtMoney(tarTotalPrecio(x), s.moneda || c.moneda)}</b>
         <button class="icon-btn danger" title="Quitar esta línea" onclick="quitarTar(${i},${k})">✕</button>
       </div>`).join('')}
@@ -2558,7 +2590,9 @@ function tarNueva(s){
   const usados = (s.tarifas || []).map(x => x.tipo);
   const tipo = PAX_TIPOS.map(a => a[0]).find(a => !usados.includes(a)) || 'ADT';
   const ult = (s.tarifas || []).slice(-1)[0];
-  return { tipo, cantidad:0, costo:0, markup: ult ? num(ult.markup) : num(editing.data.markupDefault), precio:0 };
+  const x = { tipo, cantidad:0, costo:0, markup: ult ? num(ult.markup) : num(editing.data.markupDefault), precio:0 };
+  if (s.tarUnidad === 'total'){ x.costoT = 0; x.precioT = 0; }
+  return x;
 }
 function toggleTar(i, on){
   const c = editing.data, s = c.servicios[i], pax = parseInt(c.pasajeros, 10) || 0;
@@ -2567,11 +2601,12 @@ function toggleTar(i, on){
     const x = { tipo:'ADT', cantidad: pax || 1, costo:0, markup: num(s.markup) || num(c.markupDefault), precio:0 };
     if (num(s.costo) > 0) x.costo = s.costoModo === 'persona' ? num(s.costoPP) : round2(num(s.costo) / (pax || 1));
     x.precio = tarPrecio(x);
+    tarFuenteDesdeCanonico(s, x);
     s.tarifas = [x]; s.costoModo = '';
   } else {
     const conDatos = (s.tarifas||[]).some(x => num(x.cantidad) || num(x.costo));
     if (conDatos && !confirm('Se descartan las tarifas por tipo de pasajero. El costo y el precio del aéreo quedan con el total actual y se pueden editar a mano. ¿Continuar?')){ renderServicios(); return; }
-    s.tarifas = [];
+    s.tarifas = []; s.tarUnidad = '';
   }
   sincTar(s);
   renderServicios(); renderTotales(); markDirty();
@@ -2590,24 +2625,35 @@ function refrescarTar(i){
     card.querySelectorAll('[data-tar]').forEach(row => {
       const x = s.tarifas[Number(row.dataset.tar)];
       if (!x) return;
-      [['t-precio', x.precio], ['t-markup', x.markup]].forEach(([cls, v]) => { const inp = row.querySelector('.' + cls); if (inp && document.activeElement !== inp) inp.value = v; });
+      [['t-precio', tarVal(s, x, 1)], ['t-markup', x.markup]].forEach(([cls, v]) => { const inp = row.querySelector('.' + cls); if (inp && document.activeElement !== inp) inp.value = v; });
       row.querySelector('.h-total').textContent = fmtMoney(tarTotalPrecio(x), s.moneda || editing.data.moneda);
     });
   }
   renderServiciosFoot(); renderTotales(); markDirty();
 }
 function setTar(i, k, campo, v){
-  const x = editing.data.servicios[i].tarifas[k];
-  x[campo] = num(v);
-  if (campo === 'costo' || campo === 'markup') x.precio = tarPrecio(x);
-  if (campo === 'precio' && num(x.costo) > 0) x.markup = round2((x.precio / num(x.costo) - 1) * 100);
+  const s = editing.data.servicios[i], x = s.tarifas[k];
+  const [fc, fp] = tarCampos(s);
+  if (campo === 'costo'){ x[fc] = num(v); x[fp] = round2(num(x[fc]) * (1 + num(x.markup) / 100)); }
+  else if (campo === 'markup'){ x.markup = num(v); x[fp] = round2(num(x[fc]) * (1 + x.markup / 100)); }
+  else if (campo === 'precio'){ x[fp] = num(v); if (num(x[fc]) > 0) x.markup = round2((x[fp] / num(x[fc]) - 1) * 100); }
+  else x[campo] = num(v);
+  tarDesdeFuente(s, x);
   refrescarTar(i);
+}
+// Cambia la unidad en que se carga la tarifa; lo que vale cada línea no cambia, solo cómo se expresa.
+function setTarUnidad(i, v){
+  const s = editing.data.servicios[i];
+  s.tarUnidad = v === 'total' ? 'total' : '';
+  s.tarifas.forEach(x => tarFuenteDesdeCanonico(s, x));
+  renderServicios(); renderTotales(); markDirty();
 }
 function setTarTipo(i, k, v){ editing.data.servicios[i].tarifas[k].tipo = v; markDirty(); }
 function setMarkupTars(i, v){
   if (String(v).trim() === '') return;
   const s = editing.data.servicios[i];
-  s.tarifas.forEach(x => { x.markup = num(v); x.precio = tarPrecio(x); });
+  const [fc, fp] = tarCampos(s);
+  s.tarifas.forEach(x => { x.markup = num(v); x[fp] = round2(num(x[fc]) * (1 + x.markup / 100)); tarDesdeFuente(s, x); });
   refrescarTar(i);
 }
 function usarPaxTar(i){
@@ -2620,6 +2666,7 @@ function habNueva(s){
   const tipo = HAB_TIPOS.map(x => x[0]).find(t => t !== 'Otra' && !usados.includes(t)) || 'Otra';
   const ult = (s.habitaciones||[]).slice(-1)[0];
   const h = { tipo, categoria:'', cantidad:0, ocupantes: ocupantesDe(tipo), costo:0, markup: ult ? num(ult.markup) : num(c.markupDefault), precio:0, costoMenor:0, precioMenor:0 };
+  if (s.habUnidad){ h.costoP = 0; h.precioP = 0; h.costoT = 0; h.precioT = 0; }
   return h;
 }
 function toggleHab(i, on){
@@ -2629,11 +2676,12 @@ function toggleHab(i, on){
     const h = habNueva(s);
     h.tipo = 'Doble'; h.ocupantes = 2; h.cantidad = 1;
     if (num(s.costo) || num(s.precio)){ h.costo = num(s.costo); h.markup = num(s.markup); h.precio = num(s.precio); }
+    habFuenteDesdeCanonico(s, h);
     s.habitaciones = [h];
   } else {
     const conDatos = (s.habitaciones||[]).some(h => num(h.cantidad) || num(h.costo));
     if (conDatos && !confirm('Se descartan las líneas por tipo de habitación. El costo y el precio del hotel quedan con el total actual y se pueden editar a mano. ¿Continuar?')){ renderServicios(); return; }
-    s.habitaciones = []; s.habBase = ''; s.costoModo = '';
+    s.habitaciones = []; s.habBase = ''; s.costoModo = ''; s.habUnidad = '';
   }
   sincHab(s);
   renderServicios(); renderTotales(); markDirty();
@@ -2657,7 +2705,7 @@ function refrescarHab(i){
     card.querySelectorAll('[data-hab]').forEach(row => {
       const h = s.habitaciones[Number(row.dataset.hab)];
       if (!h) return;
-      [['h-precio', h.precio], ['h-markup', h.markup], ['h-ocupantes', h.ocupantes], ['h-precioMenor', h.precioMenor || '']].forEach(([cls, v]) => {
+      [['h-precio', habVal(s, h, 1)], ['h-markup', h.markup], ['h-ocupantes', h.ocupantes], ['h-precioMenor', h.precioMenor || '']].forEach(([cls, v]) => {
         const inp = row.querySelector('.' + cls);
         if (inp && document.activeElement !== inp) inp.value = v;
       });
@@ -2667,13 +2715,23 @@ function refrescarHab(i){
   renderServiciosFoot(); renderTotales(); markDirty();
 }
 function setHab(i, k, campo, v){
-  const h = editing.data.servicios[i].habitaciones[k];
+  const s = editing.data.servicios[i], h = s.habitaciones[k];
   if (campo === 'categoria'){ h.categoria = v; markDirty(); return; }
-  h[campo] = num(v);
-  if (campo === 'costo' || campo === 'markup') h.precio = habPrecio(h);
+  const [fc, fp] = habCampos(s);
+  if (campo === 'costo'){ h[fc] = num(v); h[fp] = round2(num(h[fc]) * (1 + num(h.markup) / 100)); }
+  else if (campo === 'markup'){ h.markup = num(v); h[fp] = round2(num(h[fc]) * (1 + h.markup / 100)); }
+  else if (campo === 'precio'){ h[fp] = num(v); if (num(h[fc]) > 0) h.markup = round2((h[fp] / num(h[fc]) - 1) * 100); }
+  else h[campo] = num(v);
   if (campo === 'costoMenor' || (campo === 'markup' && num(h.costoMenor) > 0)) h.precioMenor = round2(num(h.costoMenor) * (1 + num(h.markup)/100));
-  if (campo === 'precio' && num(h.costo) > 0) h.markup = round2((h.precio / num(h.costo) - 1) * 100);
+  habDesdeFuente(s, h);
   refrescarHab(i);
+}
+// Cambia la unidad en que se carga el costo; lo que vale cada línea no cambia, solo cómo se expresa.
+function setHabUnidad(i, v){
+  const s = editing.data.servicios[i];
+  s.habUnidad = v === 'persona' || v === 'total' ? v : '';
+  s.habitaciones.forEach(h => habFuenteDesdeCanonico(s, h));
+  renderServicios(); renderTotales(); markDirty();
 }
 function setHabBase(i, v){
   const s = editing.data.servicios[i];
@@ -2695,7 +2753,8 @@ function setHabTipo(i, k, v){
 function setMarkupHabs(i, v){
   if (String(v).trim() === '') return;
   const s = editing.data.servicios[i];
-  s.habitaciones.forEach(h => { h.markup = num(v); h.precio = habPrecio(h); if (num(h.costoMenor) > 0) h.precioMenor = round2(num(h.costoMenor) * (1 + h.markup/100)); });
+  const [fc, fp] = habCampos(s);
+  s.habitaciones.forEach(h => { h.markup = num(v); h[fp] = round2(num(h[fc]) * (1 + h.markup / 100)); habDesdeFuente(s, h); if (num(h.costoMenor) > 0) h.precioMenor = round2(num(h.costoMenor) * (1 + h.markup/100)); });
   refrescarHab(i);
 }
 function usarPaxHab(i){
