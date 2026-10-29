@@ -96,7 +96,7 @@
   }
 
   function pintarAccesos(){
-    var visibles = SECCIONES.filter(function(s){ return estado.rol && s.roles.indexOf(estado.rol) !== -1; });
+    var visibles = SECCIONES.filter(function(s){ return estado.rol && (s.roles.indexOf(estado.rol) !== -1 || (s.id === 'grupos' && estado.grupos)); });
     estado.links.innerHTML = visibles.map(function(s){
       return s.id === estado.pagina
         ? '<span class="adm-link on" aria-current="page">' + esc(s.label) + '</span>'
@@ -177,7 +177,7 @@
   // Cuando se conoce el rol, se muestran los accesos que le corresponden.
   function setUser(u){
     u = u || {};
-    estado.rol = u.rol || ''; estado.nombre = u.nombre || '';
+    estado.rol = u.rol || ''; estado.nombre = u.nombre || ''; estado.grupos = u.grupos === true;   // grupos:true habilita Grupos a un cotizador
     if (estado.header) pintarAccesos();
   }
 

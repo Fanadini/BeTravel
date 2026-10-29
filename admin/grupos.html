@@ -253,8 +253,9 @@ auth.onAuthStateChanged(user => {
   verificarAcceso(user.email).then(acc => {
     if (!acc){ mostrarSinAcceso(user.email); return; }
     CURRENT_USER.rol = acc.sinConfigurar || acc.perfil.rol === 'admin' ? 'admin' : (acc.perfil.rol || 'agente');
-    if (CURRENT_USER.rol === 'cotizador'){ mostrarSinAcceso(user.email, true); return; }
-    AdminNav.setUser({ rol: CURRENT_USER.rol, nombre: CURRENT_USER.nombre });
+    CURRENT_USER.grupos = acc.perfil.grupos === true;   // marca que habilita Grupos a un cotizador
+    if (CURRENT_USER.rol === 'cotizador' && !CURRENT_USER.grupos){ mostrarSinAcceso(user.email, true); return; }
+    AdminNav.setUser({ rol: CURRENT_USER.rol, nombre: CURRENT_USER.nombre, grupos: CURRENT_USER.grupos });
     if (!listenersAttached){ attachListeners(); listenersAttached = true; }
   });
 });
