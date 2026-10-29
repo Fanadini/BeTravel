@@ -583,7 +583,7 @@ function htmlHabitaciones(g){
   const resps = g.respuestas || {}, idx = null;
   const hay = Object.keys(g.habitaciones || {}).length, lista = listaHab(g);
   if (!Object.keys(resps).length) return '<div class="vacio">Cuando lleguen respuestas, acá se arman las habitaciones.</div>';
-  const roomOptions = (actual) => lista.map(([hid, h], i) => `<option value="${esc(hid)}" ${hid === actual ? 'selected' : ''}>Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)}</option>`).join('');
+  const roomOptions = (actual) => lista.map(([hid, h], i) => `<option value="${esc(hid)}" ${hid === actual ? 'selected' : ''}>Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)}</option>`).join('') + '<option value="__nueva">+ Nueva habitación</option>';
   let html = `<div class="section-head"><h2>${hay ? 'Habitaciones' : 'Habitaciones sugeridas'}</h2><div class="row-btns">`
     + `<button class="btn outline small" onclick="plegarTodas(true)">Plegar todas</button><button class="btn outline small" onclick="plegarTodas(false)">Desplegar todas</button>`
     + (hay ? `<button class="btn outline small" onclick="agregarHabitacion()">+ Habitación vacía</button><button class="btn outline small" onclick="regenerarHabitaciones()">Volver a sugerir</button>`
@@ -777,7 +777,12 @@ function moverPasajero(rid, destino){
   if (!destino) return;
   const g = GRUPOS[GID_ABIERTO], up = {}, actual = habitacionDe(g, rid);
   if (actual) up[`${GID_ABIERTO}/habitaciones/${actual.hid}/pasajeros/${rid}`] = null;
-  up[`${GID_ABIERTO}/habitaciones/${destino}/pasajeros/${rid}`] = true;
+  if (destino === '__nueva'){   // crea una habitación con el tipo y la cama que pidió el pasajero
+    const r = g.respuestas[rid], key = GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones`).push().key;
+    const h = { tipo: CAPACIDAD[r.tipoHabitacion] ? r.tipoHabitacion : 'Single', pasajeros: { [rid]: true } };
+    if (CAPACIDAD[h.tipo] > 1 && CAMAS.includes(r.tipoCama)) h.cama = r.tipoCama;
+    up[`${GID_ABIERTO}/habitaciones/${key}`] = h;
+  } else up[`${GID_ABIERTO}/habitaciones/${destino}/pasajeros/${rid}`] = true;
   GRUPOS_REF.update(up).catch(handleWriteError);
 }
 
