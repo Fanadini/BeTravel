@@ -90,6 +90,8 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
 
 .filtros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
 .filtros input{flex:1;min-width:220px}
+.lnk{cursor:pointer}
+.lnk:hover{color:var(--teal);text-decoration:underline}
 .chev{display:inline-block;width:14px;color:rgba(15,61,62,.6)}
 .hab-res{font-weight:400;color:rgba(43,43,43,.65);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:48ch}
 .ocu .sub,.lista td .sub{font-size:10.5px;color:rgba(43,43,43,.55)}
@@ -606,7 +608,7 @@ function htmlHabitaciones(g){
       if (!ids.length) html += '<div class="vacio" style="padding:10px">Sin ocupantes</div>';
       ids.forEach(rid => {
         const r = resps[rid];
-        html += `<div class="ocu"><div class="nom"><strong>${esc(r.apellido)}, ${esc(r.nombre)}</strong><div class="sub">${esc(r.tipoCama || '')}${r.restricciones && !/^ninguna?\.?$/i.test(r.restricciones.trim()) ? ' · ' + esc(r.restricciones) : ''}</div></div>`
+        html += `<div class="ocu"><div class="nom"><strong class="lnk" onclick="verRespuesta('${esc(rid)}')" title="Ver todos los datos">${esc(r.apellido)}, ${esc(r.nombre)}</strong><div class="sub">${esc(r.tipoCama || '')}${r.restricciones && !/^ninguna?\.?$/i.test(r.restricciones.trim()) ? ' · ' + esc(r.restricciones) : ''}</div></div>`
           + (hay ? `<select onchange="moverPasajero('${esc(rid)}', this.value)">${roomOptions(hid)}</select>` : '') + '</div>';
       });
       html += '</div>' + (al.length ? `<div class="alertas">${al.map(a => '• ' + esc(a)).join('<br>')}</div>` : '');
@@ -617,7 +619,7 @@ function htmlHabitaciones(g){
   if (sin.length){
     html += `<div class="card"><h3>Sin habitación (${sin.length})</h3>` + sin.map(rid => {
       const r = resps[rid];
-      return `<div class="ocu"><div class="nom"><strong>${esc(r.apellido)}, ${esc(r.nombre)}</strong></div>` + (hay ? `<select onchange="moverPasajero('${esc(rid)}', this.value)"><option value="">Asignar a…</option>${roomOptions('')}</select>` : '') + '</div>';
+      return `<div class="ocu"><div class="nom"><strong class="lnk" onclick="verRespuesta('${esc(rid)}')" title="Ver todos los datos">${esc(r.apellido)}, ${esc(r.nombre)}</strong></div>` + (hay ? `<select onchange="moverPasajero('${esc(rid)}', this.value)"><option value="">Asignar a…</option>${roomOptions('')}</select>` : '') + '</div>';
     }).join('') + '</div>';
   }
   return html;
