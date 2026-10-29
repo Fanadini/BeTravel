@@ -25,6 +25,8 @@ El código ya tiene una salvaguarda: si `finanzas/meta/usuarios` está completam
    - `agente` (o sin rol): Kanban, Gestión interna (sin reparto ni facturación) y Cotizador.
    - `cotizador`: **solo el Cotizador y solo sus propias cotizaciones**: no ve las de otras personas (ni las del admin), y las reglas lo hacen cumplir. No puede ver reservas, pasajeros, facturas, recordatorios ni prospectos, y en el Cotizador no tiene "Convertir en reserva". Admin y agentes ven todas las cotizaciones, con una columna "Creada por". Si entra a Gestión interna o al Kanban, ve el aviso "tiene acceso solo al Cotizador" con un botón para ir.
 
+    Para que un `cotizador` también use la página **Grupos** (formulario de pasajeros, habitaciones y exportaciones), sumá `grupos: true` a su entrada. Sigue sin ver reservas, facturas ni prospectos, y en el Cotizador sigue viendo solo sus cotizaciones. Requiere haber publicado las reglas (paso 2).
+
     **Con las reglas actuales, una cuenta que no figure acá no puede leer ni escribir nada** en `finanzas` ni en `kanban`: la lista es la lista de acceso. Las tres páginas del admin muestran la pantalla "Acceso restringido", con el email de la cuenta y un botón para salir, cuando alguien se loguea sin figurar acá. La clave es el email en minúsculas, con todos los `.` cambiados por `,` (por ejemplo, `ligia,ferrari@betravel,com,ar`).
 
 ### Cuentas con email @betravel.com.ar

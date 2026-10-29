@@ -789,6 +789,7 @@ auth.onAuthStateChanged(user => {
     CURRENT_USER.emailContacto = String(acc.perfil.emailContacto || '').trim();
     // Rol "cotizador": solo esta página (sin Gestión interna, Kanban ni reservas).
     CURRENT_USER.rol = acc.sinConfigurar || acc.perfil.rol === 'admin' ? 'admin' : acc.perfil.rol === 'cotizador' ? 'cotizador' : 'agente';
+    CURRENT_USER.grupos = acc.perfil.grupos === true;   // un cotizador con grupos:true también ve la página Grupos
     aplicarRol();
     if (!listenersAttached){ attachListeners(); listenersAttached = true; }
   });
@@ -1218,7 +1219,7 @@ function renderList(){
 let PREFIJO = 'COT-';
 function codigoNuevo(n){ return PREFIJO + String(n).padStart(4,'0'); }
 function aplicarRol(){
-  AdminNav.setUser({ rol: CURRENT_USER.rol, nombre: CURRENT_USER.nombre });
+  AdminNav.setUser({ rol: CURRENT_USER.rol, nombre: CURRENT_USER.nombre, grupos: CURRENT_USER.grupos });
   document.querySelectorAll('.solo-admin').forEach(el => { el.style.display = CURRENT_USER.rol === 'admin' ? '' : 'none'; });
   document.querySelectorAll('.no-solo-cot').forEach(el => { el.style.display = CURRENT_USER.rol === 'cotizador' ? 'none' : ''; });
 }
