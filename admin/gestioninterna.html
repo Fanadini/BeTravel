@@ -161,6 +161,11 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .panel-close:hover{background:rgba(255,255,255,.12);color:var(--beige)}
 .panel-last-edit{padding:6px 20px;font-size:10.5px;color:rgba(43,43,43,.45);flex-shrink:0;border-bottom:1px solid var(--beige-d)}
 .panel-body{flex:1;overflow-y:auto;padding:20px}
+/* El detalle de la reserva tiene muchos campos: panel ancho en escritorio (en celular ocupa casi toda la pantalla) */
+#reserva-panel{width:min(1040px,94vw);right:calc(-1 * min(1040px,94vw) - 24px)}
+#reserva-panel.open{right:0}
+#reserva-panel .panel-body{padding:22px 28px}
+#reserva-panel .panel-header,#reserva-panel .panel-footer,#reserva-panel .panel-last-edit{padding-left:28px;padding-right:28px}
 .panel-body::-webkit-scrollbar{width:4px}
 .panel-body::-webkit-scrollbar-thumb{background:var(--beige-d);border-radius:2px}
 .panel-footer{padding:14px 20px;border-top:1px solid var(--beige-d);flex-shrink:0;display:flex;flex-direction:column;gap:8px}
