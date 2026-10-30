@@ -355,7 +355,7 @@ function nuevoGrupo(){
   GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email, form: limpiarForm(window.FORM_DEFAULT) })
     .then(() => { IDX_REF.child(gid).set({ nombre }).catch(() => {}); abrirGrupo(gid); }, handleWriteError);
 }
-function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'resp'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'' }; COLAPSADAS.clear(); render(); }
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'resp'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'' }; COLAPSADAS.clear(); render(); }
 function volverLista(){ GID_ABIERTO = null; render(); }
 function setTab(t){ if (TAB === 'form' && t !== 'form' && DIRTY && !confirm('Hay cambios sin guardar en el formulario. ¿Salir igualmente?')) return; TAB = t; FORM_RENDER = true; render(); }
 function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
@@ -559,11 +559,18 @@ function habitacionDe(g, rid){
   for (const [hid, h] of Object.entries(g.habitaciones || {})) if (h.pasajeros && h.pasajeros[rid]) return { hid, h };
   return null;
 }
-let FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'' };
+// "Cómo eligen pagar": respuestas a las preguntas de opciones del formulario cuyo texto menciona el pago (ej. "¿Cómo prefiere pagar?"),
+// y el medio de los pagos ya registrados en la reserva (transferencia, efectivo, tarjeta…).
+const MEDIO_LABEL = { transferencia:'Transferencia', efectivo:'Efectivo', tarjeta:'Tarjeta', cheque:'Cheque', otro:'Otro' };
+const preguntasPago = g => listaForm(g.meta).filter(q => ['radio', 'lista', 'multiple'].includes(q.tipo) && /pag/i.test(q.etiqueta || ''));
+const eleccionPago = (r, qs) => qs.flatMap(q => String(r[q.id] || '').split(', ').filter(Boolean));
+const mediosRegistrados = (pp, rid) => [...new Set(((pp[rid] || {}).pagos || []).map(x => x.p.medio).filter(Boolean))];
+let FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'' };
 function setFiltro(k, v){ FILTRO[k] = v; const t = document.getElementById('resp-tabla'); if (t) t.innerHTML = tablaResp(GRUPOS[GID_ABIERTO]); }
 function tablaResp(g){
   const resps = g.respuestas || {}, asg = asignaciones(g), qt = tokens(FILTRO.q);
   const conPagos = reservasDelGrupo(GID_ABIERTO).length > 0, pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {};
+  const qPago = preguntasPago(g), conMedio = qPago.length > 0 || (conPagos && Object.values(pp).some(o => o.pagos.some(x => x.p.medio)));
   const filas = respuestasOrdenadas(g).filter(([rid, r]) => {
     const inf = resolverInfo(rid, r, resps), comp = inf.id ? resps[inf.id] : null, v = estadoVinculo(rid, r, resps);
     if (qt.length){ const hay = norm([r.nombre, r.apellido, r.pasaporte, r.nacionalidad, r.email, r.compartiCon, comp ? nombreDe(comp) : ''].join(' ')); if (!qt.every(t => hay.includes(t))) return false; }
@@ -573,6 +580,11 @@ function tablaResp(g){
     if (FILTRO.hab === 'sin' && asg[rid]) return false;
     if (FILTRO.hab && FILTRO.hab !== 'sin' && !(asg[rid] && String(asg[rid].n) === FILTRO.hab)) return false;
     if (FILTRO.ped && r.tipoHabitacion !== FILTRO.ped) return false;
+    if (FILTRO.medio){
+      const [src, val] = [FILTRO.medio.slice(0, 1), FILTRO.medio.slice(2)];
+      if (src === 'f' && !eleccionPago(r, qPago).includes(val)) return false;
+      if (src === 'p' && !mediosRegistrados(pp, rid).includes(val)) return false;
+    }
     if (FILTRO.pago === 'con' && !pp[rid]) return false;
     if (FILTRO.pago === 'sin' && pp[rid]) return false;
     return true;
@@ -580,7 +592,7 @@ function tablaResp(g){
   const total = Object.keys(resps).length;
   let html = `<div class="hint" style="margin:6px 2px">Mostrando ${filas.length} de ${total}</div>`;
   if (!filas.length) return html + '<div class="vacio">Ninguna respuesta coincide con los filtros.</div>';
-  html += '<div class="lista"><table><thead><tr><th>Pasajero</th><th>Pasaporte</th><th>Vence</th><th>Habitación pedida</th><th>Comparte con</th><th>Vínculo</th><th>Hab.</th>' + (conPagos ? '<th>Pagos</th>' : '') + '</tr></thead><tbody>';
+  html += '<div class="lista"><table><thead><tr><th>Pasajero</th><th>Pasaporte</th><th>Vence</th><th>Habitación pedida</th><th>Comparte con</th><th>Vínculo</th><th>Hab.</th>' + (conMedio ? '<th>Medio de pago</th>' : '') + (conPagos ? '<th>Pagos</th>' : '') + '</tr></thead><tbody>';
   filas.forEach(([rid, r]) => {
     const r0 = rid;
     const v = estadoVinculo(rid, r, resps), a = asg[rid], inf = resolverInfo(rid, r, resps), comp = inf.id ? resps[inf.id] : null;
@@ -588,9 +600,19 @@ function tablaResp(g){
     html += `<tr class="fila" onclick="verRespuesta('${esc(rid)}')"><td><strong>${esc(r.apellido)}, ${esc(r.nombre)}</strong></td><td>${esc(r.pasaporte)}</td>`
       + `<td>${fmtFecha(r.vencimiento)}${venceProximo(r, g.meta) ? ' <span class="pill bad" title="Vence antes de los 6 meses posteriores al viaje">&lt; 6 meses</span>' : ''}</td>`
       + `<td>${esc(r.tipoHabitacion)}${r.tipoCama ? ' · ' + esc(r.tipoCama) : ''}</td><td>${esc(r.compartiCon || '—')}${interpretado}</td>`
-      + `<td><span class="pill ${v.cls}">${v.txt}</span></td><td>${a ? `<strong>${a.n}</strong> · ${esc(a.h.tipo)}${camaHab(a.h, resps) ? ' · ' + esc(camaHab(a.h, resps)) : ''}` : '<span class="pill warn">Sin asignar</span>'}</td>${conPagos ? `<td>${pp[r0] ? `<span class="pill ok" title="${esc(pp[r0].pagos.length + ' pago(s)')}">Pagó ${esc(totTxt(pp[r0].tot))}</span>` : '<span class="pill warn">Sin pagos</span>'}</td>` : ''}</tr>`;
+      + `<td><span class="pill ${v.cls}">${v.txt}</span></td><td>${a ? `<strong>${a.n}</strong> · ${esc(a.h.tipo)}${camaHab(a.h, resps) ? ' · ' + esc(camaHab(a.h, resps)) : ''}` : '<span class="pill warn">Sin asignar</span>'}</td>${conMedio ? `<td>${esc(eleccionPago(r, qPago).join(', ') || '—')}${mediosRegistrados(pp, r0).length ? `<div class="sub">Pagó con: ${esc(mediosRegistrados(pp, r0).map(m => MEDIO_LABEL[m] || m).join(', '))}</div>` : ''}</td>` : ''}${conPagos ? `<td>${pp[r0] ? `<span class="pill ok" title="${esc(pp[r0].pagos.length + ' pago(s)')}">Pagó ${esc(totTxt(pp[r0].tot))}</span>` : '<span class="pill warn">Sin pagos</span>'}</td>` : ''}</tr>`;
   });
   return html + '</tbody></table></div>';
+}
+function selectorMedio(g){
+  const qs = preguntasPago(g), conPagos = reservasDelGrupo(GID_ABIERTO).length > 0;
+  const delForm = [...new Set(qs.flatMap(q => (q.opciones && q.opciones.length ? q.opciones : Object.values(g.respuestas || {}).flatMap(r => eleccionPago(r, [q])))))];
+  const reg = conPagos ? [...new Set(Object.values(pagosPorPasajero(GID_ABIERTO)).flatMap(o => o.pagos.map(x => x.p.medio)).filter(Boolean))] : [];
+  if (!delForm.length && !reg.length) return '';
+  const op = (v, t) => `<option value="${esc(v)}" ${FILTRO.medio === v ? 'selected' : ''}>${esc(t)}</option>`;
+  return `<select onchange="setFiltro('medio',this.value)" title="Cómo eligen pagar"><option value="">Todos los medios de pago</option>`
+    + (delForm.length ? `<optgroup label="Eligieron en el formulario">${delForm.map(v => op('f:' + v, v)).join('')}</optgroup>` : '')
+    + (reg.length ? `<optgroup label="Medio de los pagos registrados">${reg.map(v => op('p:' + v, MEDIO_LABEL[v] || v)).join('')}</optgroup>` : '') + '</select>';
 }
 function htmlRespuestas(g){
   const resps = g.respuestas || {}, lista = respuestasOrdenadas(g);
@@ -606,6 +628,7 @@ function htmlRespuestas(g){
     <select onchange="setFiltro('vinc',this.value)">${opt('', 'Todos los vínculos', FILTRO.vinc)}${opt('ok', 'Recíprocos', FILTRO.vinc)}${opt('pend', 'Con problemas o sin confirmar', FILTRO.vinc)}${opt('ind', 'Sin compañero (individual / no comparte)', FILTRO.vinc)}</select>
     <select onchange="setFiltro('hab',this.value)">${opt('', 'Todas las habitaciones', FILTRO.hab)}${opt('sin', 'Sin asignar', FILTRO.hab)}${Array.from({ length: nHab }, (_, i) => opt(String(i + 1), 'Hab. ' + (i + 1), FILTRO.hab)).join('')}</select>
     ${reservasDelGrupo(GID_ABIERTO).length ? `<select onchange="setFiltro('pago',this.value)">${opt('', 'Todos los pagos', FILTRO.pago)}${opt('con', 'Con pagos', FILTRO.pago)}${opt('sin', 'Sin pagos', FILTRO.pago)}</select>` : ''}
+    ${selectorMedio(g)}
     <select onchange="setFiltro('ped',this.value)">${opt('', 'Cualquier tipo pedido', FILTRO.ped)}${pedidas.map(t => opt(t, t, FILTRO.ped)).join('')}</select></div>`;
   return html + `<div id="resp-tabla">${tablaResp(g)}</div>`;
 }
@@ -965,11 +988,11 @@ function exportarExcel(){
   const g = GRUPOS[GID_ABIERTO], resps = g.respuestas || {};
   const cols = columnasForm(g);
   const asg = asignaciones(g);
-const conPagos = reservasDelGrupo(GID_ABIERTO).length > 0, pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {};
-  const pax = respuestasOrdenadas(g).map(([rid, r]) => [...cols.map(c => valorTxt(r, c)), asg[rid] ? asg[rid].n : '', asg[rid] ? asg[rid].h.tipo : '', asg[rid] ? camaHab(asg[rid].h, resps) : '', ...(conPagos ? [pp[rid] ? totTxt(pp[rid].tot) : 'Sin pagos'] : [])]);
+const conPagos = reservasDelGrupo(GID_ABIERTO).length > 0, pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {}, qPagoX = preguntasPago(g);
+  const pax = respuestasOrdenadas(g).map(([rid, r]) => [...cols.map(c => valorTxt(r, c)), asg[rid] ? asg[rid].n : '', asg[rid] ? asg[rid].h.tipo : '', asg[rid] ? camaHab(asg[rid].h, resps) : '', ...(conPagos ? [pp[rid] ? totTxt(pp[rid].tot) : 'Sin pagos'] : []), ...(qPagoX.length ? [eleccionPago(r, qPagoX).join(', ')] : [])]);
   const hab = filasHabitaciones(g).map(f => [f.n, f.tipo, f.cama, f.r.apellido, f.r.nombre, f.r.pasaporte, fmtFecha(f.r.vencimiento), f.r.restricciones || '', f.r.movilidad || '']);
   const blob = armarXlsx([
-    { nombre:'Pasajeros', cabecera: [...cols.map(c => c.etiqueta), 'Habitación asignada', 'Tipo de habitación asignada', 'Cama de la habitación', ...(conPagos ? ['Pagos'] : [])], filas: pax },
+    { nombre:'Pasajeros', cabecera: [...cols.map(c => c.etiqueta), 'Habitación asignada', 'Tipo de habitación asignada', 'Cama de la habitación', ...(conPagos ? ['Pagos'] : []), ...(qPagoX.length ? ['Medio de pago elegido'] : [])], filas: pax },
     { nombre:'Habitaciones', cabecera:['Habitación','Tipo','Cama','Apellido','Nombre','Pasaporte','Vencimiento','Restricciones alimentarias','Movilidad / asistencia'], filas: hab },
   ]);
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
