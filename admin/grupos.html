@@ -593,15 +593,31 @@ function setTipoPax(rid, v){ GRUPOS_REF.child(`${GID_ABIERTO}/tiposPax/${rid}`).
 // (CHD e INF pagan el mismo hotel que el adulto de esa habitación). Ajustes por pasajero en grupos/{token}/cobros/{id}:
 // sinAereo, sinHotel, ajuste (+/-) y nota. Pagó = pagos de la reserva asignados a esa persona (partes iguales si son varios).
 const HAB_TIPOS = ['Single', 'Doble', 'Triple', 'Cuádruple'];
-const tieneCobros = g => puedeEditarReservas() && !!g.meta.precios && (Object.values(g.meta.precios.aereo || {}).some(v => Number(v) > 0) || Object.values(g.meta.precios.hotel || {}).some(v => Number(v) > 0));
+// Hotel por persona: un número (Single, Doble) o, en Triple y Cuádruple, un precio según cuántos adultos ocupan la habitación.
+const HOTEL_VARIANTES = { 'Triple': [[2, '2 ADT + 1 CHD'], [3, '3 ADT']], 'Cuádruple': [[2, '2 ADT + 2 CHD'], [3, '3 ADT + 1 CHD'], [4, '4 ADT']] };
+const valoresHotel = h => Object.values(h || {}).flatMap(v => v && typeof v === 'object' ? Object.values(v) : [v]);
+const tieneCobros = g => puedeEditarReservas() && !!g.meta.precios && (Object.values(g.meta.precios.aereo || {}).some(v => Number(v) > 0) || valoresHotel(g.meta.precios.hotel).some(v => Number(v) > 0));
+// Precio de hotel por persona de una habitación con N adultos: el de esa cantidad; si no está, el de la cantidad cargada más cercana hacia abajo (o la menor).
+function precioHotel(hotel, tipo, adultos){
+  const v = (hotel || {})[tipo];
+  if (v == null) return { precio: 0, etiqueta: tipo };
+  if (typeof v !== 'object') return { precio: Number(v) || 0, etiqueta: tipo };
+  const ks = Object.keys(v).filter(k => Number(v[k]) > 0).map(Number).sort((a, b) => a - b);
+  if (!ks.length) return { precio: 0, etiqueta: tipo };
+  const k = ks.includes(adultos) ? adultos : (ks.filter(x => x <= adultos).pop() || ks[0]);
+  return { precio: Number(v[k]) || 0, etiqueta: `${tipo} (${(HOTEL_VARIANTES[tipo] || []).find(x => x[0] === k)?.[1] || k + ' ADT'})` };
+}
 function aPagar(g, rid, r, ref, asg){
   const p = g.meta.precios || {}, c = (g.cobros || {})[rid] || {}, t = tipoPax(g, rid, r, ref).t;
-  const hab = asg[rid] ? asg[rid].h.tipo : (r.tipoHabitacion || ''), habEstimada = !asg[rid] && !!hab;
-  const pa = Number((p.aereo || {})[t]) || 0, ph = Number((p.hotel || {})[hab]) || 0;
+  const hab = asg[rid] ? asg[rid].h.tipo : (r.tipoHabitacion || ''), habEstimada = !asg[rid] && !!hab, resps = g.respuestas || {};
+  // adultos que ocupan la habitación asignada (si todavía no tiene, se toma el precio de la menor cantidad cargada)
+  const adultos = asg[rid] ? Object.keys(asg[rid].h.pasajeros || {}).filter(x => resps[x] && tipoPax(g, x, resps[x], ref).t === 'ADT').length : 0;
+  const ho = precioHotel(p.hotel, hab, adultos);
+  const pa = Number((p.aereo || {})[t]) || 0, ph = ho.precio;
   const aereo = c.sinAereo ? 0 : pa, hotel = c.sinHotel ? 0 : ph, ajuste = Number(c.ajuste) || 0, falta = [];
   if (!c.sinAereo && !t) falta.push('tipo de pasajero (falta la fecha de nacimiento)'); else if (!c.sinAereo && !pa) falta.push('precio de aéreo ' + t);
-  if (!c.sinHotel && !hab) falta.push('habitación'); else if (!c.sinHotel && !ph) falta.push('precio de hotel ' + hab);
-  return { aereo, hotel, ajuste, total: aereo + hotel + ajuste, falta, hab, habEstimada, t, c };
+  if (!c.sinHotel && !hab) falta.push('habitación'); else if (!c.sinHotel && !ph) falta.push('precio de hotel ' + ho.etiqueta);
+  return { aereo, hotel, ajuste, total: aereo + hotel + ajuste, falta, hab, habEtq: ho.etiqueta, habEstimada, t, c };
 }
 function pagadoEn(pp, rid, moneda){
   let v = 0, sinTC = false;
@@ -625,7 +641,12 @@ function guardarPrecios(){
   const num = id => { const v = parseFloat(document.getElementById(id).value); return v > 0 ? v : null; };
   const pr = { moneda: document.getElementById('pr-mon').value, aereo:{}, hotel:{} };
   ['ADT', 'CHD', 'INF'].forEach(t => { const v = num('pr-a-' + t); if (v != null) pr.aereo[t] = v; });
-  HAB_TIPOS.forEach(h => { const v = num('pr-h-' + h); if (v != null) pr.hotel[h] = v; });
+  HAB_TIPOS.forEach(h => {
+    if (HOTEL_VARIANTES[h]){
+      const o = {}; HOTEL_VARIANTES[h].forEach(([k]) => { const v = num(`pr-h-${h === 'Cuádruple' ? 'Cuadruple' : h}-${k}`); if (v != null) o[k] = v; });
+      if (Object.keys(o).length) pr.hotel[h] = o;
+    } else { const v = num('pr-h-' + h); if (v != null) pr.hotel[h] = v; }
+  });
   GRUPOS_REF.child(GID_ABIERTO + '/meta/precios').set(pr).then(() => showBanner(''), handleWriteError);
 }
 function htmlPrecios(g){
@@ -636,8 +657,9 @@ function htmlPrecios(g){
     <div class="filtros" style="align-items:center"><label class="hint" style="margin:0">Moneda</label><select id="pr-mon"><option ${p.moneda !== 'ARS' ? 'selected' : ''}>USD</option><option ${p.moneda === 'ARS' ? 'selected' : ''}>ARS</option></select></div>
     <div class="hint" style="margin-top:10px"><strong>Aéreo por persona</strong></div>
     <div class="filtros">${['ADT', 'CHD', 'INF'].map(t => `<label class="hint" style="margin:0;display:flex;gap:6px;align-items:center">${t}<input type="number" step="0.01" min="0" id="pr-a-${t}" value="${esc(v((p.aereo || {})[t]))}" style="width:110px"></label>`).join('')}</div>
-    <div class="hint" style="margin-top:10px"><strong>Hotel por persona, según la habitación</strong></div>
-    <div class="filtros">${HAB_TIPOS.map(h => `<label class="hint" style="margin:0;display:flex;gap:6px;align-items:center">${h}<input type="number" step="0.01" min="0" id="pr-h-${h}" value="${esc(v((p.hotel || {})[h]))}" style="width:110px"></label>`).join('')}</div>
+    <div class="hint" style="margin-top:10px"><strong>Hotel por persona, según la habitación</strong> (en Triple y Cuádruple el precio cambia según cuántos adultos la ocupan; el resto lo completan niños)</div>
+    <div class="filtros">${HAB_TIPOS.filter(h => !HOTEL_VARIANTES[h]).map(h => `<label class="hint" style="margin:0;display:flex;gap:6px;align-items:center">${h}<input type="number" step="0.01" min="0" id="pr-h-${h}" value="${esc(v((p.hotel || {})[h]))}" style="width:110px"></label>`).join('')}</div>
+    ${Object.entries(HOTEL_VARIANTES).map(([h, vs]) => `<div class="filtros" style="align-items:center"><span class="hint" style="margin:0;width:70px"><strong>${h}</strong></span>${vs.map(([k, et]) => { const hv = (p.hotel || {})[h], val = hv && typeof hv === 'object' ? hv[k] : hv; return `<label class="hint" style="margin:0;display:flex;gap:6px;align-items:center">${et}<input type="number" step="0.01" min="0" id="pr-h-${h === 'Cuádruple' ? 'Cuadruple' : h}-${k}" value="${esc(v(val))}" style="width:110px"></label>`; }).join('')}</div>`).join('')}
     <button class="btn" style="margin-top:10px" onclick="guardarPrecios()">Guardar precios</button></div>`;
 }
 function cobroFichaHtml(rid, r){
@@ -645,7 +667,7 @@ function cobroFichaHtml(rid, r){
   const ref = refViaje(g), asg = asignaciones(g), pp = reservasDelGrupo(GID_ABIERTO).length ? pagosPorPasajero(GID_ABIERTO) : {};
   const x = cobroDe(g, rid, r, ref, asg, pp), c = x.c;
   return `<div class="card" style="margin:0 0 12px"><h3>A pagar: ${moneyG(x.total, x.mon)} · Pagó ${moneyG(x.pagado, x.mon)} · Saldo ${moneyG(x.saldo, x.mon)}</h3>
-    <div class="hint">Aéreo ${x.t || '—'}: ${moneyG(x.aereo, x.mon)} · Hotel ${esc(x.hab || '—')}${x.habEstimada ? ' (habitación pedida, todavía sin asignar)' : ''}: ${moneyG(x.hotel, x.mon)}${x.ajuste ? ' · Ajuste: ' + moneyG(x.ajuste, x.mon) : ''}</div>
+    <div class="hint">Aéreo ${x.t || '—'}: ${moneyG(x.aereo, x.mon)} · Hotel ${esc(x.habEtq || x.hab || '—')}${x.habEstimada ? ' (habitación pedida, todavía sin asignar)' : ''}: ${moneyG(x.hotel, x.mon)}${x.ajuste ? ' · Ajuste: ' + moneyG(x.ajuste, x.mon) : ''}</div>
     ${x.falta.length ? `<div class="alertas" style="padding:0 0 8px">Faltan datos para el cálculo: ${esc(x.falta.join('; '))}.</div>` : ''}${x.sinTC ? '<div class="alertas" style="padding:0 0 8px">Hay pagos en otra moneda sin tipo de cambio: no se cuentan en "Pagó".</div>' : ''}
     <div class="filtros" style="align-items:center">
       <label class="chk"><input type="checkbox" ${c.sinAereo ? 'checked' : ''} onchange="setCobro('${esc(rid)}','sinAereo',this.checked)"> No incluye aéreo</label>
