@@ -307,6 +307,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
   <button class="tab-btn on" data-tab="resumen" onclick="switchTab('resumen')">Resumen</button>
   <button class="tab-btn" data-tab="reservas" onclick="switchTab('reservas')">Reservas</button>
   <button class="tab-btn" data-tab="pasajeros" onclick="switchTab('pasajeros')">Pasajeros</button>
+  <button class="tab-btn" data-tab="recibos" onclick="switchTab('recibos')">Recibos</button>
   <button class="tab-btn" data-tab="clientes" onclick="switchTab('clientes')">Clientes</button>
   <button class="tab-btn" data-tab="cartera" onclick="switchTab('cartera')">Mi cartera</button>
   <!-- Caja: oculta por pedido de Facu (más ruido que datos útiles por ahora). Código intacto en el archivo, solo se saca del menú. -->
@@ -454,6 +455,13 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
     </table>
   </div>
 
+  <!-- RECIBOS -->
+  <div id="view-recibos" style="display:none">
+    <div class="section-head" id="rcb-head"><h2>Recibos</h2><button class="new-btn" onclick="nuevoRecibo()">+ Nuevo recibo</button></div>
+    <div id="rcb-lista"></div>
+    <div id="rcb-editor" style="display:none"></div>
+  </div>
+
   <!-- RECORDATORIOS -->
   <div id="view-recordatorios" style="display:none">
     <div class="section-head">
@@ -525,6 +533,7 @@ const REFS = {
   facturas:      db.ref('finanzas/facturas'),
   recordatorios: db.ref('finanzas/recordatorios'),
   pasajeros:     db.ref('finanzas/pasajeros'),
+  recibos:       db.ref('finanzas/recibos'),
 };
 const CLIENTES_DOC_REF = db.ref('finanzas/clientesDocumentos');
 const META_PROV_REF = db.ref('finanzas/meta/proveedores');
@@ -639,7 +648,7 @@ function setSyncStatus(status, label) {
 }
 
 // ── ESTADO LOCAL ───────────────────────────────────────────────────────────
-const STATE = { reservas:[], facturas:[], recordatorios:[], pasajeros:[] };
+const STATE = { reservas:[], facturas:[], recordatorios:[], pasajeros:[], recibos:[] };
 let META = { proveedores: [...DEFAULT_PROVEEDORES], ejecutivos: [], codigoCounter: 0 };
 let CLIENTES_DOCS = {}; // { [clienteKey]: { [docId]: {nombre, url} } }
 let clienteCtx = { nombre: null };
@@ -893,17 +902,19 @@ function initStatCardDrag(){
 // ── TABS ───────────────────────────────────────────────────────────────────
 function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('on', b.dataset.tab===tab));
-  ['resumen','reservas','pasajeros','clientes','cartera','caja','calendario','facturas','recordatorios'].forEach(t => {
+  ['resumen','reservas','pasajeros','recibos','clientes','cartera','caja','calendario','facturas','recordatorios'].forEach(t => {
     document.getElementById('view-'+t).style.display = (t===tab ? '' : 'none');
   });
   if (tab==='calendario') renderCalendario();
   if (tab==='cartera') renderCartera();
   if (tab==='caja') renderCaja();
+  if (tab==='recibos' && window.renderRecibos) renderRecibos();
 }
 
 // ── RENDER ───────────────────────────────────────────────────────────────
 function renderAll(){
   renderReservasTable();
+  if (window.renderRecibos) renderRecibos();
   renderTable('facturas');
   renderTable('recordatorios');
   renderResumen();
@@ -2458,6 +2469,7 @@ function pagoRowHtml(p, monedaReserva){
     <div class="item-field" style="margin-top:6px"><span class="item-field-label">Comentario</span><input class="pago-comentario" value="${escHtml(p.comentario)}" placeholder="Nota sobre este pago"></div>
     <div class="item-field" style="margin-top:6px"><span class="item-field-label">Link al comprobante</span><input class="pago-link" type="url" value="${escHtml(p.link)}" placeholder="https://drive.google.com/…"></div>
     <div class="pago-quien item-field" style="margin-top:6px" data-pax="${escHtml(Object.keys(p.grupoPasajeros||{}).join(','))}" data-origen="${escHtml(p.origen||'')}"></div>
+    ${String(p.id).startsWith('new_') ? '' : `<div style="margin-top:6px"><button type="button" class="add-item-btn" onclick="reciboDesdePago('${escHtml(reservaCtx.id||'')}','${escHtml(p.id)}')">Hacer recibo de este pago</button></div>`}
     <div class="pago-equiv" style="font-size:11px;margin-top:6px"></div>
   </div>`;
 }
@@ -3194,6 +3206,8 @@ function deleteReserva(){
   closeReserva();
 }
 </script>
+<div id="rcb-print"></div>
+<script src="recibos.js"></script>
 <div class="modal-overlay" id="share-overlay" onclick="if(event.target===this)cerrarCompartir()"><div class="modal" id="share-box"></div></div>
 </body>
 </html>
