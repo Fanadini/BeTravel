@@ -118,7 +118,13 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .item-card{background:var(--beige);border:1px solid var(--beige-d);border-radius:8px;padding:10px 12px;margin-bottom:8px}
 .item-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
 .item-label{font-size:10px;font-weight:600;color:var(--teal);letter-spacing:.5px;text-transform:uppercase}
-.item-actions{display:flex;gap:2px}
+.item-actions{display:flex;gap:2px;align-items:center}
+.drag-h{cursor:grab;width:20px;height:24px;display:flex;align-items:center;justify-content:center;color:rgba(43,43,43,.4);font-size:13px;letter-spacing:-3px;user-select:none;touch-action:none}
+.drag-h:hover{color:var(--teal)}
+.drag-h:active{cursor:grabbing}
+.dnd-ghost{opacity:.4}
+.dnd-before{box-shadow:0 -3px 0 0 var(--teal)}
+.dnd-after{box-shadow:0 3px 0 0 var(--teal)}
 .icon-btn{width:24px;height:24px;border-radius:4px;border:none;background:transparent;cursor:pointer;color:rgba(43,43,43,.4);font-size:12px;display:flex;align-items:center;justify-content:center}
 .icon-btn:hover{background:rgba(15,61,62,.08);color:var(--teal)}
 .icon-btn.danger:hover{background:rgba(184,50,50,.08);color:var(--red)}
@@ -1735,6 +1741,7 @@ function renderDias(){
       <div class="item-head">
         <span class="item-label">Día ${i+1}${f ? ' · ' + escHtml(fmtDiaLabel(f)) : ''}</span>
         <div class="item-actions">
+          <span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span>
           <button class="icon-btn" title="Subir" ${i===0?'disabled':''} onclick="moverDia(${i},-1)">▲</button>
           <button class="icon-btn" title="Bajar" ${i===c.dias.length-1?'disabled':''} onclick="moverDia(${i},1)">▼</button>
           <button class="icon-btn danger" title="Eliminar día" onclick="eliminarDia(${i})">✕</button>
@@ -1747,6 +1754,61 @@ function renderDias(){
 }
 function setDia(i, campo, v){ editing.data.dias[i][campo] = v; markDirty(); }
 function agregarDia(){ editing.data.dias.push({ titulo:'', descripcion:'' }); renderDias(); markDirty(); }
+
+// ── Arrastrar y soltar para ordenar (días, servicios, anexos y archivos de cada anexo) ──
+// Se toma desde el asa ⋮⋮ (así no molesta al seleccionar texto en los campos). Las flechas ▲▼ siguen funcionando.
+const DND_CFG = [   // el archivo de un anexo va primero: está dentro de la tarjeta del anexo
+  { sel:'#anexos-list .anexo-file', lista: it => editing.data.anexos[Number(it.closest('[data-anexo]').dataset.anexo)].archivos, despues: () => renderAnexos() },
+  { sel:'#dias-list > .item-card', lista: () => editing.data.dias, despues: () => renderDias() },
+  { sel:'#servicios-list > .item-card', lista: () => editing.data.servicios, despues: () => { renderServicios(); renderTotales(); } },
+  { sel:'#anexos-list > .item-card', lista: () => editing.data.anexos, despues: () => renderAnexos() },
+];
+let DND = null;   // { it, cfg, objetivo, lado }
+function dndLimpiar(){
+  document.querySelectorAll('.dnd-ghost,.dnd-before,.dnd-after').forEach(e => e.classList.remove('dnd-ghost', 'dnd-before', 'dnd-after'));
+  if (DND && DND.it) DND.it.draggable = false;
+  DND = null;
+}
+function dndHermanos(it, cfg){ return [...it.parentElement.children].filter(x => x.matches(cfg.sel)); }
+document.addEventListener('mousedown', e => {
+  const h = e.target.closest && e.target.closest('.drag-h'); if (!h) return;
+  for (const cfg of DND_CFG){
+    const it = h.closest(cfg.sel);
+    if (it){ it.draggable = true; DND = { it, cfg, objetivo:null, lado:'' }; return; }
+  }
+});
+document.addEventListener('mouseup', () => { if (DND && !DND.arrastrando) dndLimpiar(); });
+document.addEventListener('dragstart', e => {
+  if (!DND || e.target !== DND.it){ return; }
+  DND.arrastrando = true; DND.desde = dndHermanos(DND.it, DND.cfg).indexOf(DND.it);
+  e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', 'orden'); } catch (x) {}
+  setTimeout(() => DND && DND.it.classList.add('dnd-ghost'), 0);
+});
+document.addEventListener('dragover', e => {
+  if (!DND || !DND.arrastrando) return;
+  const sobre = e.target.closest && e.target.closest(DND.cfg.sel);
+  if (!sobre || sobre === DND.it || sobre.parentElement !== DND.it.parentElement) return;
+  e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+  const r = sobre.getBoundingClientRect(), lado = e.clientY > r.top + r.height / 2 ? 'after' : 'before';
+  if (DND.objetivo !== sobre || DND.lado !== lado){
+    document.querySelectorAll('.dnd-before,.dnd-after').forEach(x => x.classList.remove('dnd-before', 'dnd-after'));
+    sobre.classList.add('dnd-' + lado); DND.objetivo = sobre; DND.lado = lado;
+  }
+});
+document.addEventListener('drop', e => {
+  if (!DND || !DND.arrastrando || !DND.objetivo) return;
+  e.preventDefault();
+  const { it, cfg, objetivo, lado } = DND, hs = dndHermanos(it, cfg);
+  const lista = cfg.lista(it), desde = hs.indexOf(it);
+  let hasta = hs.indexOf(objetivo) + (lado === 'after' ? 1 : 0);
+  if (desde < hasta) hasta -= 1;
+  dndLimpiar();
+  if (desde < 0 || desde === hasta) return;
+  const [x] = lista.splice(desde, 1); lista.splice(hasta, 0, x);
+  cfg.despues(); markDirty();
+});
+document.addEventListener('dragend', () => { if (DND) dndLimpiar(); });
+
 function moverDia(i, dir){
   const d = editing.data.dias, j = i + dir;
   if (j < 0 || j >= d.length) return;
@@ -2195,7 +2257,8 @@ function renderServicios(){
       <span class="srv-resumen">${escHtml([s.concepto, num(s.precio) ? fmtMoney(s.precio, s.moneda || c.moneda) : ''].filter(Boolean).join(' · '))}</span>
       </div>
       <div class="item-actions">
-        <button class="icon-btn" title="Subir" ${i===0?'disabled':''} onclick="moverServicio(${i},-1)">▲</button>
+        <span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span>
+          <button class="icon-btn" title="Subir" ${i===0?'disabled':''} onclick="moverServicio(${i},-1)">▲</button>
         <button class="icon-btn" title="Bajar" ${i===c.servicios.length-1?'disabled':''} onclick="moverServicio(${i},1)">▼</button>
         <button class="icon-btn danger" title="Eliminar servicio" onclick="eliminarServicio(${i})">✕</button>
       </div>
@@ -2855,7 +2918,8 @@ function renderAnexos(){
       <span class="srv-resumen">${a.archivos.length ? a.archivos.length + ' archivo' + (a.archivos.length === 1 ? '' : 's') : ''}</span>
       </div>
       <div class="item-actions">
-        <button class="icon-btn" title="Subir" ${i===0?'disabled':''} onclick="moverAnexo(${i},-1)">▲</button>
+        <span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span>
+          <button class="icon-btn" title="Subir" ${i===0?'disabled':''} onclick="moverAnexo(${i},-1)">▲</button>
         <button class="icon-btn" title="Bajar" ${i===an.length-1?'disabled':''} onclick="moverAnexo(${i},1)">▼</button>
         <button class="icon-btn danger" title="Eliminar anexo" onclick="eliminarAnexo(${i})">✕</button>
       </div>
@@ -2873,6 +2937,7 @@ function renderAnexos(){
         <img class="anexo-thumb" data-pid="${escHtml(f.paginas[0])}" alt="">
         <div style="flex:1;min-width:0"><b style="overflow-wrap:anywhere">${escHtml(f.nombre || 'Archivo')}</b><div class="muted">${f.kind === 'pdf' ? 'PDF · ' + f.paginas.length + ' página' + (f.paginas.length === 1 ? '' : 's') : 'Imagen'}</div></div>
         <div class="item-actions">
+          <span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span>
           <button class="icon-btn" title="Subir" ${k===0?'disabled':''} onclick="moverArchivo(${i},${k},-1)">▲</button>
           <button class="icon-btn" title="Bajar" ${k===a.archivos.length-1?'disabled':''} onclick="moverArchivo(${i},${k},1)">▼</button>
           <button class="icon-btn danger" title="Quitar archivo" onclick="quitarArchivo(${i},${k})">✕</button>
