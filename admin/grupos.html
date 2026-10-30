@@ -746,7 +746,8 @@ function toggleHab(hid){ COLAPSADAS.has(hid) ? COLAPSADAS.delete(hid) : COLAPSAD
 function plegarTodas(v){ listaHab(GRUPOS[GID_ABIERTO]).forEach(([hid]) => v ? COLAPSADAS.add(hid) : COLAPSADAS.delete(hid)); render(); }
 function cambiarCama(hid, v){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}/cama`).set(v || null).catch(handleWriteError); }
 function htmlHabitaciones(g){
-  const resps = g.respuestas || {}, idx = null;
+  const resps = g.respuestas || {}, idx = null, refH = refViaje(g);
+  const tp = x => tipoPax(g, x, resps[x], refH).t;
   const hay = Object.keys(g.habitaciones || {}).length, lista = listaHab(g);
   if (!Object.keys(resps).length) return '<div class="vacio">Cuando lleguen respuestas, acá se arman las habitaciones.</div>';
   const roomOptions = (actual) => lista.map(([hid, h], i) => `<option value="${esc(hid)}" ${hid === actual ? 'selected' : ''}>Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)}</option>`).join('') + '<option value="__nueva">+ Nueva habitación</option>';
@@ -759,7 +760,7 @@ function htmlHabitaciones(g){
   lista.forEach(([hid, h], i) => {
     const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]); ids.forEach(x => asignados.add(x));
     const al = alertasHabitacion(h, resps, idx), col = COLAPSADAS.has(hid), cap = CAPACIDAD[h.tipo] || 0, cama = camaHab(h, resps);
-    const nombres = ids.map(x => `${resps[x].apellido}, ${resps[x].nombre}`).join(' · ');
+    const nombres = ids.map(x => `${resps[x].apellido}, ${resps[x].nombre}${tp(x) ? ' (' + tp(x) + ')' : ''}`).join(' · ');
     const pedida = camaDeOcupantes(ids, resps);
     html += `<div class="hab"><div class="hab-head" style="cursor:pointer" onclick="toggleHab('${esc(hid)}')"><span class="chev">${col ? '▸' : '▾'}</span><span>Hab. ${i + 1}</span>`
       + (col ? `<span class="hab-res">${esc(nombres) || 'Sin ocupantes'}</span>` : '') + '<span class="grow"></span>'
@@ -774,7 +775,7 @@ function htmlHabitaciones(g){
       if (!ids.length) html += '<div class="vacio" style="padding:10px">Sin ocupantes</div>';
       ids.forEach(rid => {
         const r = resps[rid];
-        html += `<div class="ocu"><div class="nom"><strong class="lnk" onclick="verRespuesta('${esc(rid)}')" title="Ver todos los datos">${esc(r.apellido)}, ${esc(r.nombre)}</strong><div class="sub">${esc(r.tipoCama || '')}${r.restricciones && !/^ninguna?\.?$/i.test(r.restricciones.trim()) ? ' · ' + esc(r.restricciones) : ''}</div></div>`
+        html += `<div class="ocu"><div class="nom"><strong class="lnk" onclick="verRespuesta('${esc(rid)}')" title="Ver todos los datos">${esc(r.apellido)}, ${esc(r.nombre)}</strong> ${pillTipo(g, rid, r, refH)}<div class="sub">${esc(r.tipoCama || '')}${r.restricciones && !/^ninguna?\.?$/i.test(r.restricciones.trim()) ? ' · ' + esc(r.restricciones) : ''}</div></div>`
           + (hay ? `<select onchange="moverPasajero('${esc(rid)}', this.value)">${roomOptions(hid)}</select>` : '') + '</div>';
       });
       html += '</div>' + (al.length ? `<div class="alertas">${al.map(a => '• ' + esc(a)).join('<br>')}</div>` : '');
@@ -785,7 +786,7 @@ function htmlHabitaciones(g){
   if (sin.length){
     html += `<div class="card"><h3>Sin habitación (${sin.length})</h3>` + sin.map(rid => {
       const r = resps[rid];
-      return `<div class="ocu"><div class="nom"><strong class="lnk" onclick="verRespuesta('${esc(rid)}')" title="Ver todos los datos">${esc(r.apellido)}, ${esc(r.nombre)}</strong></div>` + (hay ? `<select onchange="moverPasajero('${esc(rid)}', this.value)"><option value="">Asignar a…</option>${roomOptions('')}</select>` : '') + '</div>';
+      return `<div class="ocu"><div class="nom"><strong class="lnk" onclick="verRespuesta('${esc(rid)}')" title="Ver todos los datos">${esc(r.apellido)}, ${esc(r.nombre)}</strong> ${pillTipo(g, rid, r, refH)}</div>` + (hay ? `<select onchange="moverPasajero('${esc(rid)}', this.value)"><option value="">Asignar a…</option>${roomOptions('')}</select>` : '') + '</div>';
     }).join('') + '</div>';
   }
   return html;
@@ -973,9 +974,9 @@ function filasHabitaciones(g){
   const resps = g.respuestas || {}, filas = [], asignados = new Set();
   listaHab(g).forEach(([, h], i) => {
     const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]), cama = camaHab(h, resps);
-    ids.forEach(x => { asignados.add(x); filas.push({ n: i + 1, tipo: h.tipo, cama, primero: filas.length === 0 || filas[filas.length - 1].n !== i + 1, r: resps[x] }); });
+    ids.forEach(x => { asignados.add(x); filas.push({ n: i + 1, tipo: h.tipo, cama, primero: filas.length === 0 || filas[filas.length - 1].n !== i + 1, r: resps[x], rid: x }); });
   });
-  Object.keys(resps).filter(x => !asignados.has(x)).forEach(x => filas.push({ n:'—', tipo:'Sin asignar', cama:'', primero:true, r: resps[x] }));
+  Object.keys(resps).filter(x => !asignados.has(x)).forEach(x => filas.push({ n:'—', tipo:'Sin asignar', cama:'', primero:true, r: resps[x], rid: x }));
   return filas;
 }
 const COLS_PAX = [
@@ -1032,10 +1033,11 @@ function exportarExcel(){
 const conPagos = reservasDelGrupo(GID_ABIERTO).length > 0, pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {}, qPagoX = preguntasPago(g);
   const refX = refViaje(g);
   const pax = respuestasOrdenadas(g).map(([rid, r]) => [tipoPax(g, rid, r, refX).t, ...cols.map(c => valorTxt(r, c)), asg[rid] ? asg[rid].n : '', asg[rid] ? asg[rid].h.tipo : '', asg[rid] ? camaHab(asg[rid].h, resps) : '', ...(conPagos ? [pp[rid] ? totTxt(pp[rid].tot) : 'Sin pagos'] : []), ...(qPagoX.length ? [eleccionPago(r, qPagoX).join(', ')] : [])]);
-  const hab = filasHabitaciones(g).map(f => [f.n, f.tipo, f.cama, f.r.apellido, f.r.nombre, f.r.pasaporte, fmtFecha(f.r.vencimiento), f.r.restricciones || '', f.r.movilidad || '']);
+  const refE = refViaje(g);
+  const hab = filasHabitaciones(g).map(f => [f.n, f.tipo, f.cama, f.r.apellido, f.r.nombre, tipoPax(g, f.rid, f.r, refE).t, f.r.pasaporte, fmtFecha(f.r.vencimiento), f.r.restricciones || '', f.r.movilidad || '']);
   const blob = armarXlsx([
     { nombre:'Pasajeros', cabecera: ['Tipo (ADT/CHD/INF)', ...cols.map(c => c.etiqueta), 'Habitación asignada', 'Tipo de habitación asignada', 'Cama de la habitación', ...(conPagos ? ['Pagos'] : []), ...(qPagoX.length ? ['Medio de pago elegido'] : [])], filas: pax },
-    { nombre:'Habitaciones', cabecera:['Habitación','Tipo','Cama','Apellido','Nombre','Pasaporte','Vencimiento','Restricciones alimentarias','Movilidad / asistencia'], filas: hab },
+    { nombre:'Habitaciones', cabecera:['Habitación','Tipo','Cama','Apellido','Nombre','ADT/CHD/INF','Pasaporte','Vencimiento','Restricciones alimentarias','Movilidad / asistencia'], filas: hab },
   ]);
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = (g.meta.nombre || 'grupo').replace(/[^\w\-]+/g, '_') + '.xlsx';
@@ -1047,10 +1049,11 @@ function imprimir(tipo){
   const g = GRUPOS[GID_ABIERTO], resps = g.respuestas || {};
   let html = `<h1>${esc(g.meta.nombre)}</h1><div class="sub">${tipo === 'rooming' ? 'Rooming list' : 'Listado de pasajeros'} · ${new Date().toLocaleDateString('es-AR')}</div>`;
   if (tipo === 'rooming'){
+    const refR2 = refViaje(g);
     html += '<table><thead><tr><th>Hab.</th><th>Tipo</th><th>Cama</th><th>Pasajero</th><th>Pasaporte</th><th>Vence</th><th>Observaciones</th></tr></thead><tbody>';
     filasHabitaciones(g).forEach(f => {
       const obs = [f.r.restricciones, f.r.movilidad].filter(x => x && !/^ninguna?\.?$/i.test(x.trim())).join(' · ');
-      html += `<tr><td class="${f.primero ? 'g' : ''}">${f.primero ? f.n : ''}</td><td class="${f.primero ? 'g' : ''}">${f.primero ? esc(f.tipo) : ''}</td><td class="${f.primero ? 'g' : ''}">${f.primero ? esc(f.cama) : ''}</td><td class="${f.primero ? 'g' : ''}">${esc(f.r.apellido)}, ${esc(f.r.nombre)}</td><td class="${f.primero ? 'g' : ''}">${esc(f.r.pasaporte)}</td><td class="${f.primero ? 'g' : ''}">${fmtFecha(f.r.vencimiento)}</td><td class="${f.primero ? 'g' : ''}">${esc(obs)}</td></tr>`;
+      html += `<tr><td class="${f.primero ? 'g' : ''}">${f.primero ? f.n : ''}</td><td class="${f.primero ? 'g' : ''}">${f.primero ? esc(f.tipo) : ''}</td><td class="${f.primero ? 'g' : ''}">${f.primero ? esc(f.cama) : ''}</td><td class="${f.primero ? 'g' : ''}">${esc(f.r.apellido)}, ${esc(f.r.nombre)}${tipoPax(g, f.rid, f.r, refR2).t ? ' (' + tipoPax(g, f.rid, f.r, refR2).t + ')' : ''}</td><td class="${f.primero ? 'g' : ''}">${esc(f.r.pasaporte)}</td><td class="${f.primero ? 'g' : ''}">${fmtFecha(f.r.vencimiento)}</td><td class="${f.primero ? 'g' : ''}">${esc(obs)}</td></tr>`;
     });
   } else {
     html += '<table><thead><tr><th>Pasajero</th><th>Tipo</th><th>Nacimiento</th><th>Nacionalidad</th><th>Pasaporte</th><th>Emisión</th><th>Vence</th><th>Contacto</th><th>Notas</th></tr></thead><tbody>';
