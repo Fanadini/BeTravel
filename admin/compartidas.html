@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Be•Travel Admin — Reservas compartidas</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --teal:#0F3D3E;--teal-h:#0c3233;--teal-l:rgba(15,61,62,.07);--teal-m:rgba(15,61,62,.14);
+  --beige:#E6E1D8;--beige-d:#D5CEC3;--bronze:#B08A5A;--dark:#2B2B2B;--white:#fff;
+  --board:#e8e3da;--red:#b83232;--green:#2f8f4e;--amber:#7a5a2c;
+}
+html,body{height:100%}
+body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;overflow:hidden}
+.nav-btn{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:6px 12px;border-radius:6px;border:1px solid rgba(230,225,216,.2);background:rgba(255,255,255,.08);color:rgba(230,225,216,.75);cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-block}
+.nav-btn:hover{background:rgba(255,255,255,.16);color:var(--beige)}
+.loading-overlay{position:fixed;inset:0;background:rgba(15,61,62,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:14px}
+.loading-overlay.hidden{display:none}
+.spinner{width:32px;height:32px;border-radius:50%;border:3px solid rgba(230,225,216,.15);border-top-color:var(--bronze);animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:12px;color:rgba(230,225,216,.5)}
+.login-screen{position:fixed;inset:0;background:var(--teal);display:flex;align-items:center;justify-content:center;z-index:1100;padding:20px}
+.login-screen.hidden{display:none}
+.login-box{background:var(--white);border-radius:16px;padding:40px 36px;width:100%;max-width:380px;text-align:center}
+.login-logo{font-size:22px;font-weight:600;color:var(--teal);letter-spacing:-.5px;margin-bottom:6px}
+.login-logo span{color:var(--bronze)}
+.login-subtitle{font-size:12px;color:rgba(43,43,43,.45);margin-bottom:32px}
+.google-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 16px;border-radius:9px;border:1.5px solid var(--beige-d);background:var(--white);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--dark);cursor:pointer;text-decoration:none}
+.google-btn:hover{border-color:rgba(15,61,62,.3);background:var(--beige)}
+.login-error{font-size:11px;color:var(--red);margin-top:14px;min-height:16px}
+
+.main{flex:1;min-height:0;display:flex;flex-direction:column}
+.banner{display:none;background:rgba(184,50,50,.1);border:1px solid rgba(184,50,50,.3);color:var(--red);font-size:12px;line-height:1.5;padding:10px 14px;margin:12px 18px 0;border-radius:8px}
+.banner.show{display:block}
+.btn{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:8px 14px;border-radius:7px;border:1.5px solid var(--teal);background:var(--teal);color:var(--beige);cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--teal-h)}
+.btn.outline{background:transparent;color:var(--teal)}
+.btn.outline:hover{background:var(--teal-l)}
+.btn.small{padding:5px 10px;font-size:11px}
+.btn.danger{border-color:var(--red);color:var(--red);background:transparent}
+.hidden{display:none!important}
+.scroll{flex:1;overflow-y:auto;padding:18px}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.section-head h2{font-size:15px;font-weight:600;color:var(--teal)}
+.row-btns{display:flex;gap:8px;flex-wrap:wrap}
+.lista{background:var(--white);border:1px solid var(--beige-d);border-radius:10px;overflow:auto}
+.lista table{width:100%;border-collapse:collapse;font-size:12px}
+.lista th{text-align:left;font-weight:600;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:rgba(43,43,43,.55);padding:9px 12px;border-bottom:1px solid var(--beige-d);white-space:nowrap}
+.lista td{padding:9px 12px;border-bottom:1px solid rgba(213,206,195,.5);vertical-align:middle}
+.lista tr.fila{cursor:pointer}
+.lista tr.fila:hover{background:var(--teal-l)}
+.vacio{padding:30px;text-align:center;font-size:12px;color:rgba(43,43,43,.5)}
+.pill{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--teal-l);color:var(--teal);white-space:nowrap}
+.pill.ok{background:rgba(47,143,78,.12);color:var(--green)}
+.pill.warn{background:rgba(176,138,90,.2);color:var(--amber)}
+.pill.bad{background:rgba(184,50,50,.12);color:var(--red)}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 18px;background:var(--white);border-bottom:1px solid var(--beige-d)}
+.toolbar .grow{flex:1}
+.gtitle{font-size:14px;font-weight:600;color:var(--teal)}
+.tabs{display:flex;gap:6px;padding:10px 18px 0;flex-wrap:wrap}
+.tab{font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:7px 14px;border-radius:7px 7px 0 0;border:1px solid var(--beige-d);border-bottom:none;background:rgba(255,255,255,.5);cursor:pointer;color:rgba(43,43,43,.7)}
+.tab.on{background:var(--white);color:var(--teal);font-weight:600}
+.card{background:var(--white);border:1px solid var(--beige-d);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.card h3{font-size:13px;font-weight:600;color:var(--teal);margin-bottom:8px}
+.hint{font-size:11px;line-height:1.5;color:rgba(43,43,43,.6);margin-bottom:8px}
+.linkbox{display:flex;gap:8px;flex-wrap:wrap}
+.linkbox input{flex:1;min-width:220px}
+input[type=text],input[type=date],select,textarea{font-family:'Inter',sans-serif;font-size:12px;padding:7px 9px;border-radius:7px;border:1.5px solid var(--beige-d);background:var(--white);outline:none;color:var(--dark)}
+input:focus,select:focus,textarea:focus{border-color:var(--teal)}
+textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
+.hab{background:var(--white);border:1px solid var(--beige-d);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.hab-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--teal-l);font-size:12px;font-weight:600;color:var(--teal);flex-wrap:wrap}
+.hab-head .grow{flex:1}
+.hab-body{padding:6px 14px 10px}
+.ocu{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(213,206,195,.5);font-size:12px;flex-wrap:wrap}
+.ocu:last-child{border-bottom:none}
+.ocu .nom{flex:1;min-width:160px}
+.ocu .sub{font-size:10.5px;color:rgba(43,43,43,.55)}
+.alertas{padding:0 14px 10px;font-size:11px;color:var(--amber);line-height:1.5}
+.alertas.red{color:var(--red)}
+.modal-bg{position:fixed;inset:0;background:rgba(15,61,62,.55);z-index:900;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--white);border-radius:12px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;padding:20px}
+.modal h3{font-size:15px;color:var(--teal);margin-bottom:12px}
+.det{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:12px;margin-bottom:14px}
+.det dt{color:rgba(43,43,43,.55)}
+.det dd{white-space:pre-wrap;word-break:break-word}
+
+.filtros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.filtros input{flex:1;min-width:220px}
+.lnk{cursor:pointer}
+.lnk:hover{color:var(--teal);text-decoration:underline}
+.chev{display:inline-block;width:14px;color:rgba(15,61,62,.6)}
+.hab-res{font-weight:400;color:rgba(43,43,43,.65);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:48ch}
+.ocu .sub,.lista td .sub{font-size:10.5px;color:rgba(43,43,43,.55)}
+.fq{border:1px solid var(--beige-d);border-radius:10px;background:var(--white);margin-bottom:8px}
+.fq.sec{background:var(--teal-l);border-color:var(--teal-m)}
+.fq-row{display:flex;align-items:center;gap:10px;padding:8px 10px}
+.fq-h{cursor:grab;color:rgba(43,43,43,.4);font-size:14px;letter-spacing:-2px;user-select:none}
+.fq-t{flex:1;min-width:0;cursor:pointer;font-size:12px}
+.fq-s{font-size:10.5px;color:rgba(43,43,43,.55);margin-top:1px}
+.fq-edit{padding:4px 14px 14px;border-top:1px solid var(--beige-d)}
+.fq-f{display:flex;flex-direction:column;gap:3px;margin-top:10px;min-width:0;flex:1}
+.fq-f label{font-size:10.5px;font-weight:500;color:rgba(43,43,43,.65)}
+.fq-f input,.fq-f select,.fq-f textarea{width:100%;font-size:12px}
+.fq-f textarea{min-height:70px}
+.fq-g{display:flex;gap:10px;flex-wrap:wrap}
+.chk{display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0}
+.opts-chk{display:flex;flex-wrap:wrap;gap:2px 16px;margin-top:4px}
+.btn:disabled{opacity:.4;cursor:default}
+
+.sec{background:var(--white);border:1px solid var(--beige-d);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.sec h3{font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:var(--teal);margin-bottom:10px}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:5px 12px;font-size:12.5px}
+.kv dt{color:rgba(43,43,43,.55)}
+.kv dd{word-break:break-word}
+.num{text-align:right;white-space:nowrap}
+.modal.wide{max-width:860px}
+.tot{font-weight:600;color:var(--teal)}
+/* ── IMPRESIÓN (PDF) ── */
+#print-area{display:none}
+@page{size:A4 landscape;margin:12mm}
+@media print{
+  html,body{height:auto!important;overflow:visible!important;background:#fff!important;display:block!important}
+  body>*:not(#print-area){display:none!important}
+  #print-area{display:block!important;font-family:'Inter',sans-serif;color:#000;font-size:9pt}
+  #print-area h1{font-size:13pt;font-weight:600;margin-bottom:1mm}
+  #print-area .sub{font-size:8.5pt;color:#444;margin-bottom:4mm}
+  #print-area table{width:100%;border-collapse:collapse}
+  #print-area th{text-align:left;font-size:7.5pt;text-transform:uppercase;letter-spacing:.4pt;border-bottom:1.2px solid #000;padding:1.5mm 2mm}
+  #print-area td{padding:1.6mm 2mm;border-bottom:.5px solid #999;vertical-align:top}
+  #print-area tr{break-inside:avoid;page-break-inside:avoid}
+  #print-area td.g{border-top:1px solid #000;font-weight:600}
+}
+@media(max-width:700px){.nav-user{display:none}.scroll{padding:12px}.det{grid-template-columns:1fr}}
+</style>
+<link rel="icon" type="image/png" sizes="192x192" href="../favicon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="../favicon-512.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+</head>
+<body>
+
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">Be<span>•</span>Travel</div>
+    <div class="login-subtitle">Reservas compartidas</div>
+    <button class="google-btn" onclick="loginWithGoogle()">Continuar con Google</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+<div class="login-screen hidden" id="noacceso-screen">
+  <div class="login-box">
+    <div class="login-logo">Be<span>•</span>Travel</div>
+    <div class="login-subtitle">Acceso restringido</div>
+    <p style="font-size:13px;line-height:1.55;color:#2B2B2B;margin-bottom:22px" id="noacceso-msg"></p>
+    <a class="google-btn" href="cotizador.html" style="margin-bottom:10px">Ir al Cotizador</a>
+    <button class="google-btn" onclick="logout()">Salir y usar otra cuenta</button>
+  </div>
+</div>
+<div class="loading-overlay" id="lo"><div class="spinner"></div><div class="loading-text">Conectando con Firebase…</div></div>
+
+<script src="nav.js"></script>
+<script>AdminNav.mount({ pagina:'compartidas' });</script>
+
+<div class="main">
+  <div class="banner" id="banner"></div>
+  <div class="scroll" id="view-list">
+    <div class="section-head"><h2>Reservas compartidas conmigo</h2></div>
+    <div class="hint" id="nota-rol" style="margin-bottom:10px">Son las reservas que un administrador eligió compartirte, en modo solo lectura.</div>
+    <div class="lista" id="lista-res"></div>
+  </div>
+</div>
+<div id="modal-root"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyARJ-zVCszUxJ_Fs1UBBtMiQvjuDF98IYI",
+  authDomain:"betravel-kanban.firebaseapp.com",
+  databaseURL:"https://betravel-kanban-default-rtdb.firebaseio.com",
+  projectId:"betravel-kanban",
+  storageBucket:"betravel-kanban.firebasestorage.app",
+  messagingSenderId:"644328296494",
+  appId:"1:644328296494:web:aec3842de80021159f8fbf",
+});
+const db = firebase.database();
+const auth = firebase.auth();
+const META_USUARIOS_REF = db.ref('finanzas/meta/usuarios');
+
+// ── AUTH: cualquier cuenta habilitada; ve solo lo que se le compartió (lo hacen cumplir las reglas) ──
+let CURRENT_USER = { email:'', nombre:'', rol:'', grupos:false };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+function emailKey(email){ return (email||'').toLowerCase().replace(/\./g, ','); }
+function loginWithGoogle(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  document.getElementById('login-error').textContent = '';
+  auth.signInWithPopup(provider).catch(err => { document.getElementById('login-error').textContent = 'Error al iniciar sesión. Intentá de nuevo.'; console.error(err); });
+}
+function logout(){ auth.signOut(); }
+function verificarAcceso(email){
+  return META_USUARIOS_REF.child(emailKey(email)).once('value').then(s => s.exists() ? { perfil: s.val() || {} } : null, () => null);
+}
+function mostrarSinAcceso(email){
+  document.getElementById('noacceso-msg').innerHTML = `La cuenta <strong>${esc(email)}</strong> no está habilitada para el panel interno. Pedile a un administrador que la agregue a la lista de usuarios.`;
+  document.getElementById('noacceso-screen').classList.remove('hidden');
+  document.getElementById('lo').classList.add('hidden');
+}
+let listenersAttached = false;
+auth.onAuthStateChanged(user => {
+  const loginScreen = document.getElementById('login-screen');
+  if (!user){ document.getElementById('noacceso-screen').classList.add('hidden'); loginScreen.classList.remove('hidden'); document.getElementById('lo').classList.add('hidden'); return; }
+  loginScreen.classList.add('hidden');
+  const nombreGoogle = user.displayName ? user.displayName.split(' ')[0] : user.email;
+  document.getElementById('nav-user-name').textContent = nombreGoogle;
+  CURRENT_USER = { email:user.email, nombre: user.displayName || nombreGoogle, rol:'', grupos:false };
+  verificarAcceso(user.email).then(acc => {
+    if (!acc){ mostrarSinAcceso(user.email); return; }
+    CURRENT_USER.rol = acc.perfil.rol || 'agente'; CURRENT_USER.grupos = acc.perfil.grupos === true;
+    AdminNav.setUser({ rol: CURRENT_USER.rol, nombre: CURRENT_USER.nombre, grupos: CURRENT_USER.grupos });
+    if (CURRENT_USER.rol !== 'cotizador') document.getElementById('nota-rol').textContent = 'Tu cuenta ve todas las reservas desde Gestión interna. Esta página muestra solo las que te compartan como cotizador.';
+    if (!listenersAttached){ attachListeners(); listenersAttached = true; }
+  });
+});
+function showBanner(msg){ const b = document.getElementById('banner'); b.textContent = msg; b.classList.toggle('show', !!msg); }
+
+// ── DATOS ──────────────────────────────────────────────────────────────────
+const RES = {}, REFS = {}, NOMBRES_GRUPO = {};
+let CARGADO = false;
+const ESTADOS = { cotizado:'Cotizado', aceptado:'Aceptado', pagado:'Pagado', cancelado:'Cancelado', perdida:'Pérdida' };
+function attachListeners(){
+  const ref = db.ref('finanzas/reservasCompartidas/' + emailKey(CURRENT_USER.email));
+  ref.on('value', snap => {
+    const v = snap.val() || {}, ids = Object.keys(v).filter(k => v[k] === true);
+    ids.forEach(id => {
+      if (REFS[id]) return;
+      REFS[id] = db.ref('finanzas/reservas/' + id);
+      REFS[id].on('value', s => { s.exists() ? RES[id] = s.val() : delete RES[id]; cargarNombresGrupo(RES[id]); render(); }, () => { delete RES[id]; render(); });
+    });
+    Object.keys(REFS).filter(id => !ids.includes(id)).forEach(id => { REFS[id].off(); delete REFS[id]; delete RES[id]; });
+    CARGADO = true; document.getElementById('lo').classList.add('hidden'); showBanner(''); render();
+  }, err => { console.error(err); document.getElementById('lo').classList.add('hidden'); showBanner('No se pudo leer lo que te compartieron: falta publicar las reglas de Firebase o tu cuenta no está habilitada.'); });
+}
+// Nombres de los pasajeros del grupo (solo si la cuenta tiene acceso a Grupos): para mostrar quién pagó
+function cargarNombresGrupo(r){
+  if (!r || !r.grupoId || NOMBRES_GRUPO[r.grupoId] !== undefined || !CURRENT_USER.grupos) return;
+  NOMBRES_GRUPO[r.grupoId] = {};
+  db.ref('grupos/' + r.grupoId + '/respuestas').once('value').then(s => {
+    const v = s.val() || {}; NOMBRES_GRUPO[r.grupoId] = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, `${x.apellido || ''}, ${x.nombre || ''}`])); render();
+  }, () => {});
+}
+const arr = o => !o ? [] : Array.isArray(o) ? o.filter(Boolean) : Object.keys(o).map(id => ({ id, ...o[id] }));
+function convertir(monto, de, a, tc){
+  if (!de || de === a) return { v: monto, ok:true };
+  const t = Number(tc) || 0; if (t <= 0) return { v: 0, ok:false };
+  if (a === 'USD' && de === 'ARS') return { v: monto / t, ok:true };
+  if (a === 'ARS' && de === 'USD') return { v: monto * t, ok:true };
+  return { v: monto, ok:true };
+}
+const money = (n, m) => (m === 'USD' ? 'US$ ' : '$ ') + (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+const fecha = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || '—'); };
+function totales(r){
+  const cot = arr(r.cotizado).reduce((s, c) => s + convertir(Number(c.monto) || 0, c.moneda || r.moneda, r.moneda, c.tipoCambio).v, 0);
+  const pag = arr(r.pagos).reduce((s, p) => s + convertir(Number(p.monto) || 0, p.moneda || r.moneda, r.moneda, p.tipoCambio).v, 0);
+  return { cot, pag, saldo: cot - pag };
+}
+function render(){
+  const el = document.getElementById('lista-res');
+  const ids = Object.keys(RES).sort((a, b) => String(RES[b].fechaInicio || '').localeCompare(String(RES[a].fechaInicio || '')));
+  if (!ids.length){ el.innerHTML = `<div class="vacio">${CARGADO ? 'Todavía no te compartieron ninguna reserva.' : 'Cargando…'}</div>`; return; }
+  el.innerHTML = '<table><thead><tr><th>Código</th><th>Cliente</th><th>Concepto</th><th class="num">Pax</th><th>Inicio</th><th>Fin</th><th>Estado</th><th class="num">Valor cotizado</th><th class="num">Pagado</th><th class="num">Saldo</th></tr></thead><tbody>' + ids.map(id => {
+    const r = RES[id], t = totales(r);
+    return `<tr class="fila" onclick="verReserva('${esc(id)}')"><td>${esc(r.codigo || '—')}</td><td><strong>${esc(r.cliente || '—')}</strong></td><td>${esc(r.concepto || '')}</td><td class="num">${esc(r.pasajeros || '—')}</td><td>${fecha(r.fechaInicio)}</td><td>${fecha(r.fechaFin)}</td><td><span class="pill">${esc(ESTADOS[r.estado] || r.estado || '—')}</span></td><td class="num">${money(t.cot, r.moneda)}</td><td class="num">${money(t.pag, r.moneda)}</td><td class="num">${money(t.saldo, r.moneda)}</td></tr>`;
+  }).join('') + '</tbody></table>';
+}
+function verReserva(id){
+  const r = RES[id]; if (!r) return;
+  const t = totales(r), nombres = NOMBRES_GRUPO[r.grupoId] || {};
+  const kv = [['Código', r.codigo], ['Cliente', r.cliente], ['Concepto', r.concepto], ['Servicios', (r.servicios || []).map(x => x === 'Otro' && r.servicioOtroTexto ? 'Otro: ' + r.servicioOtroTexto : x).join(', ')], ['Estado', ESTADOS[r.estado] || r.estado], ['Pasajeros', r.pasajeros], ['Inicio de viaje', r.fechaInicio && fecha(r.fechaInicio)], ['Fin de viaje', r.fechaFin && fecha(r.fechaFin)], ['Moneda de referencia', r.moneda], ['Notas', r.notas]].filter(x => x[1]);
+  const cot = arr(r.cotizado), pagos = arr(r.pagos).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || ''))), comp = arr(r.comprobantes);
+  const quien = p => { const ks = Object.keys(p.grupoPasajeros || {}); return !ks.length ? '—' : ks.map(k => nombres[k] || 'pasajero').join(' · '); };
+  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrar()"><div class="modal wide">
+    <div class="section-head"><h3 style="margin:0">${esc(r.codigo || '')} ${esc(r.cliente || '')}</h3><span class="pill">Solo lectura</span></div>
+    <div class="sec"><h3>Datos generales</h3><dl class="kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>
+    <div class="sec"><h3>Valor cotizado</h3>${cot.length ? '<div class="lista"><table><tbody>' + cot.map(c => `<tr><td>${esc(c.concepto || c.descripcion || c.tipo || 'Ítem')}</td><td class="num">${money(c.monto, c.moneda || r.moneda)}</td></tr>`).join('') + '</tbody></table></div>' : '<div class="hint">Sin detalle.</div>'}
+      <div class="kv" style="margin-top:10px"><dt>Total cotizado</dt><dd class="tot">${money(t.cot, r.moneda)}</dd><dt>Total pagado</dt><dd class="tot">${money(t.pag, r.moneda)}</dd><dt>Saldo pendiente</dt><dd class="tot">${money(t.saldo, r.moneda)}</dd></div></div>
+    <div class="sec"><h3>Pagos recibidos</h3>${pagos.length ? '<div class="lista"><table><thead><tr><th>Fecha</th><th class="num">Monto</th><th>Medio</th><th>Pasajeros</th><th>Comentario</th></tr></thead><tbody>' + pagos.map(p => `<tr><td>${fecha(p.fecha)}</td><td class="num">${money(p.monto, p.moneda || r.moneda)}</td><td>${esc(p.medio || '—')}</td><td>${esc(quien(p))}</td><td>${esc(p.comentario || '')}${p.link ? ` <a href="${esc(p.link)}" target="_blank" rel="noopener">comprobante</a>` : ''}</td></tr>`).join('') + '</tbody></table></div>' : '<div class="hint">Todavía no hay pagos.</div>'}</div>
+    ${comp.length ? `<div class="sec"><h3>Comprobantes</h3>${comp.map(c => `<div><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.nombre || c.url)}</a></div>`).join('')}</div>` : ''}
+    <div class="row-btns" style="justify-content:space-between"><span class="hint">No se muestran costos, margen, reparto ni facturación.</span><div class="row-btns">${r.grupoId && CURRENT_USER.grupos ? '<a class="btn outline small" href="grupos.html">Ir a Grupos</a>' : ''}<button class="btn small" onclick="cerrar()">Cerrar</button></div></div>
+  </div></div>`;
+}
+function cerrar(){ document.getElementById('modal-root').innerHTML = ''; }
+</script>
+</body>
+</html>

@@ -180,6 +180,21 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .panel-body::-webkit-scrollbar-thumb{background:var(--beige-d);border-radius:2px}
 .panel-footer{padding:14px 20px;border-top:1px solid var(--beige-d);flex-shrink:0;display:flex;flex-direction:column;gap:8px}
 .psec{margin-bottom:22px}
+.pax-pick{border:1.5px solid var(--beige-d);border-radius:8px;background:var(--white);padding:0}
+.pax-pick summary{cursor:pointer;padding:8px 10px;font-size:12px;color:var(--dark);list-style:none}
+.pax-pick summary::-webkit-details-marker{display:none}
+.pax-pick summary::after{content:'▾';float:right;color:rgba(43,43,43,.45)}
+.pax-pick[open] summary{border-bottom:1px solid var(--beige-d)}
+.pax-pick .pax-filter{margin:8px;width:calc(100% - 16px);padding:6px 9px;font-size:12px}
+.pax-list{max-height:210px;overflow-y:auto;padding:2px 10px 8px;display:grid;gap:3px}
+.pax-list label{font-size:12px;display:flex;gap:7px;align-items:center;cursor:pointer}
+.pax-nota{font-size:10.5px;color:rgba(43,43,43,.55);margin-top:4px}
+.share-btn{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:4px 10px;border-radius:6px;border:1px solid var(--beige-d);background:var(--white);color:var(--teal);cursor:pointer;white-space:nowrap}
+.share-btn:hover{background:var(--teal-l,rgba(15,61,62,.07))}
+.share-btn.on{background:rgba(15,61,62,.1);border-color:rgba(15,61,62,.3);font-weight:600}
+.share-list{display:grid;gap:6px;margin:12px 0;max-height:46vh;overflow-y:auto}
+.share-list label{display:flex;gap:9px;align-items:flex-start;font-size:13px;cursor:pointer;padding:6px 8px;border:1px solid var(--beige-d);border-radius:8px}
+.share-list small{display:block;color:rgba(43,43,43,.55);font-size:11px}
 .psec-title{font-size:10px;font-weight:600;color:rgba(43,43,43,.4);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:8px}
 .psec-title::after{content:'';flex:1;height:1px;background:var(--beige-d)}
 .item-card{background:var(--beige);border:1px solid var(--beige-d);border-radius:8px;padding:10px 12px;margin-bottom:8px;position:relative}
@@ -579,6 +594,7 @@ auth.onAuthStateChanged(user => {
 // ── ROLES: admin ve todo; agente no ve reparto/ganancia de ejecutivos ──────
 function applyRoleUI(){
   const esAdmin = CURRENT_USER.rol === 'admin';
+  initReservasThead(); renderReservasTable();
   AdminNav.setUser({ rol: CURRENT_USER.rol, nombre: CURRENT_USER.nombre });
   const tabFacturas = document.getElementById('tab-facturas');
   if (tabFacturas) tabFacturas.style.display = esAdmin ? '' : 'none';
@@ -648,7 +664,7 @@ function attachListeners() {
       if (key==='reservas' || key==='recordatorios' || key==='pasajeros') loadedOnce[key] = true;
       renderAll();
       setSyncStatus('ok','Sincronizado');
-      if (key==='reservas') openReservaFromQueryParam();
+      if (key==='reservas'){ openReservaFromQueryParam(); syncPanelPagos(); }
       if (loadedOnce.reservas && loadedOnce.recordatorios) {
         syncBspRecordatorios();
         syncTarjetaRecordatorios();
@@ -657,6 +673,11 @@ function attachListeners() {
       if (loadedOnce.reservas && loadedOnce.pasajeros) migratePasajerosEmbebidos();
     }, err => { setSyncStatus('err','Error de sync'); console.error(err); });
   });
+  db.ref('gruposIndex').on('value', snap => { GRUPOS_IDX = snap.val() || {}; const sel = document.getElementById('r-grupo'); if (sel) sel.innerHTML = grupoOptionsHtml(sel.value); }, () => {});
+  if (CURRENT_USER.rol === 'admin'){
+    db.ref('finanzas/reservasCompartidas').on('value', snap => { SHARES = snap.val() || {}; renderReservasTable(); }, () => {});
+    META_USUARIOS_REF.on('value', snap => { USUARIOS = snap.val() || {}; }, () => {});
+  }
   META_PROV_REF.on('value', snap => {
     const v = snap.val();
     META.proveedores = v ? Object.values(v) : [...DEFAULT_PROVEEDORES];
@@ -1192,7 +1213,8 @@ function buildReservasThead(){
     }
     return `<th><input class="col-filter" type="text" placeholder="Filtrar…" value="${escHtml(current)}" onclick="event.stopPropagation()" oninput="setReservasFilter('${c.key}',this.value)"></th>`;
   }).join('');
-  return `<tr>${headCells}</tr><tr class="filter-row">${filterCells}</tr>`;
+  const admin = CURRENT_USER.rol === 'admin';
+  return `<tr>${headCells}${admin ? '<th>Compartir</th>' : ''}</tr><tr class="filter-row">${filterCells}${admin ? '<th></th>' : ''}</tr>`;
 }
 function initReservasThead(){
   document.getElementById('thead-reservas').innerHTML = buildReservasThead();
@@ -1231,6 +1253,7 @@ function reservaRowHtml(r){
     <td><span class="money ${usd}">${fmtMoney(margen,r.moneda)}</span></td>
     <td>${estadoReservaBadgeHtml(r.estado)}</td>
     <td>${facturacionBadgeHtml(r.facturacion, r.estado)}</td>
+    ${CURRENT_USER.rol === 'admin' ? `<td onclick="event.stopPropagation()"><button type="button" class="share-btn ${compartidaCon(r.id).length ? 'on' : ''}" onclick="abrirCompartir('${r.id}')">${compartidaCon(r.id).length ? 'Compartida (' + compartidaCon(r.id).length + ')' : 'Compartir'}</button></td>` : ''}
   </tr>`;
 }
 
@@ -1260,7 +1283,7 @@ function renderReservasTable(){
 
   if (!items.length){
     const msg = STATE.reservas.length ? 'Ningún resultado con estos filtros.' : 'Todavía no cargaste ninguna reserva.';
-    tbody.innerHTML = `<tr><td colspan="${RESERVAS_COLS.length}" class="table-empty">${msg}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${RESERVAS_COLS.length + 1}" class="table-empty">${msg}</td></tr>`;
     return;
   }
   tbody.innerHTML = items.map(reservaRowHtml).join('');
@@ -2386,11 +2409,13 @@ function openReserva(id){
   document.getElementById('panel-title').textContent = id ? 'Editar reserva' : 'Nueva reserva';
   document.getElementById('reserva-delete-btn').style.display = id ? 'block' : 'none';
   document.getElementById('panel-save-msg').textContent = '';
+  loadGrupoPax(reservaCtx.data.grupoId);
   renderReservaPanel();
   document.getElementById('reserva-panel-overlay').classList.add('open');
   document.getElementById('reserva-panel').classList.add('open');
 }
 function closeReserva(){
+  loadGrupoPax(null);
   document.getElementById('reserva-panel-overlay').classList.remove('open');
   document.getElementById('reserva-panel').classList.remove('open');
 }
@@ -2421,6 +2446,7 @@ function pagoRowHtml(p, monedaReserva){
     </div>
     <div class="item-field" style="margin-top:6px"><span class="item-field-label">Comentario</span><input class="pago-comentario" value="${escHtml(p.comentario)}" placeholder="Nota sobre este pago"></div>
     <div class="item-field" style="margin-top:6px"><span class="item-field-label">Link al comprobante</span><input class="pago-link" type="url" value="${escHtml(p.link)}" placeholder="https://drive.google.com/…"></div>
+    <div class="pago-quien item-field" style="margin-top:6px" data-pax="${escHtml(Object.keys(p.grupoPasajeros||{}).join(','))}" data-origen="${escHtml(p.origen||'')}"></div>
     <div class="pago-equiv" style="font-size:11px;margin-top:6px"></div>
   </div>`;
 }
@@ -2571,6 +2597,7 @@ function addPago(){
   const monedaReserva = document.getElementById('r-moneda')?.value || 'ARS';
   document.getElementById('pagos-list').insertAdjacentHTML('beforeend', pagoRowHtml({ id:'new_'+uid(), fecha:todayISO(), monto:0, moneda:monedaReserva, medio:'' }, monedaReserva));
   recalcDerived();
+  refreshPagoQuien();
 }
 function addFactura(){
   const monedaReserva = document.getElementById('r-moneda')?.value || 'ARS';
@@ -2721,6 +2748,104 @@ function recalcReparto(margenOverride, monedaOverride){
   else { warn.textContent = `Suma ${sumPct.toFixed(1).replace('.',',')}% (no da 100%)`; warn.className='pct-warning bad'; }
 }
 
+// ── GRUPOS: pagos asignados a pasajeros ────────────────────────────────────
+// La reserva guarda grupoId; cada pago guarda grupoPasajeros {id de respuesta: true}. La página Grupos lee esos pagos
+// y también puede registrar pagos nuevos (origen:'grupos'); no hay una copia del dato, así que ambos lados ven lo mismo.
+let GRUPOS_IDX = {};   // gruposIndex: { gid: { nombre } }
+let GRUPO_PAX = { gid:null, list:[], ref:null };
+function grupoOptionsHtml(sel){
+  const ids = Object.keys(GRUPOS_IDX).sort((a, b) => String(GRUPOS_IDX[a].nombre).localeCompare(String(GRUPOS_IDX[b].nombre), 'es'));
+  const faltaActual = sel && !GRUPOS_IDX[sel] ? `<option value="${escHtml(sel)}" selected>(grupo no disponible)</option>` : '';
+  return `<option value="">Sin grupo</option>${faltaActual}` + ids.map(id => `<option value="${escHtml(id)}" ${id===sel?'selected':''}>${escHtml(GRUPOS_IDX[id].nombre||id)}</option>`).join('');
+}
+function loadGrupoPax(gid){
+  if (GRUPO_PAX.ref) GRUPO_PAX.ref.off();
+  GRUPO_PAX = { gid: gid || null, list:[], ref:null };
+  if (!gid){ refreshPagoQuien(); return; }
+  const ref = db.ref('grupos/' + gid + '/respuestas'); GRUPO_PAX.ref = ref;
+  ref.on('value', snap => {
+    const v = snap.val() || {};
+    GRUPO_PAX.list = Object.entries(v).map(([rid, r]) => ({ rid, n: `${r.apellido || ''}, ${r.nombre || ''}` })).sort((a, b) => a.n.localeCompare(b.n, 'es'));
+    refreshPagoQuien();
+  }, err => { console.error(err); GRUPO_PAX.error = true; refreshPagoQuien(); });
+}
+function onGrupoChange(){
+  const gid = document.getElementById('r-grupo').value;
+  document.querySelectorAll('#pagos-list .pago-quien').forEach(b => { b.dataset.pax = ''; });   // los pasajeros eran de otro grupo
+  loadGrupoPax(gid);
+  saveReserva();
+}
+function resumenPax(set){
+  const nombres = [...set].map(rid => (GRUPO_PAX.list.find(p => p.rid === rid) || {}).n).filter(Boolean);
+  if (!set.size) return 'Sin asignar a pasajeros';
+  return nombres.slice(0, 2).join(' · ') + (set.size > 2 ? ` · +${set.size - 2}` : '') + (set.size > 1 ? ` (${set.size} pasajeros)` : '');
+}
+function renderPagoQuien(row){
+  const box = row.querySelector('.pago-quien'); if (!box) return;
+  const set = new Set((box.dataset.pax || '').split(',').filter(Boolean));
+  if (!GRUPO_PAX.gid){
+    box.innerHTML = '<span class="item-field-label">¿Quién pagó?</span><div class="upload-hint">Elegí un grupo en Datos generales para asignar este pago a pasajeros.</div>'; return;
+  }
+  if (GRUPO_PAX.error){ box.innerHTML = '<span class="item-field-label">¿Quién pagó?</span><div class="upload-hint" style="color:var(--red)">No se pudo leer el grupo (permisos o conexión).</div>'; return; }
+  const abierto = box.querySelector('details') && box.querySelector('details').open;
+  box.innerHTML = `<span class="item-field-label">¿Quién pagó? (pasajeros del grupo)</span>
+    <details class="pax-pick" ${abierto ? 'open' : ''}><summary>${escHtml(resumenPax(set))}</summary>
+      <input class="fi pax-filter" placeholder="Buscar pasajero…" oninput="filtrarPax(this)">
+      <div class="pax-list">${GRUPO_PAX.list.map(p => `<label><input type="checkbox" value="${escHtml(p.rid)}" ${set.has(p.rid)?'checked':''} onchange="togglePagoPax(this)"> ${escHtml(p.n)}</label>`).join('') || '<div class="upload-hint">El grupo todavía no tiene respuestas.</div>'}</div></details>
+    <div class="pax-nota">Si elegís más de uno, el monto se reparte en partes iguales entre ellos.${box.dataset.origen === 'grupos' ? ' Pago registrado desde Grupos.' : ''}</div>`;
+}
+function refreshPagoQuien(){ document.querySelectorAll('#pagos-list .pago-row').forEach(renderPagoQuien); }
+function togglePagoPax(inp){
+  const box = inp.closest('.pago-quien'), set = new Set((box.dataset.pax || '').split(',').filter(Boolean));
+  inp.checked ? set.add(inp.value) : set.delete(inp.value);
+  box.dataset.pax = [...set].join(',');
+  box.querySelector('summary').textContent = resumenPax(set);
+  saveReserva();
+}
+function filtrarPax(inp){
+  const q = inp.value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  inp.closest('details').querySelectorAll('.pax-list label').forEach(l => {
+    l.style.display = l.textContent.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(q) ? '' : 'none';
+  });
+}
+// Si desde Grupos se registra un pago mientras esta reserva está abierta, se suma al panel para que el autoguardado no lo pise.
+function syncPanelPagos(){
+  const lista = document.getElementById('pagos-list');
+  if (!lista || !reservaCtx || !reservaCtx.id) return;
+  const live = STATE.reservas.find(r => r.id === reservaCtx.id); if (!live) return;
+  const hay = new Set([...lista.querySelectorAll('.pago-row')].map(r => r.dataset.rowId));
+  const nuevos = objToArr(live.pagos).filter(p => !hay.has(p.id));
+  if (!nuevos.length) return;
+  nuevos.forEach(p => lista.insertAdjacentHTML('beforeend', pagoRowHtml(p, reservaCtx.data.moneda)));
+  recalcDerived(); refreshPagoQuien();
+}
+
+// ── COMPARTIR RESERVAS (solo lectura) con cuentas de rol cotizador ──────────
+// finanzas/reservasCompartidas/{email con "," en lugar de "."}/{id de reserva}: true. Las reglas dejan leer esa reserva a esa cuenta.
+let SHARES = {}, USUARIOS = {};
+const emailKeyG = e => String(e || '').toLowerCase().replace(/\./g, ',');
+function compartidaCon(rid){ return Object.keys(SHARES).filter(k => SHARES[k] && SHARES[k][rid]); }
+let compartirCtx = null;
+function abrirCompartir(rid){
+  const r = STATE.reservas.find(x => x.id === rid); if (!r) return;
+  const candidatos = Object.entries(USUARIOS).filter(([, u]) => u && u.rol === 'cotizador');
+  compartirCtx = { rid, cambios:{} };
+  const ya = new Set(compartidaCon(rid));
+  const ov = document.getElementById('share-overlay'), box = document.getElementById('share-box');
+  box.innerHTML = `<h3>Compartir reserva</h3><div class="upload-hint"><strong>${escHtml(r.codigo || '—')}</strong> · ${escHtml(r.cliente || '')} ${escHtml(r.concepto || '')}<br>Las personas elegidas la ven en modo solo lectura (datos generales, valor cotizado, pagos y comprobantes; no ven costos, margen, reparto ni facturación).</div>
+    <div class="share-list">${candidatos.length ? candidatos.map(([k, u]) => `<label><input type="checkbox" value="${escHtml(k)}" ${ya.has(k)?'checked':''}><span>${escHtml(u.nombre || u.email || k)}<small>${escHtml(u.email || k)} · cotizador</small></span></label>`).join('') : '<div class="upload-hint">No hay cuentas con rol cotizador en finanzas/meta/usuarios. Las cuentas de agente y admin ya ven todas las reservas.</div>'}</div>
+    <button class="save-btn" onclick="guardarCompartir()">Guardar</button>
+    <button class="delete-btn" style="color:var(--dark);border-color:var(--beige-d)" onclick="cerrarCompartir()">Cancelar</button>`;
+  ov.classList.add('open');
+}
+function cerrarCompartir(){ document.getElementById('share-overlay').classList.remove('open'); compartirCtx = null; }
+function guardarCompartir(){
+  if (!compartirCtx) return;
+  const rid = compartirCtx.rid, up = {};
+  document.querySelectorAll('#share-box .share-list input[type=checkbox]').forEach(c => { up[`${c.value}/${rid}`] = c.checked ? true : null; });
+  db.ref('finanzas/reservasCompartidas').update(up).then(cerrarCompartir, err => { console.error(err); alert('No se pudo guardar. Revisá que hayas publicado las reglas de Firebase y que seas administrador.'); });
+}
+
 function renderReservaPanel(){
   const d = reservaCtx.data;
   document.getElementById('reserva-panel-body').innerHTML = `
@@ -2731,6 +2856,9 @@ function renderReservaPanel(){
       <div class="frow"><label class="fl">Código interno</label><input class="fi" id="r-codigo" value="${escHtml(d.codigo)}" placeholder="Se asigna automáticamente (BeT#) si lo dejás vacío"></div>
       <div class="frow"><label class="fl">Cliente</label><input class="fi" id="r-cliente" value="${escHtml(d.cliente)}" placeholder="Nombre del cliente / empresa"></div>
       <div class="frow"><label class="fl">Concepto / Destino</label><input class="fi" id="r-concepto" value="${escHtml(d.concepto)}" placeholder="Ej: Grupo Bariloche · 40 pax"></div>
+      <div class="frow"><label class="fl">Grupo de pasajeros (página Grupos)</label>
+        <select class="fsel" id="r-grupo" onchange="onGrupoChange()">${grupoOptionsHtml(d.grupoId)}</select>
+        <div class="upload-hint" style="margin-top:4px">Al vincularlo, cada pago puede asignarse a los pasajeros del grupo y se ve en su lista.</div></div>
       <div class="frow">
         <label class="fl">Servicios incluidos</label>
         <div class="servicio-chips" id="servicio-chips">
@@ -2821,6 +2949,7 @@ function renderReservaPanel(){
   recalcDerived();
   applyRolePanelUI();
   renderLastEdit();
+  refreshPagoQuien();
 }
 function reservaMargenLocal(d){ return objToArr(d.cotizado).reduce((s,c) => s + (Number(c.monto)||0), 0) - objToArr(d.costos).reduce((s,c) => s + (Number(c.monto)||0), 0); }
 
@@ -2856,7 +2985,7 @@ function saveReserva(){
     codigo: gv('r-codigo'),
     cliente: gv('r-cliente'), concepto: gv('r-concepto'),
     servicios, servicioOtroTexto: servicios.includes('Otro') ? gv('r-servicio-otro') : '',
-    moneda: gv('r-moneda'),
+    moneda: gv('r-moneda'), grupoId: gv('r-grupo'),
     estado: gv('r-estado'), fechaCotizacion: gv('r-fecha-cotizacion'),
     fechaInicio: gv('r-fecha-inicio'), fechaFin: gv('r-fecha-fin'),
     pasajeros: parseInt(gv('r-pasajeros'),10)||'', notas: gv('r-notas'),
@@ -2889,6 +3018,8 @@ function saveReserva(){
       medio: row.querySelector('.pago-medio').value,
       comentario: row.querySelector('.pago-comentario').value.trim(),
       link: row.querySelector('.pago-link').value.trim(),
+      grupoPasajeros: Object.fromEntries(((row.querySelector('.pago-quien') || { dataset:{} }).dataset.pax || '').split(',').filter(Boolean).map(x => [x, true])),
+      origen: (row.querySelector('.pago-quien') || { dataset:{} }).dataset.origen || '',
     };
   });
   document.querySelectorAll('.reparto-row').forEach(row => {
@@ -3003,5 +3134,6 @@ function deleteReserva(){
   closeReserva();
 }
 </script>
+<div class="modal-overlay" id="share-overlay" onclick="if(event.target===this)cerrarCompartir()"><div class="modal" id="share-box"></div></div>
 </body>
 </html>

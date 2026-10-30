@@ -287,12 +287,65 @@ let TAB = 'resp';
 
 function attachListeners(){
   GRUPOS_REF.on('value', snap => {
-    GRUPOS = snap.val() || {};
+    GRUPOS = snap.val() || {}; GRUPOS_CARGADOS = true;
     document.getElementById('lo').classList.add('hidden');
     showBanner('');
-    render();
+    render(); sincronizarIndice();
   }, err => { document.getElementById('lo').classList.add('hidden'); handleWriteError(err); });
+  IDX_REF.on('value', snap => { IDX = snap.val() || {}; sincronizarIndice(); }, () => {});
+  escucharReservas();
 }
+
+// ── Índice de grupos (gruposIndex): lo usa Gestión interna para elegir el grupo de una reserva ──
+const IDX_REF = db.ref('gruposIndex');
+let IDX = {}, GRUPOS_CARGADOS = false;
+function sincronizarIndice(){
+  if (!GRUPOS_CARGADOS) return;
+  const up = {};
+  Object.entries(GRUPOS).forEach(([gid, g]) => { if (g.meta && (!IDX[gid] || IDX[gid].nombre !== g.meta.nombre)) up[gid] = { nombre: g.meta.nombre }; });
+  Object.keys(IDX).forEach(gid => { if (!GRUPOS[gid]) up[gid] = null; });
+  if (Object.keys(up).length) IDX_REF.update(up).catch(() => {});
+}
+
+// ── Reservas vinculadas y pagos ─────────────────────────────────────────────
+// Los pagos viven en la reserva (finanzas/reservas/{id}/pagos); cada pago guarda grupoPasajeros {id de respuesta: true}.
+// Esta página los lee de ahí y puede registrar pagos nuevos (origen:'grupos'): no hay una segunda copia que sincronizar.
+let RESERVAS = {};
+const puedeEditarReservas = () => CURRENT_USER.rol !== 'cotizador';
+const aArr = o => !o ? [] : Array.isArray(o) ? o.filter(Boolean) : Object.keys(o).map(id => ({ id, ...o[id] }));
+function escucharReservas(){
+  if (puedeEditarReservas()){
+    db.ref('finanzas/reservas').on('value', s => { RESERVAS = s.val() || {}; refrescarPagos(); }, () => {});
+    return;
+  }
+  // Cotizador: solo las reservas que un administrador le compartió (solo lectura)
+  const refs = {};
+  db.ref('finanzas/reservasCompartidas/' + emailKey(CURRENT_USER.email)).on('value', s => {
+    const v = s.val() || {}, ids = Object.keys(v).filter(k => v[k] === true);
+    ids.forEach(id => { if (!refs[id]){ refs[id] = db.ref('finanzas/reservas/' + id); refs[id].on('value', x => { x.exists() ? RESERVAS[id] = x.val() : delete RESERVAS[id]; refrescarPagos(); }, () => { delete RESERVAS[id]; }); } });
+    Object.keys(refs).filter(id => !ids.includes(id)).forEach(id => { refs[id].off(); delete refs[id]; delete RESERVAS[id]; });
+    refrescarPagos();
+  }, () => {});
+}
+function refrescarPagos(){
+  if (!GID_ABIERTO || !GRUPOS[GID_ABIERTO]) return;
+  const t = document.getElementById('resp-tabla');
+  if (TAB === 'resp' && t) t.innerHTML = tablaResp(GRUPOS[GID_ABIERTO]);
+  else if (TAB === 'cfg') render();
+}
+const reservasDelGrupo = gid => Object.entries(RESERVAS).filter(([, r]) => r && r.grupoId === gid);
+const moneyG = (n, m) => (m === 'USD' ? 'US$ ' : '$ ') + (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+// rid de respuesta -> { tot:{ARS,USD}, pagos:[...] }. Un pago asignado a varios pasajeros se reparte en partes iguales.
+function pagosPorPasajero(gid){
+  const out = {};
+  reservasDelGrupo(gid).forEach(([resId, r]) => aArr(r.pagos).forEach(p => {
+    const ks = Object.keys(p.grupoPasajeros || {}); if (!ks.length) return;
+    const mon = p.moneda || r.moneda || 'ARS', share = (Number(p.monto) || 0) / ks.length;
+    ks.forEach(k => { const o = out[k] = out[k] || { tot:{}, pagos:[] }; o.tot[mon] = (o.tot[mon] || 0) + share; o.pagos.push({ resId, pid:p.id, p, r, share, n:ks.length, mon }); });
+  }));
+  return out;
+}
+const totTxt = tot => Object.keys(tot).map(m => moneyG(tot[m], m)).join(' + ');
 
 // ── ACCIONES ───────────────────────────────────────────────────────────────
 function nuevoGrupo(){
@@ -300,9 +353,9 @@ function nuevoGrupo(){
   if (!nombre) return;
   const gid = nuevoToken();
   GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email, form: limpiarForm(window.FORM_DEFAULT) })
-    .then(() => abrirGrupo(gid), handleWriteError);
+    .then(() => { IDX_REF.child(gid).set({ nombre }).catch(() => {}); abrirGrupo(gid); }, handleWriteError);
 }
-function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'resp'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'' }; COLAPSADAS.clear(); render(); }
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'resp'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'' }; COLAPSADAS.clear(); render(); }
 function volverLista(){ GID_ABIERTO = null; render(); }
 function setTab(t){ if (TAB === 'form' && t !== 'form' && DIRTY && !confirm('Hay cambios sin guardar en el formulario. ¿Salir igualmente?')) return; TAB = t; FORM_RENDER = true; render(); }
 function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
@@ -321,13 +374,13 @@ function guardarAjustes(){
   if (nombre) up[base + 'nombre'] = nombre;
   up[base + 'invitados'] = inv.length ? inv : null;
   up[base + 'fechaViaje'] = fecha || null;
-  GRUPOS_REF.update(up).then(() => showBanner(''), handleWriteError);
+  GRUPOS_REF.update(up).then(() => { showBanner(''); if (nombre) IDX_REF.child(GID_ABIERTO).set({ nombre }).catch(() => {}); }, handleWriteError);
 }
 function eliminarGrupo(){
   const g = GRUPOS[GID_ABIERTO];
   if (!confirm(`Eliminar el grupo "${g.meta.nombre}" con todas sus respuestas y habitaciones? No se puede deshacer.`)) return;
   const gid = GID_ABIERTO; GID_ABIERTO = null;
-  GRUPOS_REF.child(gid).remove().catch(handleWriteError);
+  GRUPOS_REF.child(gid).remove().then(() => IDX_REF.child(gid).remove().catch(() => {}), handleWriteError);
 }
 function borrarRespuesta(rid){
   const g = GRUPOS[GID_ABIERTO]; const r = g.respuestas[rid];
@@ -506,10 +559,11 @@ function habitacionDe(g, rid){
   for (const [hid, h] of Object.entries(g.habitaciones || {})) if (h.pasajeros && h.pasajeros[rid]) return { hid, h };
   return null;
 }
-let FILTRO = { q:'', vinc:'', hab:'', ped:'' };
+let FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'' };
 function setFiltro(k, v){ FILTRO[k] = v; const t = document.getElementById('resp-tabla'); if (t) t.innerHTML = tablaResp(GRUPOS[GID_ABIERTO]); }
 function tablaResp(g){
   const resps = g.respuestas || {}, asg = asignaciones(g), qt = tokens(FILTRO.q);
+  const conPagos = reservasDelGrupo(GID_ABIERTO).length > 0, pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {};
   const filas = respuestasOrdenadas(g).filter(([rid, r]) => {
     const inf = resolverInfo(rid, r, resps), comp = inf.id ? resps[inf.id] : null, v = estadoVinculo(rid, r, resps);
     if (qt.length){ const hay = norm([r.nombre, r.apellido, r.pasaporte, r.nacionalidad, r.email, r.compartiCon, comp ? nombreDe(comp) : ''].join(' ')); if (!qt.every(t => hay.includes(t))) return false; }
@@ -519,19 +573,22 @@ function tablaResp(g){
     if (FILTRO.hab === 'sin' && asg[rid]) return false;
     if (FILTRO.hab && FILTRO.hab !== 'sin' && !(asg[rid] && String(asg[rid].n) === FILTRO.hab)) return false;
     if (FILTRO.ped && r.tipoHabitacion !== FILTRO.ped) return false;
+    if (FILTRO.pago === 'con' && !pp[rid]) return false;
+    if (FILTRO.pago === 'sin' && pp[rid]) return false;
     return true;
   });
   const total = Object.keys(resps).length;
   let html = `<div class="hint" style="margin:6px 2px">Mostrando ${filas.length} de ${total}</div>`;
   if (!filas.length) return html + '<div class="vacio">Ninguna respuesta coincide con los filtros.</div>';
-  html += '<div class="lista"><table><thead><tr><th>Pasajero</th><th>Pasaporte</th><th>Vence</th><th>Habitación pedida</th><th>Comparte con</th><th>Vínculo</th><th>Hab.</th></tr></thead><tbody>';
+  html += '<div class="lista"><table><thead><tr><th>Pasajero</th><th>Pasaporte</th><th>Vence</th><th>Habitación pedida</th><th>Comparte con</th><th>Vínculo</th><th>Hab.</th>' + (conPagos ? '<th>Pagos</th>' : '') + '</tr></thead><tbody>';
   filas.forEach(([rid, r]) => {
+    const r0 = rid;
     const v = estadoVinculo(rid, r, resps), a = asg[rid], inf = resolverInfo(rid, r, resps), comp = inf.id ? resps[inf.id] : null;
     const interpretado = comp && norm(r.compartiCon) !== norm(nombreDe(comp)) && norm(r.compartiCon) !== norm(`${comp.apellido} ${comp.nombre}`) ? `<div class="sub">→ ${esc(comp.apellido)}, ${esc(comp.nombre)}</div>` : '';
     html += `<tr class="fila" onclick="verRespuesta('${esc(rid)}')"><td><strong>${esc(r.apellido)}, ${esc(r.nombre)}</strong></td><td>${esc(r.pasaporte)}</td>`
       + `<td>${fmtFecha(r.vencimiento)}${venceProximo(r, g.meta) ? ' <span class="pill bad" title="Vence antes de los 6 meses posteriores al viaje">&lt; 6 meses</span>' : ''}</td>`
       + `<td>${esc(r.tipoHabitacion)}${r.tipoCama ? ' · ' + esc(r.tipoCama) : ''}</td><td>${esc(r.compartiCon || '—')}${interpretado}</td>`
-      + `<td><span class="pill ${v.cls}">${v.txt}</span></td><td>${a ? `<strong>${a.n}</strong> · ${esc(a.h.tipo)}${camaHab(a.h, resps) ? ' · ' + esc(camaHab(a.h, resps)) : ''}` : '<span class="pill warn">Sin asignar</span>'}</td></tr>`;
+      + `<td><span class="pill ${v.cls}">${v.txt}</span></td><td>${a ? `<strong>${a.n}</strong> · ${esc(a.h.tipo)}${camaHab(a.h, resps) ? ' · ' + esc(camaHab(a.h, resps)) : ''}` : '<span class="pill warn">Sin asignar</span>'}</td>${conPagos ? `<td>${pp[r0] ? `<span class="pill ok" title="${esc(pp[r0].pagos.length + ' pago(s)')}">Pagó ${esc(totTxt(pp[r0].tot))}</span>` : '<span class="pill warn">Sin pagos</span>'}</td>` : ''}</tr>`;
   });
   return html + '</tbody></table></div>';
 }
@@ -548,6 +605,7 @@ function htmlRespuestas(g){
   html += `<div class="filtros"><input type="text" placeholder="Buscar por nombre, pasaporte, correo…" value="${esc(FILTRO.q)}" oninput="setFiltro('q',this.value)">
     <select onchange="setFiltro('vinc',this.value)">${opt('', 'Todos los vínculos', FILTRO.vinc)}${opt('ok', 'Recíprocos', FILTRO.vinc)}${opt('pend', 'Con problemas o sin confirmar', FILTRO.vinc)}${opt('ind', 'Sin compañero (individual / no comparte)', FILTRO.vinc)}</select>
     <select onchange="setFiltro('hab',this.value)">${opt('', 'Todas las habitaciones', FILTRO.hab)}${opt('sin', 'Sin asignar', FILTRO.hab)}${Array.from({ length: nHab }, (_, i) => opt(String(i + 1), 'Hab. ' + (i + 1), FILTRO.hab)).join('')}</select>
+    ${reservasDelGrupo(GID_ABIERTO).length ? `<select onchange="setFiltro('pago',this.value)">${opt('', 'Todos los pagos', FILTRO.pago)}${opt('con', 'Con pagos', FILTRO.pago)}${opt('sin', 'Sin pagos', FILTRO.pago)}</select>` : ''}
     <select onchange="setFiltro('ped',this.value)">${opt('', 'Cualquier tipo pedido', FILTRO.ped)}${pedidas.map(t => opt(t, t, FILTRO.ped)).join('')}</select></div>`;
   return html + `<div id="resp-tabla">${tablaResp(g)}</div>`;
 }
@@ -558,6 +616,51 @@ const CAMPOS = [
   ['comparte','Comparte habitación'],['compartiCon','Comparte con'],['restricciones','Restricciones alimentarias'],['movilidad','Movilidad / asistencia'],['medicas','Condiciones médicas'],
 ];
 const FECHAS = new Set(['nacimiento','emision','vencimiento']);
+function pagosFichaHtml(rid){
+  const gid = GID_ABIERTO, reservas = reservasDelGrupo(gid);
+  if (!reservas.length) return puedeEditarReservas() ? `<div class="card" style="margin:0 0 12px"><h3>Pagos</h3><div class="hint" style="margin:0">Vinculá una reserva a este grupo (pestaña Ajustes) para llevar el control de pagos.</div></div>` : '';
+  const mios = (pagosPorPasajero(gid)[rid] || { pagos:[], tot:{} });
+  const g = GRUPOS[gid], resps = g.respuestas || {};
+  let html = `<div class="card" style="margin:0 0 12px"><h3>Pagos${mios.pagos.length ? ' · ' + esc(totTxt(mios.tot)) : ''}</h3>`;
+  html += mios.pagos.length ? mios.pagos.sort((a, b) => String(a.p.fecha || '').localeCompare(String(b.p.fecha || ''))).map(x => {
+    const cod = reservas.length > 1 ? ` · ${esc(x.r.codigo || 'reserva')}` : '';
+    const parte = x.n > 1 ? ` · parte de ${moneyG(x.p.monto, x.mon)} entre ${x.n}` : '';
+    const borrar = puedeEditarReservas() && x.p.origen === 'grupos' ? ` <button class="btn danger small" onclick="eliminarPago('${esc(x.resId)}','${esc(x.pid)}','${esc(rid)}')">Quitar</button>` : '';
+    return `<div class="ocu"><div class="nom"><strong>${moneyG(x.share, x.mon)}</strong> · ${fmtFecha(x.p.fecha) || 's/f'}${esc(x.p.medio ? ' · ' + x.p.medio : '')}${cod}${parte}<div class="sub">${x.p.origen === 'grupos' ? 'Registrado desde Grupos' : 'Cargado en la reserva'}${x.p.comentario ? ' · ' + esc(x.p.comentario) : ''}</div></div>${borrar}</div>`;
+  }).join('') : '<div class="hint" style="margin:0 0 6px">Sin pagos asignados a esta persona.</div>';
+  if (puedeEditarReservas()){
+    const otros = respuestasOrdenadas(g).filter(([id]) => id !== rid);
+    html += `<div style="margin-top:10px;border-top:1px solid var(--beige-d);padding-top:10px"><div class="hint">Registrar un pago a nombre de ${esc(resps[rid].nombre)} (queda cargado en la reserva).</div>
+      <div class="filtros">${reservas.length > 1 ? `<select id="pg-res">${reservas.map(([id, r]) => `<option value="${esc(id)}">${esc(r.codigo || id)} · ${esc(r.cliente || '')}</option>`).join('')}</select>` : `<input type="hidden" id="pg-res" value="${esc(reservas[0][0])}">`}
+        <input type="number" step="0.01" min="0" id="pg-monto" placeholder="Monto" style="width:120px">
+        <select id="pg-mon"><option ${reservas[0][1].moneda !== 'USD' ? 'selected' : ''}>ARS</option><option ${reservas[0][1].moneda === 'USD' ? 'selected' : ''}>USD</option></select>
+        <input type="date" id="pg-fecha" value="${new Date().toISOString().slice(0, 10)}">
+        <select id="pg-medio"><option value="">Medio</option><option value="transferencia">Transferencia</option><option value="efectivo">Efectivo</option><option value="tarjeta">Tarjeta</option><option value="cheque">Cheque</option><option value="otro">Otro</option></select>
+        <input type="number" step="0.01" id="pg-tc" placeholder="T.C. (si otra moneda)" style="width:150px"></div>
+      ${otros.length ? `<details class="pax-pick" style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;padding:6px 8px">También cubre a otros pasajeros (el monto se reparte en partes iguales)</summary><div class="share-list" style="margin:6px 8px;max-height:180px">${otros.map(([id, o]) => `<label style="padding:3px 6px;border:0"><input type="checkbox" class="pg-otro" value="${esc(id)}"> ${esc(o.apellido)}, ${esc(o.nombre)}</label>`).join('')}</div></details>` : ''}
+      <button class="btn" style="margin-top:10px" onclick="registrarPago('${esc(rid)}')">Registrar pago</button></div>`;
+  } else html += '<div class="hint" style="margin-top:8px">Tu cuenta ve los pagos en modo solo lectura.</div>';
+  return html + '</div>';
+}
+function registrarPago(rid){
+  const monto = parseFloat(document.getElementById('pg-monto').value);
+  if (!(monto > 0)){ alert('Ingresá un monto mayor a cero.'); return; }
+  const resId = document.getElementById('pg-res').value, r = RESERVAS[resId], mon = document.getElementById('pg-mon').value;
+  const tc = parseFloat(document.getElementById('pg-tc').value) || '';
+  if (r && mon !== (r.moneda || mon) && !tc && !confirm('El pago está en otra moneda que la reserva y no cargaste el tipo de cambio: el saldo de la reserva no lo va a contar hasta que lo completes. ¿Registrarlo igual?')) return;
+  const ids = [rid, ...[...document.querySelectorAll('.pg-otro:checked')].map(c => c.value)];
+  const key = db.ref('finanzas/reservas/' + resId + '/pagos').push().key, base = `finanzas/reservas/${resId}/`;
+  const up = {};
+  up[base + 'pagos/' + key] = { fecha: document.getElementById('pg-fecha').value, monto, moneda: mon, tipoCambio: tc, medio: document.getElementById('pg-medio').value, comentario:'', link:'', grupoPasajeros: Object.fromEntries(ids.map(i => [i, true])), origen:'grupos', creadoPor: CURRENT_USER.email };
+  up[base + 'updatedAt'] = Date.now(); up[base + 'updatedBy'] = CURRENT_USER.email;
+  db.ref().update(up).then(() => verRespuesta(rid), handleWriteError);
+}
+function eliminarPago(resId, pid, rid){
+  if (!confirm('¿Quitar este pago de la reserva? Solo se pueden quitar desde acá los pagos registrados desde Grupos.')) return;
+  const base = `finanzas/reservas/${resId}/`, up = {};
+  up[base + 'pagos/' + pid] = null; up[base + 'updatedAt'] = Date.now(); up[base + 'updatedBy'] = CURRENT_USER.email;
+  db.ref().update(up).then(() => verRespuesta(rid), handleWriteError);
+}
 function setVinculo(rid, v){
   GRUPOS_REF.child(`${GID_ABIERTO}/vinculos/${rid}`).set(v || null).then(() => verRespuesta(rid), handleWriteError);
 }
@@ -572,7 +675,7 @@ function verRespuesta(rid){
   const r = GRUPOS[GID_ABIERTO].respuestas[rid]; if (!r) return;
   const rows = columnasForm(GRUPOS[GID_ABIERTO]).filter(c => r[c.id] != null && r[c.id] !== '').map(c => `<dt>${esc(c.etiqueta)}</dt><dd>${esc(valorTxt(r, c))}</dd>`).join('');
   const ts = r.ts ? new Date(r.ts).toLocaleString('es-AR') : '';
-  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl>${vincHtml(rid, r)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl>${vincHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
 function cerrarModal(){ document.getElementById('modal-root').innerHTML = ''; }
 
@@ -625,9 +728,23 @@ function htmlHabitaciones(g){
   }
   return html;
 }
+function vincularReserva(resId){ if (!resId) return; db.ref('finanzas/reservas/' + resId + '/grupoId').set(GID_ABIERTO).catch(handleWriteError); }
+function desvincularReserva(resId){
+  if (!confirm('¿Desvincular la reserva de este grupo? Los pagos conservan la asignación a pasajeros, pero dejan de verse acá.')) return;
+  db.ref('finanzas/reservas/' + resId + '/grupoId').remove().catch(handleWriteError);
+}
+function htmlReservaVinculada(){
+  if (!puedeEditarReservas()) return '';
+  const lig = reservasDelGrupo(GID_ABIERTO);
+  const libres = Object.entries(RESERVAS).filter(([, r]) => r && !r.grupoId).sort((a, b) => String(a[1].codigo || '').localeCompare(String(b[1].codigo || ''), 'es', { numeric:true }));
+  return `<div class="card"><h3>Reserva vinculada (pagos)</h3><div class="hint">Al vincular una reserva, sus pagos se asignan a pasajeros de este grupo (desde la reserva o desde la ficha de cada pasajero) y se ven en la columna Pagos de Respuestas.</div>
+    ${lig.map(([id, r]) => `<div class="ocu"><div class="nom"><strong>${esc(r.codigo || '—')}</strong> · ${esc(r.cliente || '')} ${esc(r.concepto || '')}</div><button class="btn danger small" onclick="desvincularReserva('${esc(id)}')">Desvincular</button></div>`).join('')}
+    <div class="linkbox" style="margin-top:8px"><select id="sel-reserva" style="flex:1;min-width:220px"><option value="">Elegir una reserva sin grupo…</option>${libres.map(([id, r]) => `<option value="${esc(id)}">${esc(r.codigo || id)} · ${esc(r.cliente || '')} ${esc(r.concepto || '')}</option>`).join('')}</select>
+    <button class="btn" onclick="vincularReserva(document.getElementById('sel-reserva').value)">Vincular</button></div></div>`;
+}
 function htmlAjustes(g){
   const inv = g.meta.invitados ? Object.values(g.meta.invitados).join('\n') : '';
-  return `<div class="card"><h3>Link para pasajeros</h3><div class="hint">Cualquiera que tenga este link puede cargar datos mientras el grupo esté abierto. Cerrá el grupo cuando termine la recolección.</div>
+  return htmlReservaVinculada() + `<div class="card"><h3>Link para pasajeros</h3><div class="hint">Cualquiera que tenga este link puede cargar datos mientras el grupo esté abierto. Cerrá el grupo cuando termine la recolección.</div>
     <div class="linkbox"><input type="text" id="link-input" readonly value="${esc(linkPublico(GID_ABIERTO))}"><button class="btn" id="btn-copiar" onclick="copiarLink()">Copiar link</button>
     ${g.meta.activo ? '<button class="btn outline" onclick="setActivo(false)">Cerrar grupo</button>' : '<button class="btn outline" onclick="setActivo(true)">Reabrir grupo</button>'}</div></div>
     <div class="card"><h3>Datos del grupo</h3>
@@ -848,10 +965,11 @@ function exportarExcel(){
   const g = GRUPOS[GID_ABIERTO], resps = g.respuestas || {};
   const cols = columnasForm(g);
   const asg = asignaciones(g);
-  const pax = respuestasOrdenadas(g).map(([rid, r]) => [...cols.map(c => valorTxt(r, c)), asg[rid] ? asg[rid].n : '', asg[rid] ? asg[rid].h.tipo : '', asg[rid] ? camaHab(asg[rid].h, resps) : '']);
+const conPagos = reservasDelGrupo(GID_ABIERTO).length > 0, pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {};
+  const pax = respuestasOrdenadas(g).map(([rid, r]) => [...cols.map(c => valorTxt(r, c)), asg[rid] ? asg[rid].n : '', asg[rid] ? asg[rid].h.tipo : '', asg[rid] ? camaHab(asg[rid].h, resps) : '', ...(conPagos ? [pp[rid] ? totTxt(pp[rid].tot) : 'Sin pagos'] : [])]);
   const hab = filasHabitaciones(g).map(f => [f.n, f.tipo, f.cama, f.r.apellido, f.r.nombre, f.r.pasaporte, fmtFecha(f.r.vencimiento), f.r.restricciones || '', f.r.movilidad || '']);
   const blob = armarXlsx([
-    { nombre:'Pasajeros', cabecera: [...cols.map(c => c.etiqueta), 'Habitación asignada', 'Tipo de habitación asignada', 'Cama de la habitación'], filas: pax },
+    { nombre:'Pasajeros', cabecera: [...cols.map(c => c.etiqueta), 'Habitación asignada', 'Tipo de habitación asignada', 'Cama de la habitación', ...(conPagos ? ['Pagos'] : [])], filas: pax },
     { nombre:'Habitaciones', cabecera:['Habitación','Tipo','Cama','Apellido','Nombre','Pasaporte','Vencimiento','Restricciones alimentarias','Movilidad / asistencia'], filas: hab },
   ]);
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);

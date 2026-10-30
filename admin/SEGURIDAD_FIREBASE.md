@@ -78,6 +78,17 @@ Nodo `grupos/{token}` con `meta` (nombre, estado, lista de invitados), `respuest
 - Las preguntas de cada grupo se arman en `admin/grupos.html` (pestaña Formulario) y se guardan en `grupos/{token}/meta/form`; `form-default.js` en la raíz es el modelo original. Las reglas exigen solo `nombre`, `apellido` y `ts`; las preguntas agregadas se guardan como texto de hasta 1000 caracteres. Algunas preguntas del modelo (fechas, tipo de habitación, cama, comparte, consentimiento) tienen formato fijo porque las reglas y el panel de habitaciones dependen de él.
 - **Hay que volver a publicar `database.rules.json` (paso 2)** antes de usar el formulario; mientras tanto el pasajero ve un aviso de error y el panel muestra el banner rojo.
 
+### Pagos de la reserva asignados a pasajeros del grupo
+
+- `finanzas/reservas/{id}/grupoId` vincula la reserva con un grupo (se elige en Datos generales de la reserva, o desde Ajustes del grupo). Cada pago de la reserva guarda `grupoPasajeros` (ids de respuestas del grupo) y, si se cargó desde la página Grupos, `origen: "grupos"`. Un pago asignado a varios pasajeros se reparte en partes iguales para la columna Pagos de Grupos. No hay dos copias del dato: ambos lados leen y escriben los pagos de la reserva.
+- `gruposIndex/{token}` guarda solo el nombre de cada grupo para poder elegirlo desde una reserva sin descargar los datos de los pasajeros. Lo mantiene la página Grupos.
+
+### Reservas compartidas en solo lectura (cotizadores)
+
+- Un admin comparte una reserva desde la lista de Gestión interna (columna Compartir). Se guarda en `finanzas/reservasCompartidas/{email con "," en lugar de "."}/{id de reserva}: true`. Solo un admin lee y escribe ese nodo; cada persona lee únicamente su propia entrada.
+- Las reglas dejan leer `finanzas/reservas/{id}` a la cuenta que la tenga compartida; no puede listar las demás ni escribir. Las ve en `admin/compartidas.html` (menú "Reservas"), que muestra datos generales, valor cotizado, pagos y comprobantes, y oculta costos, margen, reparto y facturación. **Ocultar es solo de pantalla: la reserva completa es legible por esa cuenta** desde la base.
+- Con `grupos: true` en su entrada, esa cuenta ve además la columna Pagos de Grupos (solo lectura) para las reservas compartidas y vinculadas.
+
 ## Notas
 
 - Estas reglas son un primer borrador (ver plan de implementación). Cubren: lectura de `finanzas`/`kanban` solo para usuarios logueados, escritura de `reparto`/`facturacion`/`facturas` solo para admins, y escritura pública pero de solo-creación (no edición/borrado) en `kanban/prospectos` para que el formulario del sitio pueda cargar leads sin login.

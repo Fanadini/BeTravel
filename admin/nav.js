@@ -19,6 +19,7 @@
     { id:'cotizador', href:'cotizador.html',     label:'Cotizador',       roles:['admin', 'agente', 'cotizador'] },
     { id:'gestion',   href:'gestioninterna.html', label:'Gestión interna', roles:['admin', 'agente'] },
     { id:'grupos',    href:'grupos.html',        label:'Grupos',          roles:['admin', 'agente'] },
+    { id:'compartidas', href:'compartidas.html', label:'Reservas',        roles:['cotizador'] },
     { id:'contratos', href:'contratos.html',     label:'Contratos',       roles:['admin'] }
   ];
 
