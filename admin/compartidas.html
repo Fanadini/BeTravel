@@ -252,7 +252,7 @@ function cargarNombresGrupo(r){
     const v = s.val() || {}; NOMBRES_GRUPO[r.grupoId] = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, `${x.apellido || ''}, ${x.nombre || ''}`])); render();
   }, () => {});
 }
-const arr = o => !o ? [] : Array.isArray(o) ? o.filter(Boolean) : Object.keys(o).map(id => ({ id, ...o[id] }));
+const arr = o => { const a = !o ? [] : Array.isArray(o) ? o.filter(Boolean) : Object.keys(o).map(id => ({ id, ...o[id] })); return a.some(x => x.orden != null) ? a.map((x, i) => [x, i]).sort((p, q) => ((p[0].orden != null ? p[0].orden : 1e9) - (q[0].orden != null ? q[0].orden : 1e9)) || (p[1] - q[1])).map(x => x[0]) : a; };
 function convertir(monto, de, a, tc){
   if (!de || de === a) return { v: monto, ok:true };
   const t = Number(tc) || 0; if (t <= 0) return { v: 0, ok:false };
