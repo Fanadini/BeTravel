@@ -199,6 +199,13 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .psec-title::after{content:'';flex:1;height:1px;background:var(--beige-d)}
 .item-card{background:var(--beige);border:1px solid var(--beige-d);border-radius:8px;padding:10px 12px;margin-bottom:8px;position:relative}
 .item-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.item-card-header .item-card-label{flex:1}
+.drag-h{cursor:grab;width:20px;height:22px;display:flex;align-items:center;justify-content:center;color:rgba(43,43,43,.4);font-size:13px;letter-spacing:-3px;user-select:none;margin-right:6px;flex-shrink:0}
+.drag-h:hover{color:var(--teal)}
+.drag-h:active{cursor:grabbing}
+.dnd-ghost{opacity:.4}
+.dnd-before{box-shadow:0 -3px 0 0 var(--teal)}
+.dnd-after{box-shadow:0 3px 0 0 var(--teal)}
 .item-card-label{font-size:10px;font-weight:600;color:var(--teal);letter-spacing:.5px;text-transform:uppercase}
 .item-delete-btn{width:22px;height:22px;border-radius:4px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(43,43,43,.35);flex-shrink:0;font-size:13px}
 .item-delete-btn:hover{background:rgba(184,50,50,.08);color:var(--red)}
@@ -722,7 +729,11 @@ function fmtDate(d){
   const [y,m,day] = d.split('-');
   return `${day}/${m}/${y}`;
 }
-function objToArr(o){ return o ? Object.keys(o).map(id => ({ id, ...o[id] })) : []; }
+// Si los ítems traen "orden" (se guarda al reordenarlos por arrastre), se respeta; si no, queda el orden de creación.
+function objToArr(o){
+  const a = o ? Object.keys(o).map(id => ({ id, ...o[id] })) : [];
+  return a.some(x => x.orden != null) ? a.map((x, i) => [x, i]).sort((p, q) => ((p[0].orden != null ? p[0].orden : 1e9) - (q[0].orden != null ? q[0].orden : 1e9)) || (p[1] - q[1])).map(x => x[0]) : a;
+}
 // Convierte un monto de una moneda a otra usando un tipo de cambio (ARS por USD).
 // Se usa para pagos en otra moneda que la reserva, y para valor cotizado / costo total
 // cuando cada uno está cargado en una moneda distinta (ej: cobrás en pesos, el proveedor
@@ -2434,7 +2445,7 @@ initReservaPanelAutosave();
 function pagoRowHtml(p, monedaReserva){
   const pMoneda = p.moneda || monedaReserva || 'ARS';
   return `<div class="item-card pago-row" data-row-id="${p.id}">
-    <div class="item-card-header"><span class="item-card-label">Pago</span><button type="button" class="item-delete-btn" onclick="this.closest('.pago-row').remove();recalcDerived();saveReserva()">✕</button></div>
+    <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="item-card-label">Pago</span><button type="button" class="item-delete-btn" onclick="this.closest('.pago-row').remove();recalcDerived();saveReserva()">✕</button></div>
     <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Fecha</span><input type="date" class="pago-fecha" value="${p.fecha||''}"></div>
       <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="pago-monto" value="${p.monto??''}" oninput="recalcDerived()"></div>
@@ -2453,7 +2464,7 @@ function pagoRowHtml(p, monedaReserva){
 function facturaRowHtml(f, monedaReserva){
   const fMoneda = f.moneda || monedaReserva || 'ARS';
   return `<div class="item-card factura-row" data-row-id="${f.id}">
-    <div class="item-card-header"><span class="item-card-label">Factura</span><button type="button" class="item-delete-btn" onclick="this.closest('.factura-row').remove();saveReserva()">✕</button></div>
+    <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="item-card-label">Factura</span><button type="button" class="item-delete-btn" onclick="this.closest('.factura-row').remove();saveReserva()">✕</button></div>
     <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Fecha</span><input type="date" class="factura-fecha" value="${f.fecha||''}"></div>
       <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="factura-monto" value="${f.monto??''}"></div>
@@ -2475,7 +2486,7 @@ function costoRowHtml(c, monedaReserva){
   const showFechaEmision = c.tipo==='Aéreo' && medio==='bsp';
   const showVencimientoTarjeta = medio==='tarjeta';
   return `<div class="item-card costo-row" data-row-id="${c.id}" data-pagado="${c.pagado?'true':'false'}">
-    <div class="item-card-header"><span class="item-card-label">Costo</span><button type="button" class="item-delete-btn" onclick="this.closest('.costo-row').remove();recalcDerived();saveReserva()">✕</button></div>
+    <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="item-card-label">Costo</span><button type="button" class="item-delete-btn" onclick="this.closest('.costo-row').remove();recalcDerived();saveReserva()">✕</button></div>
     <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Tipo</span><select class="costo-tipo" onchange="onCostoRowChange(this)">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,c.tipo||'Otro')}</select></div>
       <div class="item-field"><span class="item-field-label">Medio de pago</span><select class="costo-medio" onchange="onCostoRowChange(this)">${selOpts(MEDIO_PAGO_TIPOS,MEDIO_PAGO_TIPOS.map(m=>MEDIO_PAGO_LABELS[m]),medio)}</select></div>
@@ -2520,7 +2531,7 @@ function onCostoRowChange(el){
 function cotizadoRowHtml(c, monedaReserva){
   const cMoneda = c.moneda || monedaReserva || 'ARS';
   return `<div class="item-card cotizado-row" data-row-id="${c.id}">
-    <div class="item-card-header"><span class="item-card-label">Ítem cotizado</span><button type="button" class="item-delete-btn" onclick="this.closest('.cotizado-row').remove();recalcDerived();saveReserva()">✕</button></div>
+    <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="item-card-label">Ítem cotizado</span><button type="button" class="item-delete-btn" onclick="this.closest('.cotizado-row').remove();recalcDerived();saveReserva()">✕</button></div>
     <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Tipo</span><select class="cotizado-tipo">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,c.tipo||'Otro')}</select></div>
       <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="cotizado-monto" value="${c.monto??''}" oninput="recalcDerived()"></div>
@@ -2571,7 +2582,7 @@ function crearPasajeroDesdeReserva(){
 function repartoRowHtml(r, monedaReserva){
   const rMoneda = r.moneda || monedaReserva || 'ARS';
   return `<div class="item-card reparto-row" data-row-id="${r.id}">
-    <div class="item-card-header"><span class="item-card-label">Ejecutivo</span><button type="button" class="item-delete-btn" onclick="this.closest('.reparto-row').remove();recalcReparto();saveReserva()">✕</button></div>
+    <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="item-card-label">Ejecutivo</span><button type="button" class="item-delete-btn" onclick="this.closest('.reparto-row').remove();recalcReparto();saveReserva()">✕</button></div>
     <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Nombre</span><input class="reparto-ejec" list="dl-ejecutivos" value="${escHtml(r.ejecutivo)}" placeholder="Nombre"></div>
       <div class="item-field"><span class="item-field-label">Porcentaje</span><input type="number" step="0.1" class="reparto-pct" value="${r.porcentaje??''}" oninput="recalcReparto()"></div>
@@ -2846,6 +2857,51 @@ function guardarCompartir(){
   db.ref('finanzas/reservasCompartidas').update(up).then(cerrarCompartir, err => { console.error(err); alert('No se pudo guardar. Revisá que hayas publicado las reglas de Firebase y que seas administrador.'); });
 }
 
+// ── Arrastrar y soltar para ordenar las tarjetas del detalle de la reserva ──
+// Se toma desde el asa ⋮⋮; al soltar se reordena la pantalla y el autoguardado guarda el orden (campo "orden").
+const DND_LISTAS = ['pagos-list', 'cotizado-list', 'costos-list', 'reparto-list', 'facturacion-list', 'comprobantes-list'];
+const dndSel = id => `#${id} > .item-card`;
+let DND = null;   // { it, id, objetivo, lado, arrastrando }
+function dndLimpiar(){
+  document.querySelectorAll('.dnd-ghost,.dnd-before,.dnd-after').forEach(e => e.classList.remove('dnd-ghost', 'dnd-before', 'dnd-after'));
+  if (DND && DND.it) DND.it.draggable = false;
+  DND = null;
+}
+document.addEventListener('mousedown', e => {
+  const h = e.target.closest && e.target.closest('.drag-h'); if (!h) return;
+  for (const id of DND_LISTAS){
+    const it = h.closest(dndSel(id));
+    if (it){ it.draggable = true; DND = { it, id, objetivo:null, lado:'' }; return; }
+  }
+});
+document.addEventListener('mouseup', () => { if (DND && !DND.arrastrando) dndLimpiar(); });
+document.addEventListener('dragstart', e => {
+  if (!DND || e.target !== DND.it) return;
+  DND.arrastrando = true;
+  e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', 'orden'); } catch (x) {}
+  setTimeout(() => DND && DND.it.classList.add('dnd-ghost'), 0);
+});
+document.addEventListener('dragover', e => {
+  if (!DND || !DND.arrastrando) return;
+  const sobre = e.target.closest && e.target.closest(dndSel(DND.id));
+  if (!sobre || sobre === DND.it) return;
+  e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+  const r = sobre.getBoundingClientRect(), lado = e.clientY > r.top + r.height / 2 ? 'after' : 'before';
+  if (DND.objetivo !== sobre || DND.lado !== lado){
+    document.querySelectorAll('.dnd-before,.dnd-after').forEach(x => x.classList.remove('dnd-before', 'dnd-after'));
+    sobre.classList.add('dnd-' + lado); DND.objetivo = sobre; DND.lado = lado;
+  }
+});
+document.addEventListener('drop', e => {
+  if (!DND || !DND.arrastrando || !DND.objetivo) return;
+  e.preventDefault();
+  const { it, objetivo, lado } = DND;
+  dndLimpiar();
+  objetivo.parentElement.insertBefore(it, lado === 'after' ? objetivo.nextSibling : objetivo);
+  saveReserva();
+});
+document.addEventListener('dragend', () => { if (DND) dndLimpiar(); });
+
 function renderReservaPanel(){
   const d = reservaCtx.data;
   document.getElementById('reserva-panel-body').innerHTML = `
@@ -2955,7 +3011,7 @@ function reservaMargenLocal(d){ return objToArr(d.cotizado).reduce((s,c) => s + 
 
 function comprobanteRowHtml(c){
   return `<div class="item-card comprobante-row" data-row-id="${c.id}">
-    <div class="item-card-header"><span class="item-card-label">Comprobante</span><button type="button" class="item-delete-btn" onclick="this.closest('.comprobante-row').remove();saveReserva()">✕</button></div>
+    <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="item-card-label">Comprobante</span><button type="button" class="item-delete-btn" onclick="this.closest('.comprobante-row').remove();saveReserva()">✕</button></div>
     <div class="item-fields">
       <div class="item-field"><span class="item-field-label">Nombre</span><input class="comprobante-nombre" value="${escHtml(c.nombre)}" placeholder="Ej: Factura Tucano #123"></div>
       <div class="item-field"><span class="item-field-label">Link</span><input class="comprobante-url" type="url" value="${escHtml(c.url)}" placeholder="https://drive.google.com/…"></div>
@@ -2998,6 +3054,7 @@ function saveReserva(){
     historial: [...(Array.isArray(reservaCtx.data && reservaCtx.data.historial) ? reservaCtx.data.historial : []),
       { fecha: Date.now(), usuario: CURRENT_USER.email }].slice(-20),
   };
+  // (el orden de las filas se completa más abajo, después de armar cada lista)
   // Filas nuevas (todavía sin key de Firebase): se les asigna una key ahora, pero
   // el dataset del DOM recién se actualiza si el guardado sale bien, así que un
   // segundo autoguardado antes de eso no las trata como nuevas otra vez.
@@ -3082,6 +3139,9 @@ function saveReserva(){
     if (!nombre && !url) return;
     val.comprobantes[rid(row)] = { nombre, url };
   });
+
+  // Orden de cada lista = orden de las tarjetas en pantalla (se cambia arrastrando)
+  ['pagos','reparto','costos','cotizado','facturacion','comprobantes'].forEach(k => Object.values(val[k]).forEach((o, i) => { o.orden = i; }));
 
   const finishSave = () => {
     const ref = id ? REFS.reservas.child(id) : REFS.reservas.push();
