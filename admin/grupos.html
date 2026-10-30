@@ -676,7 +676,14 @@ function cobroFichaHtml(rid, r){
       <input type="text" placeholder="Motivo del ajuste" value="${esc(c.nota || '')}" style="flex:1;min-width:180px" onchange="setCobro('${esc(rid)}','nota',this.value.trim())"></div></div>`;
 }
 let FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'' };
-function setFiltro(k, v){ FILTRO[k] = v; const t = document.getElementById('resp-tabla'); if (t) t.innerHTML = tablaResp(GRUPOS[GID_ABIERTO]); }
+const FILTRO_VACIO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'' };
+const nFiltros = () => Object.values(FILTRO).filter(v => v !== '' && v != null).length;
+function pintarBotonFiltros(){
+  const b = document.getElementById('btn-limpiar'); if (!b) return;
+  const n = nFiltros(); b.textContent = n ? `Limpiar filtros (${n})` : 'Limpiar filtros'; b.disabled = !n;
+}
+function setFiltro(k, v){ FILTRO[k] = v; const t = document.getElementById('resp-tabla'); if (t) t.innerHTML = tablaResp(GRUPOS[GID_ABIERTO]); pintarBotonFiltros(); }
+function limpiarFiltros(){ FILTRO = { ...FILTRO_VACIO }; render(); }
 function tablaResp(g){
   const resps = g.respuestas || {}, asg = asignaciones(g), qt = tokens(FILTRO.q);
   const conPagos = reservasDelGrupo(GID_ABIERTO).length > 0, pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {};
@@ -764,7 +771,8 @@ function htmlRespuestas(g){
     <select onchange="setFiltro('tipo',this.value)" title="Tipo de pasajero">${opt('', 'ADT, CHD e INF', FILTRO.tipo)}${opt('ADT', 'Adultos (ADT)', FILTRO.tipo)}${opt('CHD', 'Niños (CHD)', FILTRO.tipo)}${opt('INF', 'Infantes (INF)', FILTRO.tipo)}${opt('-', 'Sin fecha de nacimiento', FILTRO.tipo)}</select>
     ${tieneCobros(g) ? `<select onchange="setFiltro('saldo',this.value)" title="Saldo">${opt('', 'Todos los saldos', FILTRO.saldo)}${opt('con', 'Con saldo pendiente', FILTRO.saldo)}${opt('ok', 'Al día', FILTRO.saldo)}${opt('falta', 'Con datos faltantes', FILTRO.saldo)}</select>` : ''}
     ${selectorMedio(g)}
-    <select onchange="setFiltro('ped',this.value)">${opt('', 'Cualquier tipo pedido', FILTRO.ped)}${pedidas.map(t => opt(t, t, FILTRO.ped)).join('')}</select></div>`;
+    <select onchange="setFiltro('ped',this.value)">${opt('', 'Cualquier tipo pedido', FILTRO.ped)}${pedidas.map(t => opt(t, t, FILTRO.ped)).join('')}</select>
+    <button type="button" class="btn outline small" id="btn-limpiar" onclick="limpiarFiltros()" ${nFiltros() ? '' : 'disabled'}>${nFiltros() ? `Limpiar filtros (${nFiltros()})` : 'Limpiar filtros'}</button></div>`;
   return html + `<div id="resp-tabla">${tablaResp(g)}</div>`;
 }
 const CAMPOS = [
