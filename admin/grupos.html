@@ -290,7 +290,7 @@ function attachListeners(){
     GRUPOS = snap.val() || {}; GRUPOS_CARGADOS = true;
     document.getElementById('lo').classList.add('hidden');
     showBanner('');
-    render(); sincronizarIndice();
+    render(); sincronizarIndice(); programarSyncResumen();
   }, err => { document.getElementById('lo').classList.add('hidden'); handleWriteError(err); });
   IDX_REF.on('value', snap => { IDX = snap.val() || {}; sincronizarIndice(); }, () => {});
   escucharReservas();
@@ -315,7 +315,7 @@ const puedeEditarReservas = () => CURRENT_USER.rol !== 'cotizador';
 const aArr = o => !o ? [] : Array.isArray(o) ? o.filter(Boolean) : Object.keys(o).map(id => ({ id, ...o[id] }));
 function escucharReservas(){
   if (puedeEditarReservas()){
-    db.ref('finanzas/reservas').on('value', s => { RESERVAS = s.val() || {}; refrescarPagos(); }, () => {});
+    db.ref('finanzas/reservas').on('value', s => { RESERVAS = s.val() || {}; RESERVAS_CARGADAS = true; refrescarPagos(); programarSyncResumen(); }, () => {});
     return;
   }
   // Cotizador: solo las reservas que un administrador le compartió (solo lectura)
@@ -336,8 +336,46 @@ function refrescarPagos(){
 const reservasDelGrupo = gid => Object.entries(RESERVAS).filter(([, r]) => r && r.grupoId === gid);
 const moneyG = (n, m) => (m === 'USD' ? 'US$ ' : '$ ') + (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits:2, maximumFractionDigits:2 });
 // rid de respuesta -> { tot:{ARS,USD}, pagos:[...] }. Un pago asignado a varios pasajeros se reparte en partes iguales.
+// Resumen de pagos por pasajero que mantiene un admin o agente en grupos/{token}/pagosResumen: así una cuenta cotizador ve quién pagó
+// (y filtra por pagos, medio y saldo) sin necesitar acceso a la reserva completa, que incluye costos y margen.
+const resumenLeido = gid => { const r = (GRUPOS[gid] || {}).pagosResumen; return r && typeof r === 'object' ? r : null; };
+const hayPagos = gid => reservasDelGrupo(gid).length > 0 || !!resumenLeido(gid);
+function resumenPagosDe(gid){
+  const out = { _ok:true };
+  reservasDelGrupo(gid).forEach(([, r]) => aArr(r.pagos).forEach(p => {
+    const ks = Object.keys(p.grupoPasajeros || {}); if (!ks.length) return;
+    const mon = p.moneda || r.moneda || 'ARS', monto = Number(p.monto) || 0, sh = Math.round(monto / ks.length * 100) / 100;
+    ks.forEach(k => (out[k] = out[k] || []).push({ id:String(p.id), sh, mon, f:p.fecha || '', d:p.medio || '', t:Number(p.tipoCambio) || 0, n:ks.length, m:monto, o:p.origen || '' }));
+  }));
+  Object.keys(out).forEach(k => { if (Array.isArray(out[k])) out[k].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0); });
+  return out;
+}
+const canon = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort((a, b) => a[0] < b[0] ? -1 : 1)) : x);
+let RESERVAS_CARGADAS = false, T_RESUMEN = null;
+function programarSyncResumen(){ clearTimeout(T_RESUMEN); T_RESUMEN = setTimeout(sincronizarResumenPagos, 700); }
+function sincronizarResumenPagos(){
+  if (!puedeEditarReservas() || !RESERVAS_CARGADAS || !GRUPOS_CARGADOS) return;
+  const up = {};
+  Object.keys(GRUPOS).forEach(gid => {
+    if (!GRUPOS[gid].meta) return;
+    const actual = GRUPOS[gid].pagosResumen || null;
+    if (!reservasDelGrupo(gid).length){ if (actual) up[gid + '/pagosResumen'] = null; return; }
+    const nuevo = resumenPagosDe(gid);
+    if (canon(nuevo) !== canon(actual)) up[gid + '/pagosResumen'] = nuevo;
+  });
+  if (Object.keys(up).length) GRUPOS_REF.update(up).catch(() => {});
+}
 function pagosPorPasajero(gid){
   const out = {};
+  if (!reservasDelGrupo(gid).length){
+    const rs = resumenLeido(gid); if (!rs) return out;
+    Object.keys(rs).forEach(k => {
+      if (k === '_ok' || !rs[k]) return;
+      const o = out[k] = { tot:{}, pagos:[] };
+      aArr(rs[k]).forEach(x => { o.pagos.push({ resId:'', pid:x.id, p:{ id:x.id, medio:x.d, tipoCambio:x.t || '', fecha:x.f, monto:x.m, origen:x.o, comentario:'' }, r:{ codigo:'' }, share:Number(x.sh) || 0, n:x.n || 1, mon:x.mon }); o.tot[x.mon] = (o.tot[x.mon] || 0) + (Number(x.sh) || 0); });
+    });
+    return out;
+  }
   reservasDelGrupo(gid).forEach(([resId, r]) => aArr(r.pagos).forEach(p => {
     const ks = Object.keys(p.grupoPasajeros || {}); if (!ks.length) return;
     const mon = p.moneda || r.moneda || 'ARS', share = (Number(p.monto) || 0) / ks.length;
@@ -650,7 +688,7 @@ function guardarPrecios(){
   GRUPOS_REF.child(GID_ABIERTO + '/meta/precios').set(pr).then(() => showBanner(''), handleWriteError);
 }
 // Lo pagado y el saldo solo se pueden calcular si la reserva del grupo está vinculada y visible para esta cuenta
-const veSaldo = () => reservasDelGrupo(GID_ABIERTO).length > 0;
+const veSaldo = () => hayPagos(GID_ABIERTO);
 function preciosSoloLectura(g){
   const p = g.meta.precios; if (!p) return '<div class="card"><h3>Precios por persona</h3><div class="hint" style="margin:0">Todavía no se cargaron los precios de este grupo.</div></div>';
   const m = p.moneda || 'USD', fila = (et, val) => val > 0 ? `<div class="ocu"><div class="nom">${esc(et)}</div><strong>${moneyG(val, m)}</strong></div>` : '';
@@ -674,7 +712,7 @@ function htmlPrecios(g){
 }
 function cobroFichaHtml(rid, r){
   const g = GRUPOS[GID_ABIERTO]; if (!tieneCobros(g)) return '';
-  const ref = refViaje(g), asg = asignaciones(g), pp = reservasDelGrupo(GID_ABIERTO).length ? pagosPorPasajero(GID_ABIERTO) : {};
+  const ref = refViaje(g), asg = asignaciones(g), pp = hayPagos(GID_ABIERTO) ? pagosPorPasajero(GID_ABIERTO) : {};
   const x = cobroDe(g, rid, r, ref, asg, pp), c = x.c;
   const lectura = !puedeEditarReservas(), conSaldo = veSaldo();
   const titulo = `A pagar: ${moneyG(x.total, x.mon)}${conSaldo ? ` · Pagó ${moneyG(x.pagado, x.mon)} · Saldo ${moneyG(x.saldo, x.mon)}` : ''}`;
@@ -701,7 +739,7 @@ function setFiltro(k, v){ FILTRO[k] = v; const t = document.getElementById('resp
 function limpiarFiltros(){ FILTRO = { ...FILTRO_VACIO }; render(); }
 function tablaResp(g){
   const resps = g.respuestas || {}, asg = asignaciones(g), qt = tokens(FILTRO.q);
-  const conPagos = reservasDelGrupo(GID_ABIERTO).length > 0, pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {};
+  const conPagos = hayPagos(GID_ABIERTO), pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {};
   const qPago = preguntasPago(g), conMedio = qPago.length > 0 || (conPagos && Object.values(pp).some(o => o.pagos.some(x => x.p.medio)));
   const ref = refViaje(g), conCobros = tieneCobros(g), conSaldo = conCobros && veSaldo(), cob = {};
   if (conCobros) Object.entries(resps).forEach(([rid, r]) => { cob[rid] = cobroDe(g, rid, r, ref, asg, pp); });
@@ -758,7 +796,7 @@ function pillTipo(g, rid, r, ref){
   return `<span class="pill ${x.t === 'ADT' ? '' : 'warn'}" title="${esc(tip)}">${x.t}${x.manual ? '*' : ''}</span>`;
 }
 function selectorMedio(g){
-  const qs = preguntasPago(g), conPagos = reservasDelGrupo(GID_ABIERTO).length > 0;
+  const qs = preguntasPago(g), conPagos = hayPagos(GID_ABIERTO);
   const delForm = [...new Set(qs.flatMap(q => (q.opciones && q.opciones.length ? q.opciones : Object.values(g.respuestas || {}).flatMap(r => eleccionPago(r, [q])))))];
   const reg = conPagos ? [...new Set(Object.values(pagosPorPasajero(GID_ABIERTO)).flatMap(o => o.pagos.map(x => x.p.medio)).filter(Boolean))] : [];
   if (!delForm.length && !reg.length) return '';
@@ -782,7 +820,7 @@ function htmlRespuestas(g){
   html += `<div class="filtros"><input type="text" placeholder="Buscar por nombre, pasaporte, correo…" value="${esc(FILTRO.q)}" oninput="setFiltro('q',this.value)">
     <select onchange="setFiltro('vinc',this.value)">${opt('', 'Todos los vínculos', FILTRO.vinc)}${opt('ok', 'Recíprocos', FILTRO.vinc)}${opt('pend', 'Con problemas o sin confirmar', FILTRO.vinc)}${opt('ind', 'Sin compañero (individual / no comparte)', FILTRO.vinc)}</select>
     <select onchange="setFiltro('hab',this.value)">${opt('', 'Todas las habitaciones', FILTRO.hab)}${opt('sin', 'Sin asignar', FILTRO.hab)}${Array.from({ length: nHab }, (_, i) => opt(String(i + 1), 'Hab. ' + (i + 1), FILTRO.hab)).join('')}</select>
-    ${reservasDelGrupo(GID_ABIERTO).length ? `<select onchange="setFiltro('pago',this.value)">${opt('', 'Todos los pagos', FILTRO.pago)}${opt('con', 'Con pagos', FILTRO.pago)}${opt('sin', 'Sin pagos', FILTRO.pago)}</select>` : ''}
+    ${hayPagos(GID_ABIERTO) ? `<select onchange="setFiltro('pago',this.value)">${opt('', 'Todos los pagos', FILTRO.pago)}${opt('con', 'Con pagos', FILTRO.pago)}${opt('sin', 'Sin pagos', FILTRO.pago)}</select>` : ''}
     <select onchange="setFiltro('tipo',this.value)" title="Tipo de pasajero">${opt('', 'ADT, CHD e INF', FILTRO.tipo)}${opt('ADT', 'Adultos (ADT)', FILTRO.tipo)}${opt('CHD', 'Niños (CHD)', FILTRO.tipo)}${opt('INF', 'Infantes (INF)', FILTRO.tipo)}${opt('-', 'Sin fecha de nacimiento', FILTRO.tipo)}</select>
     ${tieneCobros(g) && veSaldo() ? `<select onchange="setFiltro('saldo',this.value)" title="Saldo">${opt('', 'Todos los saldos', FILTRO.saldo)}${opt('con', 'Con saldo pendiente', FILTRO.saldo)}${opt('ok', 'Al día', FILTRO.saldo)}${opt('falta', 'Con datos faltantes', FILTRO.saldo)}</select>` : ''}
     ${selectorMedio(g)}
@@ -804,7 +842,7 @@ function tipoFichaHtml(rid, r){
 }
 function pagosFichaHtml(rid){
   const gid = GID_ABIERTO, reservas = reservasDelGrupo(gid);
-  if (!reservas.length) return puedeEditarReservas() ? `<div class="card" style="margin:0 0 12px"><h3>Pagos</h3><div class="hint" style="margin:0">Vinculá una reserva a este grupo (pestaña Ajustes) para llevar el control de pagos.</div></div>` : '';
+  if (!reservas.length && !resumenLeido(gid)) return puedeEditarReservas() ? `<div class="card" style="margin:0 0 12px"><h3>Pagos</h3><div class="hint" style="margin:0">Vinculá una reserva a este grupo (pestaña Ajustes) para llevar el control de pagos.</div></div>` : '';
   const mios = (pagosPorPasajero(gid)[rid] || { pagos:[], tot:{} });
   const g = GRUPOS[gid], resps = g.respuestas || {};
   let html = `<div class="card" style="margin:0 0 12px"><h3>Pagos${mios.pagos.length ? ' · ' + esc(totTxt(mios.tot)) : ''}</h3>`;
@@ -814,7 +852,7 @@ function pagosFichaHtml(rid){
     const borrar = puedeEditarReservas() && x.p.origen === 'grupos' ? ` <button class="btn danger small" onclick="eliminarPago('${esc(x.resId)}','${esc(x.pid)}','${esc(rid)}')">Quitar</button>` : '';
     return `<div class="ocu"><div class="nom"><strong>${moneyG(x.share, x.mon)}</strong> · ${fmtFecha(x.p.fecha) || 's/f'}${esc(x.p.medio ? ' · ' + x.p.medio : '')}${cod}${parte}<div class="sub">${x.p.origen === 'grupos' ? 'Registrado desde Grupos' : 'Cargado en la reserva'}${x.p.comentario ? ' · ' + esc(x.p.comentario) : ''}</div></div>${borrar}</div>`;
   }).join('') : '<div class="hint" style="margin:0 0 6px">Sin pagos asignados a esta persona.</div>';
-  if (puedeEditarReservas()){
+  if (puedeEditarReservas() && reservas.length){
     const otros = respuestasOrdenadas(g).filter(([id]) => id !== rid);
     html += `<div style="margin-top:10px;border-top:1px solid var(--beige-d);padding-top:10px"><div class="hint">Registrar un pago a nombre de ${esc(resps[rid].nombre)} (queda cargado en la reserva).</div>
       <div class="filtros">${reservas.length > 1 ? `<select id="pg-res">${reservas.map(([id, r]) => `<option value="${esc(id)}">${esc(r.codigo || id)} · ${esc(r.cliente || '')}</option>`).join('')}</select>` : `<input type="hidden" id="pg-res" value="${esc(reservas[0][0])}">`}
@@ -825,7 +863,7 @@ function pagosFichaHtml(rid){
         <input type="number" step="0.01" id="pg-tc" placeholder="T.C. (si otra moneda)" style="width:150px"></div>
       ${otros.length ? `<details class="pax-pick" style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;padding:6px 8px">También cubre a otros pasajeros (el monto se reparte en partes iguales)</summary><div class="share-list" style="margin:6px 8px;max-height:180px">${otros.map(([id, o]) => `<label style="padding:3px 6px;border:0"><input type="checkbox" class="pg-otro" value="${esc(id)}"> ${esc(o.apellido)}, ${esc(o.nombre)}</label>`).join('')}</div></details>` : ''}
       <button class="btn" style="margin-top:10px" onclick="registrarPago('${esc(rid)}')">Registrar pago</button></div>`;
-  } else html += '<div class="hint" style="margin-top:8px">Tu cuenta ve los pagos en modo solo lectura.</div>';
+  } else html += puedeEditarReservas() ? '<div class="hint" style="margin-top:8px">Vinculá una reserva a este grupo (pestaña Ajustes) para registrar pagos desde acá.</div>' : '<div class="hint" style="margin-top:8px">Tu cuenta ve los pagos en modo solo lectura.</div>';
   return html + '</div>';
 }
 function registrarPago(rid){
@@ -1154,7 +1192,7 @@ function exportarExcel(){
   const g = GRUPOS[GID_ABIERTO], resps = g.respuestas || {};
   const cols = columnasForm(g);
   const asg = asignaciones(g);
-const conPagos = reservasDelGrupo(GID_ABIERTO).length > 0, pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {}, qPagoX = preguntasPago(g);
+const conPagos = hayPagos(GID_ABIERTO), pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {}, qPagoX = preguntasPago(g);
   const refX = refViaje(g);
   const conCobrosX = tieneCobros(g), asgX = asg;
   const pax = respuestasOrdenadas(g).map(([rid, r]) => [tipoPax(g, rid, r, refX).t, ...cols.map(c => valorTxt(r, c)), asg[rid] ? asg[rid].n : '', asg[rid] ? asg[rid].h.tipo : '', asg[rid] ? camaHab(asg[rid].h, resps) : '', ...(conPagos ? [pp[rid] ? totTxt(pp[rid].tot) : 'Sin pagos'] : []), ...(qPagoX.length ? [eleccionPago(r, qPagoX).join(', ')] : []), ...(conCobrosX ? (c => veSaldo() ? [c.aereo, c.hotel, c.ajuste, c.total, c.pagado, c.saldo] : [c.aereo, c.hotel, c.ajuste, c.total])(cobroDe(g, rid, r, refX, asgX, pp)) : [])]);
