@@ -83,6 +83,11 @@ Nodo `grupos/{token}` con `meta` (nombre, estado, lista de invitados), `respuest
 - `finanzas/reservas/{id}/grupoId` vincula la reserva con un grupo (se elige en Datos generales de la reserva, o desde Ajustes del grupo). Cada pago de la reserva guarda `grupoPasajeros` (ids de respuestas del grupo) y, si se cargó desde la página Grupos, `origen: "grupos"`. Un pago asignado a varios pasajeros se reparte en partes iguales para la columna Pagos de Grupos. No hay dos copias del dato: ambos lados leen y escriben los pagos de la reserva.
 - `gruposIndex/{token}` guarda solo el nombre de cada grupo para poder elegirlo desde una reserva sin descargar los datos de los pasajeros. Lo mantiene la página Grupos.
 
+### Recibos (pestaña Recibos de Gestión interna)
+
+- `finanzas/recibos/{id}`: cada recibo emitido (número R-0001, fecha, a quién, concepto, ítems, reserva y pago de origen). `finanzas/meta/reciboCounter` lleva el último número. Leen y escriben admin y agente; el cotizador no tiene acceso. **Hay que volver a publicar `database.rules.json` (paso 2)** para poder guardar recibos; hasta entonces la pestaña muestra error de sincronización.
+- El PDF se genera con la impresión del navegador ("Guardar como PDF"); no sale nada del navegador. Eliminar un recibo es solo para admin y no reutiliza el número.
+
 ### Reservas compartidas en solo lectura (cotizadores)
 
 - Un admin comparte una reserva desde la lista de Gestión interna (columna Compartir). Se guarda en `finanzas/reservasCompartidas/{email con "," en lugar de "."}/{id de reserva}: true`. Solo un admin lee y escribe ese nodo; cada persona lee únicamente su propia entrada.
