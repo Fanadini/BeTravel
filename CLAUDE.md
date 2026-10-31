@@ -53,6 +53,7 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 ├── database.rules.json      ← Security Rules de Firebase RTDB (versionadas; publicar manualmente en la consola)
 ├── infra/redactor/          ← Worker de Cloudflare para "Redactar con IA", lectura de vuelos y de habitaciones pegadas del cotizador (Workers AI gratis por defecto; se pega en Cloudflare; ver LEEME.md)
 └── admin/
+    ├── index.html            ← Inicio de la app interna (instalable en el celular: `manifest.webmanifest`): botones a cada herramienta según el rol, atajos a pestañas de Gestión interna y resumen del día
     ├── kanban.html           ← CRM interno (Firebase)
     ├── gestioninterna.html    ← Finanzas / Reservas / Facturas de proveedores (Firebase)
     ├── cotizador.html         ← Cotizaciones con itinerario (hoteles por tipo de habitación) → propuesta PDF (A4 vertical) y "Convertir en reserva" (Firebase)
