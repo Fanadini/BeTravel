@@ -779,7 +779,7 @@ function tablaResp(g){
     html += `<tr class="fila" onclick="verRespuesta('${esc(rid)}')"><td><strong>${esc(r.apellido)}, ${esc(r.nombre)}</strong></td><td>${pillTipo(g, rid, r, ref)}</td><td>${esc(r.pasaporte)}</td>`
       + `<td>${fmtFecha(r.vencimiento)}${venceProximo(r, g.meta) ? ' <span class="pill bad" title="Vence antes de los 6 meses posteriores al viaje">&lt; 6 meses</span>' : ''}</td>`
       + `<td>${esc(r.tipoHabitacion)}${r.tipoCama ? ' · ' + esc(r.tipoCama) : ''}</td><td>${esc(r.compartiCon || '—')}${interpretado}</td>`
-      + `<td><span class="pill ${v.cls}">${v.txt}</span></td><td>${a ? `<strong>${a.n}</strong> · ${esc(a.h.tipo)}${camaHab(a.h, resps) ? ' · ' + esc(camaHab(a.h, resps)) : ''}` : '<span class="pill warn">Sin asignar</span>'}</td>${conMedio ? `<td>${esc(eleccionPago(r, qPago).join(', ') || '—')}${mediosRegistrados(pp, r0).length ? `<div class="sub">Pagó con: ${esc(mediosRegistrados(pp, r0).map(m => MEDIO_LABEL[m] || m).join(', '))}</div>` : ''}</td>` : ''}${conPagos ? `<td>${pp[r0] ? `<span class="pill ok" title="${esc(pp[r0].pagos.length + ' pago(s)')}">Pagó ${esc(totTxt(pp[r0].tot))}</span>` : '<span class="pill warn">Sin pagos</span>'}</td>` : ''}${conCobros ? celdasCobro(cob[rid], conSaldo) : ''}</tr>`;
+      + `<td><span class="pill ${v.cls}">${v.txt}</span></td><td>${a ? `<strong>${a.n}</strong> · ${esc(a.h.tipo)}${camaHab(a.h, resps) ? ' · ' + esc(camaHab(a.h, resps)) : ''}${(() => { const o = ocupacion(a.h, Object.keys(a.h.pasajeros || {}).filter(x => resps[x])); return o.faltan ? ` <span class="pill bad" title="La habitación está incompleta">falta ${o.faltan}</span>` : o.sobran ? ' <span class="pill bad" title="La habitación supera su capacidad">sobra</span>' : ''; })()}` : '<span class="pill warn">Sin asignar</span>'}</td>${conMedio ? `<td>${esc(eleccionPago(r, qPago).join(', ') || '—')}${mediosRegistrados(pp, r0).length ? `<div class="sub">Pagó con: ${esc(mediosRegistrados(pp, r0).map(m => MEDIO_LABEL[m] || m).join(', '))}</div>` : ''}</td>` : ''}${conPagos ? `<td>${pp[r0] ? `<span class="pill ok" title="${esc(pp[r0].pagos.length + ' pago(s)')}">Pagó ${esc(totTxt(pp[r0].tot))}</span>` : '<span class="pill warn">Sin pagos</span>'}</td>` : ''}${conCobros ? celdasCobro(cob[rid], conSaldo) : ''}</tr>`;
   });
   return html + '</tbody></table></div>';
 }
@@ -907,6 +907,19 @@ const COLAPSADAS = new Set();
 function toggleHab(hid){ COLAPSADAS.has(hid) ? COLAPSADAS.delete(hid) : COLAPSADAS.add(hid); render(); }
 function plegarTodas(v){ listaHab(GRUPOS[GID_ABIERTO]).forEach(([hid]) => v ? COLAPSADAS.add(hid) : COLAPSADAS.delete(hid)); render(); }
 function cambiarCama(hid, v){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}/cama`).set(v || null).catch(handleWriteError); }
+// Habitación incompleta: tiene menos ocupantes que su capacidad (ej. una doble con una sola persona), vacía o con de más
+function ocupacion(h, ids){
+  const cap = CAPACIDAD[h.tipo] || 0, n = ids.length;
+  if (cap < 2) return { faltan:0, sobran: n > cap && cap ? n - cap : 0, vacia: n === 0 };
+  return { faltan: n > 0 && n < cap ? cap - n : 0, sobran: n > cap ? n - cap : 0, vacia: n === 0 };
+}
+function pillOcupacion(h, ids){
+  const o = ocupacion(h, ids), plural = x => x === 1 ? 'persona' : 'personas';
+  if (o.vacia) return '<span class="pill warn" title="Habitación sin pasajeros">Vacía</span>';
+  if (o.faltan) return `<span class="pill bad" title="Habitación ${esc(h.tipo)}: tiene ${ids.length} de ${CAPACIDAD[h.tipo]} personas">Falta ${o.faltan} ${plural(o.faltan)}</span>`;
+  if (o.sobran) return `<span class="pill bad" title="Habitación ${esc(h.tipo)}: supera su capacidad">Sobra${o.sobran === 1 ? '' : 'n'} ${o.sobran} ${plural(o.sobran)}</span>`;
+  return '';
+}
 function htmlHabitaciones(g){
   const resps = g.respuestas || {}, idx = null, refH = refViaje(g);
   const tp = x => tipoPax(g, x, resps[x], refH).t;
@@ -931,7 +944,7 @@ function htmlHabitaciones(g){
     const al = alertasHabitacion(h, resps, idx), col = COLAPSADAS.has(hid), cap = CAPACIDAD[h.tipo] || 0, cama = camaHab(h, resps);
     const nombres = ids.map(x => `${resps[x].apellido}, ${resps[x].nombre}${tp(x) ? ' (' + tp(x) + ')' : ''}`).join(' · ');
     const pedida = camaDeOcupantes(ids, resps);
-    html += `<div class="hab"><div class="hab-head" style="cursor:pointer" onclick="toggleHab('${esc(hid)}')"><span class="chev">${col ? '▸' : '▾'}</span><span>Hab. ${i + 1}</span>`
+    html += `<div class="hab"><div class="hab-head" style="cursor:pointer" onclick="toggleHab('${esc(hid)}')"><span class="chev">${col ? '▸' : '▾'}</span><span>Hab. ${i + 1}</span>` + pillOcupacion(h, ids)
       + (conCobrosH && ids.length ? (() => { const t = totalHab(ids); return `<span class="pill" title="Suma de lo que paga cada pasajero de la habitación (aéreo, hotel y ajustes)${t.falta ? '. Faltan datos de algún pasajero' : ''}">Total ${moneyG(t.total, t.mon)}${t.falta ? ' *' : ''}</span>` + (conSaldoH ? (t.saldo <= 0.005 && !t.falta ? '<span class="pill ok">Al día</span>' : `<span class="pill ${t.saldo < t.total - 0.005 ? 'warn' : 'bad'}" title="Saldo pendiente de la habitación">Saldo ${moneyG(t.saldo, t.mon)}</span>`) : ''); })() : '')
       + (col ? `<span class="hab-res">${esc(nombres) || 'Sin ocupantes'}</span>` : '') + '<span class="grow"></span>'
       + (al.length ? `<span class="pill warn" title="${esc(al.join('\n'))}">⚠ ${al.length}</span>` : '')
