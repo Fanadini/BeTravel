@@ -910,6 +910,13 @@ function cambiarCama(hid, v){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hi
 function htmlHabitaciones(g){
   const resps = g.respuestas || {}, idx = null, refH = refViaje(g);
   const tp = x => tipoPax(g, x, resps[x], refH).t;
+  // Total de la habitación: suma de lo que paga cada pasajero (aéreo + hotel + ajustes) y, si se ven los pagos, lo que falta
+  const conCobrosH = tieneCobros(g), conSaldoH = conCobrosH && veSaldo(), asgH = conCobrosH ? asignaciones(g) : {}, ppH = conSaldoH ? pagosPorPasajero(GID_ABIERTO) : {};
+  const totalHab = ids => {
+    const t = { total:0, saldo:0, mon:(g.meta.precios || {}).moneda || 'USD', falta:false };
+    ids.forEach(x => { const c = cobroDe(g, x, resps[x], refH, asgH, ppH); t.total += c.total; t.saldo += c.saldo; if (c.falta.length) t.falta = true; });
+    return t;
+  };
   const hay = Object.keys(g.habitaciones || {}).length, lista = listaHab(g);
   if (!Object.keys(resps).length) return '<div class="vacio">Cuando lleguen respuestas, acá se arman las habitaciones.</div>';
   const roomOptions = (actual) => lista.map(([hid, h], i) => `<option value="${esc(hid)}" ${hid === actual ? 'selected' : ''}>Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)}</option>`).join('') + '<option value="__nueva">+ Nueva habitación</option>';
@@ -925,6 +932,7 @@ function htmlHabitaciones(g){
     const nombres = ids.map(x => `${resps[x].apellido}, ${resps[x].nombre}${tp(x) ? ' (' + tp(x) + ')' : ''}`).join(' · ');
     const pedida = camaDeOcupantes(ids, resps);
     html += `<div class="hab"><div class="hab-head" style="cursor:pointer" onclick="toggleHab('${esc(hid)}')"><span class="chev">${col ? '▸' : '▾'}</span><span>Hab. ${i + 1}</span>`
+      + (conCobrosH && ids.length ? (() => { const t = totalHab(ids); return `<span class="pill" title="Suma de lo que paga cada pasajero de la habitación (aéreo, hotel y ajustes)${t.falta ? '. Faltan datos de algún pasajero' : ''}">Total ${moneyG(t.total, t.mon)}${t.falta ? ' *' : ''}</span>` + (conSaldoH ? (t.saldo <= 0.005 && !t.falta ? '<span class="pill ok">Al día</span>' : `<span class="pill ${t.saldo < t.total - 0.005 ? 'warn' : 'bad'}" title="Saldo pendiente de la habitación">Saldo ${moneyG(t.saldo, t.mon)}</span>`) : ''); })() : '')
       + (col ? `<span class="hab-res">${esc(nombres) || 'Sin ocupantes'}</span>` : '') + '<span class="grow"></span>'
       + (al.length ? `<span class="pill warn" title="${esc(al.join('\n'))}">⚠ ${al.length}</span>` : '')
       + '<span style="display:flex;gap:8px;align-items:center" onclick="event.stopPropagation()">'
