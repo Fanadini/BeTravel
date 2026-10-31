@@ -15,6 +15,7 @@
 
   // Secciones del panel, en el orden en que se muestran. "roles": quiénes ven el acceso.
   var SECCIONES = [
+    { id:'inicio',    href:'index.html',        label:'Inicio',          roles:['admin', 'agente', 'cotizador'] },
     { id:'kanban',    href:'kanban.html',        label:'Prospectos',      roles:['admin', 'agente'] },
     { id:'cotizador', href:'cotizador.html',     label:'Cotizador',       roles:['admin', 'agente', 'cotizador'] },
     { id:'gestion',   href:'gestioninterna.html', label:'Gestión interna', roles:['admin', 'agente'] },

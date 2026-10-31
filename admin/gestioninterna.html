@@ -3205,6 +3205,12 @@ function deleteReserva(){
   REFS.reservas.child(reservaCtx.id).remove();
   closeReserva();
 }
+
+// Atajos desde el inicio: gestioninterna.html#reservas abre directo esa pestaña
+(function(){
+  const h = (location.hash || '').slice(1);
+  if (['resumen','reservas','pasajeros','recibos','clientes','cartera','calendario','facturas','recordatorios'].includes(h) && document.getElementById('view-' + h)) switchTab(h);
+})();
 </script>
 <div id="rcb-print"></div>
 <script src="recibos.js"></script>
