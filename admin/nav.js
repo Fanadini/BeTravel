@@ -28,7 +28,8 @@
     '.nav.adm-nav{background:#0F3D3E;height:50px;min-height:50px;display:flex;align-items:center;justify-content:flex-start;flex-wrap:nowrap;padding:0 16px;gap:10px;box-shadow:none;flex-shrink:0;position:relative;z-index:300;color:#E6E1D8;font-family:Inter,sans-serif}',
     '.adm-burger{display:none;align-items:center;justify-content:center;width:40px;height:40px;margin-left:-8px;border:0;border-radius:8px;background:transparent;color:#E6E1D8;cursor:pointer;flex-shrink:0}',
     '.adm-burger:hover{background:rgba(255,255,255,.1)}',
-    '.adm-brand{font-size:15px;font-weight:600;letter-spacing:-.3px;white-space:nowrap;color:#E6E1D8;flex-shrink:0}',
+    '.adm-brand{font-size:15px;font-weight:600;letter-spacing:-.3px;white-space:nowrap;color:#E6E1D8;flex-shrink:0;text-decoration:none}',
+    'a.adm-brand{cursor:pointer}a.adm-brand:hover{opacity:.85}',
     '.adm-brand span{color:#B08A5A}',
     '.adm-page{font-size:13px;font-weight:600;color:#E6E1D8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;margin:0;padding-left:12px;border-left:1px solid rgba(230,225,216,.3);line-height:1.2}',
     '.adm-links{display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:1;min-width:0}',
@@ -133,7 +134,7 @@
       '<button type="button" class="adm-burger" aria-label="Abrir el menú" aria-expanded="false" aria-controls="adm-drawer">' +
         '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>' +
       '</button>' +
-      '<span class="adm-brand">Be<span>•</span>Travel</span>' +
+      '<a class="adm-brand" href="index.html" title="Ir al inicio" aria-label="Be•Travel: ir al inicio">Be<span>•</span>Travel</a>' +
       '<h1 class="adm-page">' + esc(opts.titulo || (sec && sec.label) || '') + '</h1>' +
       '<nav class="adm-links" aria-label="Secciones"></nav>' +
       '<div class="adm-right">' +
@@ -147,7 +148,7 @@
     var dr = document.createElement('aside');
     dr.className = 'adm-drawer'; dr.id = 'adm-drawer'; dr.setAttribute('aria-label', 'Menú'); dr.setAttribute('aria-hidden', 'true');
     dr.innerHTML =
-      '<div class="adm-dr-head"><span class="adm-brand">Be<span>•</span>Travel</span><button type="button" class="adm-dr-close" aria-label="Cerrar el menú">×</button></div>' +
+      '<div class="adm-dr-head"><a class="adm-brand" href="index.html" title="Ir al inicio" aria-label="Be•Travel: ir al inicio">Be<span>•</span>Travel</a><button type="button" class="adm-dr-close" aria-label="Cerrar el menú">×</button></div>' +
       '<div class="adm-dr-sec">Secciones</div><div class="adm-dr-links"></div>' +
       '<div class="adm-dr-extras"></div>' +
       '<div class="adm-dr-foot"><div class="adm-dr-user"></div><button type="button" class="adm-out" onclick="logout()">Salir</button></div>';
