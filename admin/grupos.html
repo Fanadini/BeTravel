@@ -546,7 +546,7 @@ function alertasHabitacion(h, resps, idx){
       if (!r.compartiCon && !t) out.push(`${nom} indicó que comparte pero no dijo con quién.`);
       else if (!t) out.push(inf.via === 'ambiguo' ? `${nom}: "${r.compartiCon}" coincide con varias personas (${inf.cands.map(c => nombreDe(resps[c])).join(', ')}). Vinculalo a mano desde su ficha.` : `${nom}: "${r.compartiCon}" no coincide con ninguna respuesta. Vinculalo a mano desde su ficha.`);
       else if (!h.pasajeros[t]) out.push(`${nom} pidió compartir con ${resps[t].nombre} ${resps[t].apellido}, que está en otra habitación.`);
-      else { const rt = resps[t]; if (resolverInfo(t, rt, resps).id !== i) out.push(`El vínculo ${nom} → ${rt.nombre} ${rt.apellido} no es recíproco.`); }
+      else { const rt = resps[t]; if (cap <= 2 && resolverInfo(t, rt, resps).id !== i) out.push(`El vínculo ${nom} → ${rt.nombre} ${rt.apellido} no es recíproco.`); }
     } else if (ids.length > 1) out.push(`${nom} indicó que no comparte habitación.`);
     if (r.tipoHabitacion && r.tipoHabitacion !== h.tipo) out.push(`${nom} pidió habitación ${r.tipoHabitacion}.`);
   });
@@ -564,7 +564,10 @@ function estadoVinculo(rid, r, resps, idx){
     if (inf.via === 'ambiguo') return { txt:'Ambiguo', cls:'warn' };
     return !r.compartiCon ? { txt:'Sin compañero', cls:'bad' } : { txt:'No encontrado', cls:'bad' };
   }
-  return resolverInfo(inf.id, resps[inf.id], resps).id === rid ? { txt:'Recíproco', cls:'ok' } : { txt:'Sin confirmar', cls:'warn' };
+  if (resolverInfo(inf.id, resps[inf.id], resps).id === rid) return { txt:'Recíproco', cls:'ok' };
+  const A = asgCache(GRUPOS[GID_ABIERTO] || {}), a = A[rid], b = A[inf.id];   // en una habitación de 3 o más, no hace falta que todos se nombren entre sí
+  if (a && b && a.hid === b.hid && (CAPACIDAD[a.h.tipo] || 0) > 2) return { txt:'Misma habitación', cls:'ok' };
+  return { txt:'Sin confirmar', cls:'warn' };
 }
 function venceProximo(r, meta){
   if (!meta.fechaViaje || !r.vencimiento) return false;
@@ -573,7 +576,10 @@ function venceProximo(r, meta){
 }
 
 // ── RENDER ─────────────────────────────────────────────────────────────────
+let _ASG = null;
+function asgCache(g){ return _ASG || (_ASG = asignaciones(g)); }
 function render(){
+  _ASG = null;
   const enGrupo = GID_ABIERTO && GRUPOS[GID_ABIERTO] && GRUPOS[GID_ABIERTO].meta;
   document.getElementById('view-list').classList.toggle('hidden', !!enGrupo);
   document.getElementById('view-group').classList.toggle('hidden', !enGrupo);
@@ -881,7 +887,7 @@ function htmlResumen(g){
   }
 
   html += `<div class="card"><h3>Para revisar</h3>`
-    + fila('Vínculos de habitación con problemas', vinc.pend, vinc.pend ? "irA('resp',{vinc:'pend'})" : '') + fila('Vínculos confirmados', vinc.ok, vinc.ok ? "irA('resp',{vinc:'ok'})" : '')
+    + fila('Vínculos de habitación con problemas', vinc.pend, vinc.pend ? "irA('resp',{vinc:'pend'})" : '') + (vinc.pend ? '<div style="margin:2px 0 8px"><button class="btn small" onclick="revisarVinculos()">Revisar y resolver vínculos</button></div>' : '') + fila('Vínculos confirmados', vinc.ok, vinc.ok ? "irA('resp',{vinc:'ok'})" : '')
     + fila('Pasaportes que vencen antes de 6 meses del viaje', g.meta.fechaViaje ? vencen.length : '—') + (vencen.length ? `<div class="hint" style="margin:2px 0 6px">${vencen.slice(0, 6).map(id => esc(`${resps[id].apellido}, ${resps[id].nombre}`)).join(' · ')}${vencen.length > 6 ? ' · +' + (vencen.length - 6) : ''}</div>` : '')
     + aviso(!g.meta.fechaViaje, 'Cargá la fecha de regreso en Ajustes para controlar los pasaportes.', 'warn') + aviso(sinNac.length && false, '', '') + `</div>`;
 
@@ -973,6 +979,40 @@ function eliminarPago(resId, pid, rid){
 }
 function setVinculo(rid, v){
   GRUPOS_REF.child(`${GID_ABIERTO}/vinculos/${rid}`).set(v || null).then(() => verRespuesta(rid), handleWriteError);
+}
+// ── Revisar vínculos ───────────────────────────────────────────────────────
+function candidatosVinc(g, rid){
+  const resps = g.respuestas || {}, r = resps[rid], qt = tokens(r.compartiCon || ''), yo = tokens(nombreDe(r)), out = [];
+  Object.entries(resps).forEach(([id, c]) => {
+    if (id === rid) return;
+    let pt = 0; const ct = tokens(nombreDe(c));
+    qt.forEach(q => { if (ct.some(x => tokIgual(x, q))) pt += 2; });
+    if (c.comparte === 'Sí' && c.compartiCon && tokens(c.compartiCon).some(q => yo.some(x => tokIgual(x, q)))) pt += 3;
+    if (pt) out.push([id, pt]);
+  });
+  return out.sort((a, b) => b[1] - a[1]).slice(0, 5).map(x => x[0]);
+}
+function vincRev(rid, v){ GRUPOS_REF.child(`${GID_ABIERTO}/vinculos/${rid}`).set(v || null).then(() => revisarVinculos(), handleWriteError); }
+function revisarVinculos(){
+  const g = GRUPOS[GID_ABIERTO]; if (!g) return;
+  const resps = g.respuestas || {}, V = g.vinculos || {}, A = asignaciones(g), nm = id => esc(nombreDe(resps[id]));
+  const habDe = id => A[id] ? `Hab. ${A[id].n}` : 'sin habitación';
+  const todos = respuestasOrdenadas(g);
+  const filas = Object.keys(resps).filter(id => resps[id].comparte === 'Sí' && ['bad', 'warn'].includes(estadoVinculo(id, resps[id], resps).cls)).sort((a, b) => nombreDe(resps[a]).localeCompare(nombreDe(resps[b]), 'es')).map(id => {
+    const r = resps[id], inf = resolverInfo(id, r, resps), v = estadoVinculo(id, r, resps), cands = inf.via === 'ambiguo' ? inf.cands : candidatosVinc(g, id);
+    let porque;
+    if (inf.id){
+      const otro = resolverInfo(inf.id, resps[inf.id], resps).id;
+      porque = `Se lo interpreta con <strong>${nm(inf.id)}</strong> (${habDe(inf.id)}), pero ${otro ? `${nm(inf.id)} figura con <strong>${nm(otro)}</strong>` : `${nm(inf.id)} no lo nombra`}.`;
+    } else porque = inf.via === 'ambiguo' ? 'Coincide con varias personas.' : r.compartiCon ? 'No coincide con ninguna respuesta.' : 'No dijo con quién comparte.';
+    const sug = cands.filter(c => c !== inf.id), resto = todos.filter(([x]) => x !== id && !sug.includes(x));
+    const o = ([x, q]) => `<option value="${esc(x)}" ${V[id] === x ? 'selected' : ''}>${esc(q.apellido)}, ${esc(q.nombre)} · ${habDe(x)}</option>`;
+    return `<div class="card" style="margin:0 0 10px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><strong class="lnk" onclick="verRespuesta('${esc(id)}')">${nm(id)}</strong><span class="pill ${v.cls}">${esc(v.txt)}</span><span class="hint" style="margin:0">${habDe(id)}</span></div>
+      <div class="hint" style="margin:4px 0">Escribió: "${esc(r.compartiCon || '—')}". ${porque}</div>
+      <div class="row-btns" style="flex-wrap:wrap">${inf.id && !resolverInfo(inf.id, resps[inf.id], resps).id ? `<button class="btn small" onclick="vincRev('${esc(inf.id)}','${esc(id)}')">${nm(inf.id)} también comparte con ${esc(r.nombre)}</button>` : ''}
+      <select style="flex:1;min-width:200px" onchange="vincRev('${esc(id)}', this.value)"><option value="">${V[id] ? 'Quitar vínculo manual' : 'Vincular con…'}</option>${sug.length ? `<optgroup label="Sugeridos">${sug.map(x => o([x, resps[x]])).join('')}</optgroup>` : ''}<optgroup label="Todos">${resto.map(o).join('')}</optgroup></select></div></div>`;
+  });
+  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal" style="max-width:720px"><h3>Revisar vínculos (${filas.length})</h3><div class="hint">Personas que dicen compartir habitación y cuyo vínculo no se pudo confirmar. Elegí con quién comparten: queda como vínculo manual. En habitaciones de 3 o más personas alcanza con que estén en la misma habitación.</div>${filas.join('') || '<div class="vacio">No hay vínculos para revisar.</div>'}<div class="row-btns" style="justify-content:flex-end"><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
 function vincHtml(rid, r){
   if (r.comparte !== 'Sí') return '';
