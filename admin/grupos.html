@@ -1124,7 +1124,7 @@ function htmlHabitaciones(g){
   };
   const hay = Object.keys(g.habitaciones || {}).length, lista = listaHab(g);
   if (!Object.keys(resps).length) return '<div class="vacio">Cuando lleguen respuestas, acá se arman las habitaciones.</div>';
-  const roomOptions = (actual) => lista.map(([hid, h], i) => `<option value="${esc(hid)}" ${hid === actual ? 'selected' : ''}>Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)}</option>`).join('') + '<option value="__nueva">+ Nueva habitación</option>';
+  const roomOptions = (actual) => (actual ? '<option value="__sin">— Sin habitación</option>' : '') + lista.map(([hid, h], i) => `<option value="${esc(hid)}" ${hid === actual ? 'selected' : ''}>Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)}</option>`).join('') + '<option value="__nueva">+ Nueva habitación</option>';
   let html = `<div class="section-head"><h2>${hay ? 'Habitaciones' : 'Habitaciones sugeridas'}</h2><div class="row-btns">`
     + `${''}<button class="btn outline small" onclick="plegarTodas(true)">Plegar todas</button><button class="btn outline small" onclick="plegarTodas(false)">Desplegar todas</button>`
     + (hay ? `<button class="btn outline small" onclick="ordenarHabAZ()" title="Renumerar por el apellido del primer ocupante">Ordenar A–Z</button><button class="btn outline small" onclick="agregarHabitacion()">+ Habitación vacía</button><button class="btn outline small" onclick="regenerarHabitaciones()">Volver a sugerir</button>`
@@ -1393,7 +1393,7 @@ function moverPasajero(rid, destino){
     const h = { tipo: CAPACIDAD[r.tipoHabitacion] ? r.tipoHabitacion : 'Single', pasajeros: { [rid]: true }, orden: siguienteOrden(g) };
     if (CAPACIDAD[h.tipo] > 1 && CAMAS.includes(r.tipoCama)) h.cama = r.tipoCama;
     up[`${GID_ABIERTO}/habitaciones/${key}`] = h;
-  } else up[`${GID_ABIERTO}/habitaciones/${destino}/pasajeros/${rid}`] = true;
+  } else if (destino !== '__sin') up[`${GID_ABIERTO}/habitaciones/${destino}/pasajeros/${rid}`] = true;
   GRUPOS_REF.update(up).catch(handleWriteError);
 }
 
