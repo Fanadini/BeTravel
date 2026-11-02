@@ -883,10 +883,10 @@ function todayISO(){ return new Date().toISOString().slice(0,10); }
 function round2(n){ return Math.round((Number(n)||0)*100)/100; }
 function num(v){ const n = parseFloat(v); return isFinite(n) ? n : 0; }
 function fmtMoney(monto, moneda){
-  const s = (Number(monto)||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const s = (Number(monto)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
   return (moneda==='USD' ? 'US$ ' : '$ ') + s;
 }
-function fmtNum(n){ return (Number(n)||0).toLocaleString('es-AR',{maximumFractionDigits:2}); }
+function fmtNum(n){ return (Number(n)||0).toLocaleString('de-DE',{maximumFractionDigits:2}); }
 function parseISO(d){ if (!d) return null; const [y,m,dd] = d.split('-').map(Number); return new Date(y, m-1, dd); }
 function addDays(d, n){ const x = parseISO(d); if (!x) return null; x.setDate(x.getDate()+n); return x; }
 function fmtDateShort(d){ const x = typeof d==='string' ? parseISO(d) : d; return x ? x.toLocaleDateString('es-AR') : '—'; }
@@ -3331,7 +3331,7 @@ function abrirInformeContador(){
   if (CURRENT_USER.rol !== 'admin' || !editing) return;
   const c = editing.data, filas = filasContador(c), subs = subtotalesContador(filas);
   const mon = m => m === 'USD' ? 'US$' : '$';
-  const num2 = n => (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const num2 = n => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const tc = num(c.tipoCambio) > 0 ? `Tipo de cambio de referencia: US$ 1 = $ ${fmtNum(num(c.tipoCambio))}. ` : '';
   document.getElementById('contador-body').innerHTML = !filas.length
     ? '<p class="card-hint">No hay servicios tildados en esta cotización.</p>'

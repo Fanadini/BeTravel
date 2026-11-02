@@ -206,6 +206,13 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .dnd-ghost{opacity:.4}
 .dnd-before{box-shadow:0 -3px 0 0 var(--teal)}
 .dnd-after{box-shadow:0 3px 0 0 var(--teal)}
+.item-card.plegado > :not(.item-card-header){display:none}
+.item-card.plegado .item-card-header{margin-bottom:0}
+.item-card-sum{display:none;flex:3;font-size:12px;color:var(--text,#2b2b2b);margin:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-card.plegado .item-card-sum{display:block}
+.item-card.plegado .item-card-label{flex:0 0 auto}
+.lnk{color:var(--teal);cursor:pointer;text-decoration:underline}
+.pleg-t{cursor:pointer;user-select:none;padding:0 6px 0 2px;color:var(--teal)}
 .item-card-label{font-size:10px;font-weight:600;color:var(--teal);letter-spacing:.5px;text-transform:uppercase}
 .item-delete-btn{width:22px;height:22px;border-radius:4px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(43,43,43,.35);flex-shrink:0;font-size:13px}
 .item-delete-btn:hover{background:rgba(184,50,50,.08);color:var(--red)}
@@ -725,7 +732,7 @@ function diffDays(dateStr){
 }
 function fmtMoney(monto, moneda){
   const n = Number(monto)||0;
-  const s = n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const s = n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
   return (moneda==='USD' ? 'US$ ' : '$ ') + s;
 }
 // Convención de color en toda la app: USD siempre en bronce, ARS en el color por defecto.
@@ -1266,7 +1273,7 @@ function reservaRowHtml(r){
     <td>${escHtml(r.cliente||'—')}</td>
     <td>${escHtml(r.concepto||'')}</td>
     <td>${servicios}</td>
-    <td>${r.pasajeros ? escHtml(Number(r.pasajeros).toLocaleString('es-AR')) : '—'}</td>
+    <td>${r.pasajeros ? escHtml(Number(r.pasajeros).toLocaleString('de-DE')) : '—'}</td>
     <td>${fmtDate(r.fechaCotizacion)}</td>
     <td>${fmtDate(r.fechaInicio)}</td>
     <td>${fmtDate(r.fechaFin)}</td>
@@ -2498,7 +2505,7 @@ function costoRowHtml(c, monedaReserva){
   const showFechaEmision = c.tipo==='Aéreo' && medio==='bsp';
   const showVencimientoTarjeta = medio==='tarjeta';
   return `<div class="item-card costo-row" data-row-id="${c.id}" data-pagado="${c.pagado?'true':'false'}">
-    <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="item-card-label">Costo</span><button type="button" class="item-delete-btn" onclick="this.closest('.costo-row').remove();recalcDerived();saveReserva()">✕</button></div>
+    <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="pleg-t" onclick="togglePlegar(this)" title="Plegar / desplegar">▾</span><span class="item-card-label pleg-t" onclick="togglePlegar(this)">Costo</span><span class="item-card-sum" onclick="togglePlegar(this)"></span><button type="button" class="item-delete-btn" onclick="this.closest('.costo-row').remove();recalcDerived();saveReserva()">✕</button></div>
     <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Tipo</span><select class="costo-tipo" onchange="onCostoRowChange(this)">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,c.tipo||'Otro')}</select></div>
       <div class="item-field"><span class="item-field-label">Medio de pago</span><select class="costo-medio" onchange="onCostoRowChange(this)">${selOpts(MEDIO_PAGO_TIPOS,MEDIO_PAGO_TIPOS.map(m=>MEDIO_PAGO_LABELS[m]),medio)}</select></div>
@@ -2553,6 +2560,17 @@ function habRowHtml(h, pref){
     <button type="button" class="item-delete-btn" title="Quitar" onclick="const w=this.closest('.ppp-wrap');this.closest('.hab-line').remove();pppUpdate(w.querySelector('.${pref}-modo'))">✕</button>
   </div>`;
 }
+function togglePlegar(el){
+  const card = el.closest('.item-card'); card.classList.toggle('plegado'); resumenItem(card);
+}
+function resumenItem(card){
+  const pl = card.classList.contains('plegado'), ch = card.querySelector('.pleg-t'); if (ch) ch.textContent = pl ? '▸' : '▾';
+  const sum = card.querySelector('.item-card-sum'); if (!sum || !pl) return;
+  const k = card.classList.contains('costo-row') ? 'costo' : 'cotizado', v = c => (card.querySelector('.' + k + '-' + c) || {}).value || '';
+  const m = parseFloat(v('monto')) || 0;
+  sum.textContent = [v('tipo'), v('proveedor'), v('concepto'), m ? `${fnum(m)} ${v('moneda')}` : ''].filter(Boolean).join(' · ') || 'Sin datos';
+}
+function plegarLista(id, v){ document.querySelectorAll('#' + id + ' .item-card').forEach(c => { c.classList.toggle('plegado', v); resumenItem(c); }); }
 function pppHtml(c, pref){
   const modo = c.modo || 'total', hotel = c.tipo === 'Hotel', habs = objToArr(c.habs);
   return `<div class="ppp-wrap" data-pref="${pref}">
@@ -2565,6 +2583,7 @@ function pppHtml(c, pref){
     <div class="ppp-hint" style="font-size:11px;margin-top:4px;color:var(--muted,#888)"></div>
   </div>`;
 }
+const fnum = n => (Number(n) || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 });
 function pppUpdate(el){
   const row = el.closest('.item-card'); if (!row) return;
   const wrap = row.querySelector('.ppp-wrap'); if (!wrap) return;
@@ -2581,11 +2600,11 @@ function pppUpdate(el){
     let tot = 0, n = 0;
     wrap.querySelectorAll('.hab-line').forEach(l => { const c = parseFloat(l.querySelector('.hab-cant').value) || 0, v = parseFloat(l.querySelector('.hab-valor').value) || 0; tot += c * v; n += c; });
     tot = Math.round(tot * 100) / 100; monto.value = tot || '';
-    hint.textContent = n && tot ? `${n} ${n === 1 ? 'habitación' : 'habitaciones'} · total ${tot}${cant ? ` · ${Math.round(tot / cant * 100) / 100} por persona (${cant} personas)` : ''}` : '';
+    hint.textContent = n && tot ? `${n} ${n === 1 ? 'habitación' : 'habitaciones'} · total ${fnum(tot)}${cant ? ` · ${fnum(Math.round(tot / cant * 100) / 100)} por persona (${cant} personas)` : ''}` : '';
   } else {
     if (pp){ const u = parseFloat(q('unit').value) || 0; monto.value = (cant && u) ? (Math.round(u * cant * 100) / 100) : ''; }
     const m = parseFloat(monto.value) || 0;
-    hint.textContent = cant && m ? (pp ? `${cant} personas × ${q('unit').value} = ${monto.value}` : `Equivale a ${(Math.round(m / cant * 100) / 100)} por persona (${cant} personas)`) : '';
+    hint.textContent = cant && m ? (pp ? `${cant} personas × ${fnum(q('unit').value)} = ${fnum(monto.value)}` : `Equivale a ${fnum(Math.round(m / cant * 100) / 100)} por persona (${cant} personas)`) : '';
   }
   recalcDerived();
 }
@@ -2602,7 +2621,7 @@ function pppSave(row, pref, o){
 function cotizadoRowHtml(c, monedaReserva){
   const cMoneda = c.moneda || monedaReserva || 'ARS';
   return `<div class="item-card cotizado-row" data-row-id="${c.id}">
-    <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="item-card-label">Ítem cotizado</span><button type="button" class="item-delete-btn" onclick="this.closest('.cotizado-row').remove();recalcDerived();saveReserva()">✕</button></div>
+    <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="pleg-t" onclick="togglePlegar(this)" title="Plegar / desplegar">▾</span><span class="item-card-label pleg-t" onclick="togglePlegar(this)">Ítem cotizado</span><span class="item-card-sum" onclick="togglePlegar(this)"></span><button type="button" class="item-delete-btn" onclick="this.closest('.cotizado-row').remove();recalcDerived();saveReserva()">✕</button></div>
     <div class="item-fields cols3">
       <div class="item-field"><span class="item-field-label">Tipo</span><select class="cotizado-tipo" onchange="pppUpdate(this)">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,c.tipo||'Otro')}</select></div>
       <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="cotizado-monto" value="${c.monto??''}" oninput="pppUpdate(this)" ${c.modo==='pp'||c.modo==='hab'?'readonly':''}></div>
@@ -3027,6 +3046,7 @@ function renderReservaPanel(){
       <div class="upload-hint" style="margin-bottom:8px">Una línea por cada servicio cotizado al cliente (igual que Costos), para desglosar de qué se compone el total.</div>
       <div id="cotizado-list">${(d.cotizado||[]).map(c => cotizadoRowHtml(c, d.moneda)).join('')}</div>
       <button type="button" class="add-item-btn" onclick="addCotizado()">+ Agregar ítem cotizado</button>
+      <div style="margin-top:6px;font-size:12px"><a href="#" class="lnk" onclick="plegarLista('cotizado-list',true);return false">Plegar todos</a> · <a href="#" class="lnk" onclick="plegarLista('cotizado-list',false);return false">Desplegar todos</a></div>
       <div class="derived-box" style="margin-top:14px">
         <div class="derived-item">Margen<b id="derived-margen">${fmtMoney(reservaMargenLocal(d), d.moneda)}</b></div>
         <div class="derived-item">Saldo pendiente<b id="derived-saldo">${fmtMoney(objToArr(d.cotizado).reduce((s,c)=>s+(Number(c.monto)||0),0)-pagosEquivSum(d.pagos, d.moneda)-objToArr(d.reparto).reduce((s,rep)=>s+(Number(rep.montoCobradoDirecto)||0),0), d.moneda)}</b></div>
@@ -3039,6 +3059,7 @@ function renderReservaPanel(){
       <datalist id="dl-proveedores">${META.proveedores.map(p=>`<option value="${escHtml(p)}">`).join('')}</datalist>
       <div id="costos-list">${(d.costos||[]).map(c => costoRowHtml(c, d.moneda)).join('')}</div>
       <button type="button" class="add-item-btn" onclick="addCosto()">+ Agregar costo</button>
+      <div style="margin-top:6px;font-size:12px"><a href="#" class="lnk" onclick="plegarLista('costos-list',true);return false">Plegar todos</a> · <a href="#" class="lnk" onclick="plegarLista('costos-list',false);return false">Desplegar todos</a></div>
     </div>
     </div>
     <div class="pcol">

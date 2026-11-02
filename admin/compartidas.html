@@ -260,7 +260,7 @@ function convertir(monto, de, a, tc){
   if (a === 'ARS' && de === 'USD') return { v: monto * t, ok:true };
   return { v: monto, ok:true };
 }
-const money = (n, m) => (m === 'USD' ? 'US$ ' : '$ ') + (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+const money = (n, m) => (m === 'USD' ? 'US$ ' : '$ ') + (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits:2, maximumFractionDigits:2 });
 const fecha = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || '—'); };
 function totales(r){
   const cot = arr(r.cotizado).reduce((s, c) => s + convertir(Number(c.monto) || 0, c.moneda || r.moneda, r.moneda, c.tipoCambio).v, 0);

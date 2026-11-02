@@ -14,7 +14,7 @@
   var hoy = function(){ return new Date().toISOString().slice(0, 10); };
   var fmtFechaR = function(iso){ var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : (iso || ''); };
   var num = function(v){ var n = parseFloat(v); return isNaN(n) ? 0 : n; };
-  var montoTxt = function(n){ return (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits:2, maximumFractionDigits:2 }); };
+  var montoTxt = function(n){ return (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits:2, maximumFractionDigits:2 }); };
   var MONEDAS = { USD:{ sigla:'USD', nombre:'dólares estadounidenses' }, ARS:{ sigla:'ARS', nombre:'pesos argentinos' } };
   var moneda = function(m){ return MONEDAS[m] || MONEDAS.USD; };
 

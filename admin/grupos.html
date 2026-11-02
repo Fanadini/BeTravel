@@ -343,7 +343,7 @@ function refrescarPagos(){
   else if (TAB === 'cfg' || TAB === 'res') render();
 }
 const reservasDelGrupo = gid => Object.entries(RESERVAS).filter(([, r]) => r && r.grupoId === gid);
-const moneyG = (n, m) => (m === 'USD' ? 'US$ ' : '$ ') + (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+const moneyG = (n, m) => (m === 'USD' ? 'US$ ' : '$ ') + (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits:2, maximumFractionDigits:2 });
 // rid de respuesta -> { tot:{ARS,USD}, pagos:[...] }. Un pago asignado a varios pasajeros se reparte en partes iguales.
 // Resumen de pagos por pasajero que mantiene un admin o agente en grupos/{token}/pagosResumen: así una cuenta cotizador ve quién pagó
 // (y filtra por pagos, medio y saldo) sin necesitar acceso a la reserva completa, que incluye costos y margen.
@@ -1024,7 +1024,7 @@ function vincHtml(rid, r){
 function verRespuesta(rid){
   const r = GRUPOS[GID_ABIERTO].respuestas[rid]; if (!r) return;
   const rows = columnasForm(GRUPOS[GID_ABIERTO]).filter(c => r[c.id] != null && r[c.id] !== '').map(c => `<dt>${esc(c.etiqueta)}</dt><dd>${esc(valorTxt(r, c))}</dd>`).join('');
-  const ts = r.ts ? new Date(r.ts).toLocaleString('es-AR') : '';
+  const ts = r.ts ? new Date(r.ts).toLocaleString('de-DE') : '';
   document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl>${tipoFichaHtml(rid, r)}${cobroFichaHtml(rid, r)}${vincHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
 function cerrarModal(){ document.getElementById('modal-root').innerHTML = ''; }

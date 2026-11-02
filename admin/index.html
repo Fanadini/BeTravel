@@ -164,7 +164,7 @@ let RES = {}, REC = {};
 const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const dias = f => f ? Math.round((new Date(f + 'T00:00:00') - new Date(hoyISO() + 'T00:00:00')) / 86400000) : null;
 const arr = o => !o ? [] : Array.isArray(o) ? o.filter(Boolean) : Object.keys(o).map(id => ({ id, ...o[id] }));
-const fmt = (n, m) => (m === 'USD' ? 'US$ ' : '$ ') + (Number(n) || 0).toLocaleString('es-AR', { maximumFractionDigits:0 });
+const fmt = (n, m) => (m === 'USD' ? 'US$ ' : '$ ') + (Number(n) || 0).toLocaleString('de-DE', { maximumFractionDigits:0 });
 function conv(monto, de, a, tc){
   if (!de || de === a) return monto;
   const t = Number(tc) || 0; if (t <= 0) return 0;
