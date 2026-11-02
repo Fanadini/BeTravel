@@ -725,7 +725,7 @@ function diffDays(dateStr){
 }
 function fmtMoney(monto, moneda){
   const n = Number(monto)||0;
-  const s = n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const s = n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
   return (moneda==='USD' ? 'US$ ' : '$ ') + s;
 }
 // Convención de color en toda la app: USD siempre en bronce, ARS en el color por defecto.
@@ -1266,7 +1266,7 @@ function reservaRowHtml(r){
     <td>${escHtml(r.cliente||'—')}</td>
     <td>${escHtml(r.concepto||'')}</td>
     <td>${servicios}</td>
-    <td>${r.pasajeros ? escHtml(Number(r.pasajeros).toLocaleString('es-AR')) : '—'}</td>
+    <td>${r.pasajeros ? escHtml(Number(r.pasajeros).toLocaleString('de-DE')) : '—'}</td>
     <td>${fmtDate(r.fechaCotizacion)}</td>
     <td>${fmtDate(r.fechaInicio)}</td>
     <td>${fmtDate(r.fechaFin)}</td>
@@ -2565,6 +2565,7 @@ function pppHtml(c, pref){
     <div class="ppp-hint" style="font-size:11px;margin-top:4px;color:var(--muted,#888)"></div>
   </div>`;
 }
+const fnum = n => (Number(n) || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 });
 function pppUpdate(el){
   const row = el.closest('.item-card'); if (!row) return;
   const wrap = row.querySelector('.ppp-wrap'); if (!wrap) return;
@@ -2581,11 +2582,11 @@ function pppUpdate(el){
     let tot = 0, n = 0;
     wrap.querySelectorAll('.hab-line').forEach(l => { const c = parseFloat(l.querySelector('.hab-cant').value) || 0, v = parseFloat(l.querySelector('.hab-valor').value) || 0; tot += c * v; n += c; });
     tot = Math.round(tot * 100) / 100; monto.value = tot || '';
-    hint.textContent = n && tot ? `${n} ${n === 1 ? 'habitación' : 'habitaciones'} · total ${tot}${cant ? ` · ${Math.round(tot / cant * 100) / 100} por persona (${cant} personas)` : ''}` : '';
+    hint.textContent = n && tot ? `${n} ${n === 1 ? 'habitación' : 'habitaciones'} · total ${fnum(tot)}${cant ? ` · ${fnum(Math.round(tot / cant * 100) / 100)} por persona (${cant} personas)` : ''}` : '';
   } else {
     if (pp){ const u = parseFloat(q('unit').value) || 0; monto.value = (cant && u) ? (Math.round(u * cant * 100) / 100) : ''; }
     const m = parseFloat(monto.value) || 0;
-    hint.textContent = cant && m ? (pp ? `${cant} personas × ${q('unit').value} = ${monto.value}` : `Equivale a ${(Math.round(m / cant * 100) / 100)} por persona (${cant} personas)`) : '';
+    hint.textContent = cant && m ? (pp ? `${cant} personas × ${fnum(q('unit').value)} = ${fnum(monto.value)}` : `Equivale a ${fnum(Math.round(m / cant * 100) / 100)} por persona (${cant} personas)`) : '';
   }
   recalcDerived();
 }

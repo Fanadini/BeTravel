@@ -316,7 +316,7 @@ function numero(v){
   else if ((s.match(/\./g) || []).length > 1 || /\.\d{3}$/.test(s)) s = s.replace(/\./g, '');
   return parseFloat(s);
 }
-function fmtNum(n){ return Number.isInteger(n) ? n.toLocaleString('es-AR') : n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtNum(n){ return Number.isInteger(n) ? n.toLocaleString('de-DE') : n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function dinero(n, moneda){ return (moneda === 'ARS' ? '$ ' : 'US$ ') + fmtNum(n); }
 
 // ── DATOS POR DEFECTO ──────────────────────────────────────────────────────
