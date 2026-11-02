@@ -407,7 +407,7 @@ function nuevoGrupo(){
   GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email, form: limpiarForm(window.FORM_DEFAULT) })
     .then(() => { IDX_REF.child(gid).set({ nombre }).catch(() => {}); abrirGrupo(gid); }, handleWriteError);
 }
-function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'' }; SEL_LABEL = ''; HAB_TIPO = ''; COLAPSADAS.clear(); render(); }
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'' }; SEL_LABEL = ''; HAB_TIPO = ''; PLAN_MEDIO = ''; COLAPSADAS.clear(); render(); }
 function volverLista(){ GID_ABIERTO = null; render(); }
 function setTab(t){ if (TAB === 'form' && t !== 'form' && DIRTY && !confirm('Hay cambios sin guardar en el formulario. ¿Salir igualmente?')) return; TAB = t; FORM_RENDER = true; render(); }
 function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
@@ -702,14 +702,19 @@ function repartirCuotas(total, cuotas){   // redondea a centavos; la última cuo
   let acum = 0;
   return cuotas.map((c, i) => { const v = i === cuotas.length - 1 ? Math.round((total - acum) * 100) / 100 : Math.round(total * c.pct) / 100; acum += v; return v; });
 }
+let PLAN_MEDIO = '';
+function setPlanMedio(v){ PLAN_MEDIO = v; verPlanPagos(); }
 function calcPlan(g){
   const resps = g.respuestas || {}, ref = refViaje(g), asg = asignaciones(g), cuotas = planCuotas(g), mon = (g.meta.precios || {}).moneda || 'USD';
-  const filas = respuestasOrdenadas(g).map(([rid, r]) => { const c = cobroDe(g, rid, r, ref, asg, {}), cub = !!((g.cobros || {})[rid] || {}).cubierto; return { rid, r, cub, total: c.total, falta: c.falta.length > 0, cuotas: repartirCuotas(c.total, cuotas), t: tipoPax(g, rid, r, ref).t }; });
+  const qPago = preguntasPago(g), pp = PLAN_MEDIO && PLAN_MEDIO[0] === 'p' ? pagosPorPasajero(GID_ABIERTO) : {};
+  const pasa = (rid, r) => !PLAN_MEDIO || (PLAN_MEDIO[0] === 'f' ? eleccionPago(r, qPago).includes(PLAN_MEDIO.slice(2)) : mediosRegistrados(pp, rid).includes(PLAN_MEDIO.slice(2)));
+  const filas = respuestasOrdenadas(g).filter(([rid, r]) => pasa(rid, r)).map(([rid, r]) => { const c = cobroDe(g, rid, r, ref, asg, {}), cub = !!((g.cobros || {})[rid] || {}).cubierto; return { rid, r, cub, total: c.total, falta: c.falta.length > 0, cuotas: repartirCuotas(c.total, cuotas), t: tipoPax(g, rid, r, ref).t }; });
   const suma = fs => ({ total: fs.reduce((a, f) => a + f.total, 0), cuotas: cuotas.map((_, i) => fs.reduce((a, f) => a + f.cuotas[i], 0)) });
   return { cuotas, mon, filas, propios: suma(filas.filter(f => !f.cub)), novios: suma(filas.filter(f => f.cub)), todos: suma(filas) };
 }
 function htmlPlanTabla(g){
   const P = calcPlan(g), m = x => moneyG(x, P.mon), N = P.cuotas.length;
+  if (PLAN_MEDIO && !P.filas.length) return `<div class="vacio">Ningún pasajero coincide con ese medio de pago.</div>`;
   const head = `<thead><tr><th>Pasajero</th><th>Tipo</th><th class="num">Total</th>${P.cuotas.map(c => `<th class="num">${c.pct}%${c.fecha ? ' · ' + esc(fmtFecha(c.fecha)) : ''}</th>`).join('')}</tr></thead>`;
   const fila = f => `<tr><td>${esc(f.r.apellido)}, ${esc(f.r.nombre)}</td><td>${esc(f.t || '—')}</td><td class="num">${m(f.total)}${f.falta ? ' *' : ''}</td>${f.cuotas.map(v => `<td class="num">${m(v)}</td>`).join('')}</tr>`;
   const tot = (et, o) => `<tr style="font-weight:600"><td colspan="2">${et}</td><td class="num">${m(o.total)}</td>${o.cuotas.map(v => `<td class="num">${m(v)}</td>`).join('')}</tr>`;
@@ -720,12 +725,13 @@ function htmlPlanTabla(g){
     + (novios.length ? sec('Los cubren los novios') + novios.map(fila).join('') + tot('Subtotal a cargo de los novios', P.novios) : '')
     + sec('Total del grupo') + tot('Total a cobrar', P.todos) + '</tbody></table>'
     + (P.filas.some(f => f.falta) ? '<div class="hint" style="margin-top:6px">* Faltan datos para calcular el total de ese pasajero (precio, habitación o fecha de nacimiento).</div>' : '')
-    + (!novios.length ? '<div class="hint" style="margin-top:6px">Todavía no marcó a nadie como cubierto por los novios: se marca en la ficha de cada pasajero.</div>' : '');
+    + (!novios.length && !PLAN_MEDIO ? '<div class="hint" style="margin-top:6px">Todavía no marcó a nadie como cubierto por los novios: se marca en la ficha de cada pasajero.</div>' : '');
 }
 function verPlanPagos(){
   const g = GRUPOS[GID_ABIERTO], cuotas = planCuotas(g), suma = cuotas.reduce((a, c) => a + c.pct, 0);
   document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal" style="max-width:980px"><h3>Plan de pagos</h3>
     <div class="hint">Cuotas sobre el total de cada pasajero (aéreo + hotel + ajustes). Los pasajeros marcados "Lo cubren los novios" se suman aparte.</div>
+    ${selectorMedio(g, 'setPlanMedio(this.value)', PLAN_MEDIO) ? `<div class="filtros" style="align-items:center"><span>Medio de pago:</span>${selectorMedio(g, 'setPlanMedio(this.value)', PLAN_MEDIO)}${PLAN_MEDIO ? '<span class="hint" style="margin:0">Los totales corresponden solo a los pasajeros filtrados.</span>' : ''}</div>` : ''}
     <div class="filtros" style="align-items:center">${cuotas.map((c, i) => `<span>Cuota ${i + 1}: <input type="number" step="0.01" id="pl-pct-${i}" value="${c.pct}" style="width:70px"> % el <input type="date" id="pl-fec-${i}" value="${esc(c.fecha)}" style="width:auto"></span>`).join('')}
       <button class="btn small" onclick="guardarCuotas(${cuotas.length})">Guardar plan</button>${Math.abs(suma - 100) > 0.001 ? `<span class="pill bad">Suman ${suma}%, deberían sumar 100%</span>` : ''}</div>
     <div class="lista" style="margin-top:8px">${htmlPlanTabla(g)}</div>
@@ -794,8 +800,8 @@ function cobroFichaHtml(rid, r){
       <input type="text" placeholder="Motivo del ajuste" value="${esc(c.nota || '')}" style="flex:1;min-width:180px" onchange="setCobro('${esc(rid)}','nota',this.value.trim())"></div></div>`;
 }
 let SEL_LABEL = '';
-let FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'' };
-const FILTRO_VACIO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'' };
+let FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'' };
+const FILTRO_VACIO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'' };
 const nFiltros = () => Object.values(FILTRO).filter(v => v !== '' && v != null).length;
 function pintarBotonFiltros(){
   const b = document.getElementById('btn-limpiar'); if (!b) return;
@@ -813,6 +819,7 @@ function tablaResp(g){
     const inf = resolverInfo(rid, r, resps), comp = inf.id ? resps[inf.id] : null, v = estadoVinculo(rid, r, resps);
     if (qt.length){ const hay = norm([r.nombre, r.apellido, r.pasaporte, r.nacionalidad, r.email, r.compartiCon, comp ? nombreDe(comp) : ''].join(' ')); if (!qt.every(t => hay.includes(t))) return false; }
     if (FILTRO.sel && !FILTRO.sel.split(',').includes(rid)) return false;
+    if (FILTRO.cub){ const cu = !!((g.cobros || {})[rid] || {}).cubierto; if ((FILTRO.cub === 'si') !== cu) return false; }
     if (FILTRO.vinc === 'ok' && v.cls !== 'ok') return false;
     if (FILTRO.vinc === 'pend' && v.cls !== 'bad' && v.cls !== 'warn') return false;
     if (FILTRO.vinc === 'ind' && v.cls !== '') return false;
@@ -862,13 +869,14 @@ function pillTipo(g, rid, r, ref){
   const tip = (x.edad != null ? x.edad + ' año' + (x.edad === 1 ? '' : 's') + ' al ' + fmtFecha(ref.fecha) : '') + (x.manual ? ' · corregido a mano' : '');
   return `<span class="pill ${x.t === 'ADT' ? '' : 'warn'}" title="${esc(tip)}">${x.t}${x.manual ? '*' : ''}</span>`;
 }
-function selectorMedio(g){
+function selectorMedio(g, fn, cur){
+  fn = fn || "setFiltro('medio',this.value)"; cur = cur === undefined ? FILTRO.medio : cur;
   const qs = preguntasPago(g), conPagos = hayPagos(GID_ABIERTO);
   const delForm = [...new Set(qs.flatMap(q => (q.opciones && q.opciones.length ? q.opciones : Object.values(g.respuestas || {}).flatMap(r => eleccionPago(r, [q])))))];
   const reg = conPagos ? [...new Set(Object.values(pagosPorPasajero(GID_ABIERTO)).flatMap(o => o.pagos.map(x => x.p.medio)).filter(Boolean))] : [];
   if (!delForm.length && !reg.length) return '';
-  const op = (v, t) => `<option value="${esc(v)}" ${FILTRO.medio === v ? 'selected' : ''}>${esc(t)}</option>`;
-  return `<select onchange="setFiltro('medio',this.value)" title="Cómo eligen pagar"><option value="">Todos los medios de pago</option>`
+  const op = (v, t) => `<option value="${esc(v)}" ${cur === v ? 'selected' : ''}>${esc(t)}</option>`;
+  return `<select onchange="${fn}" title="Cómo eligen pagar"><option value="">Todos los medios de pago</option>`
     + (delForm.length ? `<optgroup label="Eligieron en el formulario">${delForm.map(v => op('f:' + v, v)).join('')}</optgroup>` : '')
     + (reg.length ? `<optgroup label="Medio de los pagos registrados">${reg.map(v => op('p:' + v, MEDIO_LABEL[v] || v)).join('')}</optgroup>` : '') + '</select>';
 }
@@ -1041,6 +1049,7 @@ function htmlRespuestas(g){
     <select onchange="setFiltro('hab',this.value)">${opt('', 'Todas las habitaciones', FILTRO.hab)}${opt('sin', 'Sin asignar', FILTRO.hab)}${Array.from({ length: nHab }, (_, i) => opt(String(i + 1), 'Hab. ' + (i + 1), FILTRO.hab)).join('')}</select>
     ${hayPagos(GID_ABIERTO) ? `<select onchange="setFiltro('pago',this.value)">${opt('', 'Todos los pagos', FILTRO.pago)}${opt('con', 'Con pagos', FILTRO.pago)}${opt('sin', 'Sin pagos', FILTRO.pago)}</select>` : ''}
     <select onchange="setFiltro('tipo',this.value)" title="Tipo de pasajero">${opt('', 'ADT, CHD e INF', FILTRO.tipo)}${opt('ADT', 'Adultos (ADT)', FILTRO.tipo)}${opt('CHD', 'Niños (CHD)', FILTRO.tipo)}${opt('INF', 'Infantes (INF)', FILTRO.tipo)}${opt('-', 'Sin fecha de nacimiento', FILTRO.tipo)}</select>
+    ${tieneCobros(g) ? `<select onchange="setFiltro('cub',this.value)" title="Quién paga">${opt('', 'Todos (cubran o no los novios)', FILTRO.cub)}${opt('si', 'Los cubren los novios', FILTRO.cub)}${opt('no', 'No los cubren los novios', FILTRO.cub)}</select>` : ''}
     ${tieneCobros(g) && veSaldo() ? `<select onchange="setFiltro('saldo',this.value)" title="Saldo">${opt('', 'Todos los saldos', FILTRO.saldo)}${opt('con', 'Con saldo pendiente', FILTRO.saldo)}${opt('ok', 'Al día', FILTRO.saldo)}${opt('falta', 'Con datos faltantes', FILTRO.saldo)}</select>` : ''}
     ${selectorMedio(g)}
     <select onchange="setFiltro('ped',this.value)">${opt('', 'Cualquier tipo pedido', FILTRO.ped)}${pedidas.map(t => opt(t, t, FILTRO.ped)).join('')}</select>
@@ -1542,7 +1551,7 @@ const conPagos = hayPagos(GID_ABIERTO), pp = conPagos ? pagosPorPasajero(GID_ABI
 function imprimir(tipo){
   const g = GRUPOS[GID_ABIERTO], resps = g.respuestas || {};
   let html = `<h1>${esc(g.meta.nombre)}</h1><div class="sub">${tipo === 'plan' ? 'Plan de pagos' : tipo === 'rooming' ? 'Rooming list' : 'Listado de pasajeros'} · ${new Date().toLocaleDateString('es-AR')}</div>`;
-  if (tipo === 'plan'){ document.getElementById('print-area').innerHTML = html + htmlPlanTabla(g); window.print(); return; }
+  if (tipo === 'plan'){ document.getElementById('print-area').innerHTML = html + (PLAN_MEDIO ? `<div class="sub">Filtrado por medio de pago: ${esc(PLAN_MEDIO.slice(2))}</div>` : '') + htmlPlanTabla(g); window.print(); return; }
   if (tipo === 'rooming'){
     const refR2 = refViaje(g);
     html += '<table><thead><tr><th>Hab.</th><th>Tipo</th><th>Cama</th><th>Pasajero</th><th>Pasaporte</th><th>Vence</th><th>Observaciones</th></tr></thead><tbody>';
