@@ -282,6 +282,9 @@ const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ
 function fmtFecha(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || ''); }
 const CAPACIDAD = { 'Single':1, 'Doble':2, 'Triple':3, 'Cuádruple':4 };
 const TIPOS = Object.keys(CAPACIDAD);
+// Los infantes (INF) no ocupan lugar en la habitación: el hotel cuenta, por ejemplo, "doble + bebé"
+function esInf(rid){ const g = GRUPOS[GID_ABIERTO]; if (!g || !g.respuestas || !g.respuestas[rid]) return false; return tipoPax(g, rid, g.respuestas[rid], refViaje(g)).t === 'INF'; }
+const adultos = ids => ids.filter(x => !esInf(x)).length;
 function tipoPorTamano(n){ return n <= 1 ? 'Single' : n === 2 ? 'Doble' : n === 3 ? 'Triple' : 'Cuádruple'; }
 function nuevoToken(){
   const a = new Uint8Array(16); crypto.getRandomValues(a);
@@ -515,8 +518,9 @@ function sugerirHabitaciones(resps){
     const decl = m.map(i => resps[i].tipoHabitacion).filter(Boolean);
     const cuenta = t => decl.filter(x => x === t).length;
     const comun = [...new Set(decl)].sort((a, b) => cuenta(b) - cuenta(a))[0];
-    const hab = { tipo: m.length > 1 && CAPACIDAD[comun] >= m.length ? comun : (m.length > 1 ? tipoPorTamano(m.length) : (comun || 'Single')), pasajeros: Object.fromEntries(m.map(i => [i, true])) };
-    const cama = m.length > 1 ? camaDeOcupantes(m, resps) : ''; if (cama) hab.cama = cama;
+    const na = adultos(m) || m.length;
+    const hab = { tipo: na > 1 && CAPACIDAD[comun] >= na ? comun : (na > 1 ? tipoPorTamano(na) : (comun || 'Single')), pasajeros: Object.fromEntries(m.map(i => [i, true])) };
+    const cama = na > 1 ? camaDeOcupantes(m, resps) : ''; if (cama) hab.cama = cama;
     return hab;
   }).sort((a, b) => nombreHab(a, resps).localeCompare(nombreHab(b, resps), 'es'));
 }
@@ -537,8 +541,9 @@ function nombreHab(h, resps){ const m = Object.keys(h.pasajeros || {}).map(i => 
 function alertasHabitacion(h, resps, idx){
   const out = [], ids = Object.keys(h.pasajeros || {}).filter(i => resps[i]);
   const cap = CAPACIDAD[h.tipo] || 0;
-  if (ids.length > cap) out.push(`Hay ${ids.length} ocupantes y la habitación ${h.tipo} admite ${cap}.`);
-  else if (ids.length < cap && ids.length > 0 && cap > 1) out.push(`Faltan ${cap - ids.length} ocupante(s) para completar la habitación ${h.tipo}.`);
+  const na = adultos(ids);
+  if (na > cap) out.push(`Hay ${na} ocupantes y la habitación ${h.tipo} admite ${cap}.`);
+  else if (na < cap && ids.length > 0 && cap > 1) out.push(`Faltan ${cap - na} ocupante(s) para completar la habitación ${h.tipo}.`);
   ids.forEach(i => {
     const r = resps[i], nom = `${r.nombre} ${r.apellido}`;
     if (r.comparte === 'Sí'){
@@ -547,8 +552,8 @@ function alertasHabitacion(h, resps, idx){
       else if (!t) out.push(inf.via === 'ambiguo' ? `${nom}: "${r.compartiCon}" coincide con varias personas (${inf.cands.map(c => nombreDe(resps[c])).join(', ')}). Vinculalo a mano desde su ficha.` : `${nom}: "${r.compartiCon}" no coincide con ninguna respuesta. Vinculalo a mano desde su ficha.`);
       else if (!h.pasajeros[t]) out.push(`${nom} pidió compartir con ${resps[t].nombre} ${resps[t].apellido}, que está en otra habitación.`);
       else { const rt = resps[t]; if (cap <= 2 && resolverInfo(t, rt, resps).id !== i) out.push(`El vínculo ${nom} → ${rt.nombre} ${rt.apellido} no es recíproco.`); }
-    } else if (ids.length > 1) out.push(`${nom} indicó que no comparte habitación.`);
-    if (r.tipoHabitacion && r.tipoHabitacion !== h.tipo) out.push(`${nom} pidió habitación ${r.tipoHabitacion}.`);
+    } else if (na > 1 && !esInf(i)) out.push(`${nom} indicó que no comparte habitación.`);
+    if (r.tipoHabitacion && r.tipoHabitacion !== h.tipo && !esInf(i)) out.push(`${nom} pidió habitación ${r.tipoHabitacion}.`);
   });
   if (cap > 1){
     const ped = [...new Set(ids.map(i => resps[i].tipoCama).filter(Boolean))];
@@ -847,16 +852,16 @@ function listaWarnings(g){
   if (guardadas){
     const sinHab = ids.filter(id => !asg[id]);
     lista.forEach(([hid, h], i) => {
-      const hn = `Hab. ${i + 1} (${esc(h.tipo)})`, oc = Object.keys(h.pasajeros || {}).filter(x => resps[x]), cap = CAPACIDAD[h.tipo] || 0, o = ocupacion(h, oc), tam = tipoPorTamano(oc.length);
+      const hn = `Hab. ${i + 1} (${esc(h.tipo)})`, oc = Object.keys(h.pasajeros || {}).filter(x => resps[x]), cap = CAPACIDAD[h.tipo] || 0, o = ocupacion(h, oc), na = adultos(oc), tam = tipoPorTamano(na || 1);
       if (o.vacia) W.push({ ver: `verHab('${q(hid)}')`, txt: `${hn} está vacía.`, acc: btn('Eliminar habitación', `borrarHabitacion('${q(hid)}')`) });
       else if (o.faltan) W.push({ sev:'bad', ver: `verHab('${q(hid)}')`, txt: `${hn} está incompleta: ${oc.map(nm).join(', ')}. Faltan ${o.faltan}.`, acc: (tam !== h.tipo ? btn(`Pasar a ${tam}`, `cambiarTipo('${q(hid)}','${tam}')`) : '') + (sinHab.length ? `<select onchange="agregarAHab(this.value,'${q(hid)}')"><option value="">Agregar a esta habitación…</option>${sinHab.map(x => `<option value="${esc(x)}">${esc(nombreDe(resps[x]))}</option>`).join('')}</select>` : '') });
-      else if (o.sobran) W.push({ sev:'bad', ver: `verHab('${q(hid)}')`, txt: `${hn} tiene ${oc.length} ocupantes y admite ${cap}: ${oc.map(nm).join(', ')}.`, acc: oc.length <= 4 ? btn(`Pasar a ${tam}`, `cambiarTipo('${q(hid)}','${tam}')`) : '' });
+      else if (o.sobran) W.push({ sev:'bad', ver: `verHab('${q(hid)}')`, txt: `${hn} tiene ${na} ocupantes y admite ${cap}: ${oc.map(nm).join(', ')}.`, acc: na <= 4 ? btn(`Pasar a ${tam}`, `cambiarTipo('${q(hid)}','${tam}')`) : '' });
       oc.forEach(rid => {
         const r = resps[rid];
-        if (r.tipoHabitacion && r.tipoHabitacion !== h.tipo) W.push({ ver: `verRespuesta('${q(rid)}')`, txt: `${nm(rid)} pidió habitación ${esc(r.tipoHabitacion)} y está en ${hn}.`, acc: btn(`Actualizar su pedido a ${esc(h.tipo)}`, `setCampoResp('${q(rid)}','tipoHabitacion','${q(h.tipo)}')`) + (CAPACIDAD[r.tipoHabitacion] >= oc.length ? btn(`Pasar la habitación a ${esc(r.tipoHabitacion)}`, `cambiarTipo('${q(hid)}','${q(r.tipoHabitacion)}')`) : '') });
+        if (r.tipoHabitacion && r.tipoHabitacion !== h.tipo && !esInf(rid)) W.push({ ver: `verRespuesta('${q(rid)}')`, txt: `${nm(rid)} pidió habitación ${esc(r.tipoHabitacion)} y está en ${hn}.`, acc: btn(`Actualizar su pedido a ${esc(h.tipo)}`, `setCampoResp('${q(rid)}','tipoHabitacion','${q(h.tipo)}')`) + (CAPACIDAD[r.tipoHabitacion] >= na ? btn(`Pasar la habitación a ${esc(r.tipoHabitacion)}`, `cambiarTipo('${q(hid)}','${q(r.tipoHabitacion)}')`) : '') });
         if (cap > 1 && h.cama && r.tipoCama && r.tipoCama !== h.cama) W.push({ ver: `verRespuesta('${q(rid)}')`, txt: `${nm(rid)} pidió cama ${esc(r.tipoCama)} y ${hn} tiene cama ${esc(h.cama)}.`, acc: btn(`Actualizar su pedido a ${esc(h.cama)}`, `setCampoResp('${q(rid)}','tipoCama','${q(h.cama)}')`) + btn(`Cambiar la cama a ${esc(r.tipoCama)}`, `cambiarCama('${q(hid)}','${q(r.tipoCama)}')`) });
-        if (r.comparte !== 'Sí' && oc.length > 1){
-          const otro = oc.find(x => x !== rid);
+        if (r.comparte !== 'Sí' && na > 1 && !esInf(rid)){
+          const otro = oc.find(x => x !== rid && !esInf(x)) || oc.find(x => x !== rid);
           W.push({ ver: `verHab('${q(hid)}')`, txt: `${nm(rid)} indicó que no comparte habitación pero está en ${hn} con ${oc.filter(x => x !== rid).map(nm).join(', ')}.`, acc: btn(`Marcar que comparte con ${nm(otro)}`, `comparteCon('${q(rid)}','${q(otro)}')`) + btn('Pasar a una habitación nueva', `moverPasajero('${q(rid)}','__nueva')`) });
         } else if (r.comparte === 'Sí'){
           const t = resolverInfo(rid, r, resps).id;
@@ -1101,14 +1106,14 @@ function plegarTodas(v){ listaHab(GRUPOS[GID_ABIERTO]).forEach(([hid]) => v ? CO
 function cambiarCama(hid, v){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}/cama`).set(v || null).catch(handleWriteError); }
 // Habitación incompleta: tiene menos ocupantes que su capacidad (ej. una doble con una sola persona), vacía o con de más
 function ocupacion(h, ids){
-  const cap = CAPACIDAD[h.tipo] || 0, n = ids.length;
-  if (cap < 2) return { faltan:0, sobran: n > cap && cap ? n - cap : 0, vacia: n === 0 };
-  return { faltan: n > 0 && n < cap ? cap - n : 0, sobran: n > cap ? n - cap : 0, vacia: n === 0 };
+  const cap = CAPACIDAD[h.tipo] || 0, n = adultos(ids), vacia = ids.length === 0;
+  if (cap < 2) return { faltan: !vacia && !n ? cap : 0, sobran: n > cap && cap ? n - cap : 0, vacia };
+  return { faltan: !vacia && n < cap ? cap - n : 0, sobran: n > cap ? n - cap : 0, vacia };
 }
 function pillOcupacion(h, ids){
   const o = ocupacion(h, ids), plural = x => x === 1 ? 'persona' : 'personas';
   if (o.vacia) return '<span class="pill warn" title="Habitación sin pasajeros">Vacía</span>';
-  if (o.faltan) return `<span class="pill bad" title="Habitación ${esc(h.tipo)}: tiene ${ids.length} de ${CAPACIDAD[h.tipo]} personas">Falta ${o.faltan} ${plural(o.faltan)}</span>`;
+  if (o.faltan) return `<span class="pill bad" title="Habitación ${esc(h.tipo)}: tiene ${adultos(ids)} de ${CAPACIDAD[h.tipo]} personas (sin contar infantes)">Falta ${o.faltan} ${plural(o.faltan)}</span>`;
   if (o.sobran) return `<span class="pill bad" title="Habitación ${esc(h.tipo)}: supera su capacidad">Sobra${o.sobran === 1 ? '' : 'n'} ${o.sobran} ${plural(o.sobran)}</span>`;
   return '';
 }
