@@ -2511,10 +2511,11 @@ function costoRowHtml(c, monedaReserva){
     </div>
     <div class="item-field" style="margin-top:6px"><span class="item-field-label">Concepto</span><input class="costo-concepto" value="${escHtml(c.concepto)}" placeholder="Ej: Hotel Llao Llao, 3 noches"></div>
     <div class="item-fields cols3" style="margin-top:6px">
-      <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="costo-monto" value="${c.monto??''}" oninput="recalcDerived()"></div>
+      <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="costo-monto" value="${c.monto??''}" oninput="pppUpdate(this)" ${c.modo==='pp'||c.modo==='hab'?'readonly':''}></div>
       <div class="item-field"><span class="item-field-label">Moneda</span><select class="costo-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],cMoneda)}</select></div>
       <div class="item-field"><span class="item-field-label">T.C. (si es otra moneda)</span><input type="number" step="0.01" class="costo-tc" value="${c.tipoCambio??''}" oninput="recalcDerived()" placeholder="Ej: 1050"></div>
     </div>
+    ${pppHtml(c, 'costo')}
     <div class="item-field costo-fechaemision-wrap" style="margin-top:6px;${showFechaEmision?'':'display:none'}"><span class="item-field-label">Fecha de emisión del billete (para BSP)</span><input type="date" class="costo-fecha-emision" value="${c.fechaEmision||''}"></div>
     <div class="item-field costo-vencimiento-tarjeta-wrap" style="margin-top:6px;${showVencimientoTarjeta?'':'display:none'}"><span class="item-field-label">Fecha de vencimiento de la tarjeta</span><input type="date" class="costo-vencimiento-tarjeta" value="${c.fechaVencimiento||''}"></div>
     <div class="item-field" style="margin-top:6px"><span class="item-field-label">Fecha de pago (para la Caja, si ya se pagó)</span><input type="date" class="costo-fecha-pago" value="${c.fechaPago||''}"></div>
@@ -2536,23 +2537,82 @@ function onCostoRowChange(el){
   const medio = row.querySelector('.costo-medio').value;
   const wrap = row.querySelector('.costo-fechaemision-wrap');
   if (wrap) wrap.style.display = (tipo==='Aéreo' && medio==='bsp') ? '' : 'none';
+  pppUpdate(row.querySelector('.costo-tipo'));
   const wrapTarjeta = row.querySelector('.costo-vencimiento-tarjeta-wrap');
   if (wrapTarjeta) wrapTarjeta.style.display = (medio==='tarjeta') ? '' : 'none';
   recalcDerived();
+}
+// El monto se puede cargar como total, por persona (valor × cantidad) o, en hotelería, por tipo de habitación
+const HAB_TIPOS = ['Single','Doble','Triple','Cuádruple'];
+function habRowHtml(h, pref){
+  h = h || {};
+  return `<div class="hab-line" style="display:flex;gap:6px;align-items:flex-end;margin-top:6px;flex-wrap:wrap">
+    <div class="item-field" style="flex:1;min-width:110px"><span class="item-field-label">Tipo de habitación</span><select class="hab-tipo" onchange="pppUpdate(this)">${HAB_TIPOS.map(t => `<option ${t === h.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+    <div class="item-field" style="width:90px"><span class="item-field-label">Habitaciones</span><input type="number" min="1" step="1" class="hab-cant" value="${h.cant ?? ''}" oninput="pppUpdate(this)"></div>
+    <div class="item-field" style="flex:1;min-width:110px"><span class="item-field-label">Valor por habitación</span><input type="number" step="0.01" class="hab-valor" value="${h.valor ?? ''}" oninput="pppUpdate(this)"></div>
+    <button type="button" class="item-delete-btn" title="Quitar" onclick="const w=this.closest('.ppp-wrap');this.closest('.hab-line').remove();pppUpdate(w.querySelector('.${pref}-modo'))">✕</button>
+  </div>`;
+}
+function pppHtml(c, pref){
+  const modo = c.modo || 'total', hotel = c.tipo === 'Hotel', habs = objToArr(c.habs);
+  return `<div class="ppp-wrap" data-pref="${pref}">
+    <div class="item-fields cols3" style="margin-top:6px">
+      <div class="item-field"><span class="item-field-label">El monto es</span><select class="${pref}-modo" onchange="pppUpdate(this)"><option value="total" ${modo === 'total' ? 'selected' : ''}>Total</option><option value="pp" ${modo === 'pp' ? 'selected' : ''}>Valor por persona</option><option value="hab" ${modo === 'hab' ? 'selected' : ''} ${hotel ? '' : 'hidden disabled'}>Por tipo de habitación</option></select></div>
+      <div class="item-field ppp-cant"><span class="item-field-label">Cantidad de personas</span><input type="number" min="1" step="1" class="${pref}-cant" value="${c.cantidad ?? ''}" oninput="pppUpdate(this)" placeholder="Ej: 40"></div>
+      <div class="item-field ppp-unit"><span class="item-field-label">Valor por persona</span><input type="number" step="0.01" class="${pref}-unit" value="${c.valorUnit ?? ''}" oninput="pppUpdate(this)" ${modo === 'pp' ? '' : 'disabled'}></div>
+    </div>
+    <div class="ppp-habs" style="${modo === 'hab' ? '' : 'display:none'}">${habs.map(h => habRowHtml(h, pref)).join('')}<button type="button" class="add-item-btn" style="margin-top:6px" onclick="this.insertAdjacentHTML('beforebegin', habRowHtml({tipo:'Doble'}, '${pref}'));pppUpdate(this)">+ Agregar tipo de habitación</button></div>
+    <div class="ppp-hint" style="font-size:11px;margin-top:4px;color:var(--muted,#888)"></div>
+  </div>`;
+}
+function pppUpdate(el){
+  const row = el.closest('.item-card'); if (!row) return;
+  const wrap = row.querySelector('.ppp-wrap'); if (!wrap) return;
+  const pref = wrap.dataset.pref, q = c => row.querySelector('.' + pref + '-' + c);
+  const hotel = q('tipo').value === 'Hotel', sel = q('modo'), opt = sel.querySelector('option[value="hab"]');
+  opt.hidden = opt.disabled = !hotel;
+  if (!hotel && sel.value === 'hab') sel.value = 'total';
+  const modo = sel.value, cant = parseFloat(q('cant').value) || 0, monto = q('monto'), hint = row.querySelector('.ppp-hint');
+  const pp = modo === 'pp', hab = modo === 'hab';
+  wrap.querySelector('.ppp-habs').style.display = hab ? '' : 'none';
+  wrap.querySelector('.ppp-unit').style.display = hab ? 'none' : '';
+  q('unit').disabled = !pp; monto.readOnly = pp || hab;
+  if (hab){
+    let tot = 0, n = 0;
+    wrap.querySelectorAll('.hab-line').forEach(l => { const c = parseFloat(l.querySelector('.hab-cant').value) || 0, v = parseFloat(l.querySelector('.hab-valor').value) || 0; tot += c * v; n += c; });
+    tot = Math.round(tot * 100) / 100; monto.value = tot || '';
+    hint.textContent = n && tot ? `${n} ${n === 1 ? 'habitación' : 'habitaciones'} · total ${tot}${cant ? ` · ${Math.round(tot / cant * 100) / 100} por persona (${cant} personas)` : ''}` : '';
+  } else {
+    if (pp){ const u = parseFloat(q('unit').value) || 0; monto.value = (cant && u) ? (Math.round(u * cant * 100) / 100) : ''; }
+    const m = parseFloat(monto.value) || 0;
+    hint.textContent = cant && m ? (pp ? `${cant} personas × ${q('unit').value} = ${monto.value}` : `Equivale a ${(Math.round(m / cant * 100) / 100)} por persona (${cant} personas)`) : '';
+  }
+  recalcDerived();
+}
+function pppSave(row, pref, o){
+  const modo = row.querySelector('.' + pref + '-modo').value, cant = parseFloat(row.querySelector('.' + pref + '-cant').value) || 0;
+  if (cant) o.cantidad = cant;
+  if (modo === 'pp'){ o.modo = 'pp'; o.valorUnit = parseFloat(row.querySelector('.' + pref + '-unit').value) || 0; }
+  if (modo === 'hab'){
+    o.modo = 'hab'; o.habs = [];
+    row.querySelectorAll('.hab-line').forEach(l => o.habs.push({ tipo: l.querySelector('.hab-tipo').value, cant: parseFloat(l.querySelector('.hab-cant').value) || 0, valor: parseFloat(l.querySelector('.hab-valor').value) || 0 }));
+  }
+  return o;
 }
 function cotizadoRowHtml(c, monedaReserva){
   const cMoneda = c.moneda || monedaReserva || 'ARS';
   return `<div class="item-card cotizado-row" data-row-id="${c.id}">
     <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="item-card-label">Ítem cotizado</span><button type="button" class="item-delete-btn" onclick="this.closest('.cotizado-row').remove();recalcDerived();saveReserva()">✕</button></div>
     <div class="item-fields cols3">
-      <div class="item-field"><span class="item-field-label">Tipo</span><select class="cotizado-tipo">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,c.tipo||'Otro')}</select></div>
-      <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="cotizado-monto" value="${c.monto??''}" oninput="recalcDerived()"></div>
+      <div class="item-field"><span class="item-field-label">Tipo</span><select class="cotizado-tipo" onchange="pppUpdate(this)">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,c.tipo||'Otro')}</select></div>
+      <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="cotizado-monto" value="${c.monto??''}" oninput="pppUpdate(this)" ${c.modo==='pp'||c.modo==='hab'?'readonly':''}></div>
       <div class="item-field"><span class="item-field-label">Moneda</span><select class="cotizado-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],cMoneda)}</select></div>
     </div>
     <div class="item-fields" style="margin-top:6px">
       <div class="item-field"><span class="item-field-label">Concepto</span><input class="cotizado-concepto" value="${escHtml(c.concepto)}" placeholder="Ej: Hotel Llao Llao, 3 noches"></div>
       <div class="item-field"><span class="item-field-label">T.C. (si es otra moneda)</span><input type="number" step="0.01" class="cotizado-tc" value="${c.tipoCambio??''}" oninput="recalcDerived()" placeholder="Ej: 1050"></div>
     </div>
+    ${pppHtml(c, 'cotizado')}
     <div class="cotizado-equiv" style="font-size:11px;margin-top:6px"></div>
   </div>`;
 }
@@ -3114,6 +3174,7 @@ function saveReserva(){
       monto: parseFloat(row.querySelector('.costo-monto').value)||0,
       moneda: row.querySelector('.costo-moneda').value,
       tipoCambio: parseFloat(row.querySelector('.costo-tc').value)||'',
+      ...pppSave(row, 'costo', {}),
       medio: row.querySelector('.costo-medio').value,
       fechaEmision: row.querySelector('.costo-fecha-emision').value,
       fechaVencimiento: row.querySelector('.costo-vencimiento-tarjeta').value,
@@ -3129,6 +3190,7 @@ function saveReserva(){
       monto: parseFloat(row.querySelector('.cotizado-monto').value)||0,
       moneda: row.querySelector('.cotizado-moneda').value,
       tipoCambio: parseFloat(row.querySelector('.cotizado-tc').value)||'',
+      ...pppSave(row, 'cotizado', {}),
     };
   });
   document.querySelectorAll('.factura-row').forEach(row => {
