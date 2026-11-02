@@ -824,6 +824,62 @@ function selectorMedio(g){
 // ── RESUMEN del grupo ────────────────────────────────────────────────────────
 // Cada dato con "Ver" lleva a la lista de Respuestas ya filtrada.
 function irA(tab, filtros){ FILTRO = { ...FILTRO_VACIO, ...(filtros || {}) }; setTab(tab); }
+// ── WARNINGS: lista única con acciones para resolverlos (algunas corrigen lo que cargó el pasajero) ──
+function setCampoResp(rid, campo, valor){ GRUPOS_REF.child(`${GID_ABIERTO}/respuestas/${rid}/${campo}`).set(valor).catch(handleWriteError); }
+function guardarFechaResp(rid, campo){ const el = document.getElementById(`wf-${campo}-${rid}`); if (el && el.value) setCampoResp(rid, campo, el.value); }
+function agregarAHab(rid, hid){ if (rid && hid) moverPasajero(rid, hid); }
+function comparteCon(rid, otro){
+  const o = GRUPOS[GID_ABIERTO].respuestas[otro]; if (!o) return;
+  GRUPOS_REF.child(`${GID_ABIERTO}/respuestas/${rid}`).update({ comparte: 'Sí', compartiCon: nombreDe(o).slice(0, 120), compartiConId: otro }).catch(handleWriteError);
+}
+function listaWarnings(g){
+  const resps = g.respuestas || {}, ids = Object.keys(resps), W = [], nm = id => esc(nombreDe(resps[id])), q = x => esc(String(x).replace(/'/g, "\\'"));
+  const btn = (txt, js) => `<button class="btn outline small" onclick="${js}">${txt}</button>`;
+  const guardadas = Object.keys(g.habitaciones || {}).length > 0, ref = refViaje(g), asg = asignaciones(g), lista = listaHab(g);
+  if (ids.length && !guardadas) W.push({ txt: 'Las habitaciones todavía son una sugerencia.', acc: btn('Guardar habitaciones sugeridas', 'guardarSugeridas()') });
+  if (guardadas){
+    const sinHab = ids.filter(id => !asg[id]);
+    lista.forEach(([hid, h], i) => {
+      const hn = `Hab. ${i + 1} (${esc(h.tipo)})`, oc = Object.keys(h.pasajeros || {}).filter(x => resps[x]), cap = CAPACIDAD[h.tipo] || 0, o = ocupacion(h, oc), tam = tipoPorTamano(oc.length);
+      if (o.vacia) W.push({ txt: `${hn} está vacía.`, acc: btn('Eliminar habitación', `borrarHabitacion('${q(hid)}')`) });
+      else if (o.faltan) W.push({ sev:'bad', txt: `${hn} está incompleta: ${oc.map(nm).join(', ')}. Faltan ${o.faltan}.`, acc: (tam !== h.tipo ? btn(`Pasar a ${tam}`, `cambiarTipo('${q(hid)}','${tam}')`) : '') + (sinHab.length ? `<select onchange="agregarAHab(this.value,'${q(hid)}')"><option value="">Agregar a esta habitación…</option>${sinHab.map(x => `<option value="${esc(x)}">${esc(nombreDe(resps[x]))}</option>`).join('')}</select>` : '') });
+      else if (o.sobran) W.push({ sev:'bad', txt: `${hn} tiene ${oc.length} ocupantes y admite ${cap}: ${oc.map(nm).join(', ')}.`, acc: oc.length <= 4 ? btn(`Pasar a ${tam}`, `cambiarTipo('${q(hid)}','${tam}')`) : '' });
+      oc.forEach(rid => {
+        const r = resps[rid];
+        if (r.tipoHabitacion && r.tipoHabitacion !== h.tipo) W.push({ txt: `${nm(rid)} pidió habitación ${esc(r.tipoHabitacion)} y está en ${hn}.`, acc: btn(`Actualizar su pedido a ${esc(h.tipo)}`, `setCampoResp('${q(rid)}','tipoHabitacion','${q(h.tipo)}')`) + (CAPACIDAD[r.tipoHabitacion] >= oc.length ? btn(`Pasar la habitación a ${esc(r.tipoHabitacion)}`, `cambiarTipo('${q(hid)}','${q(r.tipoHabitacion)}')`) : '') });
+        if (cap > 1 && h.cama && r.tipoCama && r.tipoCama !== h.cama) W.push({ txt: `${nm(rid)} pidió cama ${esc(r.tipoCama)} y ${hn} tiene cama ${esc(h.cama)}.`, acc: btn(`Actualizar su pedido a ${esc(h.cama)}`, `setCampoResp('${q(rid)}','tipoCama','${q(h.cama)}')`) + btn(`Cambiar la cama a ${esc(r.tipoCama)}`, `cambiarCama('${q(hid)}','${q(r.tipoCama)}')`) });
+        if (r.comparte !== 'Sí' && oc.length > 1){
+          const otro = oc.find(x => x !== rid);
+          W.push({ txt: `${nm(rid)} indicó que no comparte habitación pero está en ${hn} con ${oc.filter(x => x !== rid).map(nm).join(', ')}.`, acc: btn(`Marcar que comparte con ${nm(otro)}`, `comparteCon('${q(rid)}','${q(otro)}')`) + btn('Pasar a una habitación nueva', `moverPasajero('${q(rid)}','__nueva')`) });
+        } else if (r.comparte === 'Sí'){
+          const t = resolverInfo(rid, r, resps).id;
+          if (t && !h.pasajeros[t]) W.push({ txt: `${nm(rid)} pidió compartir con ${nm(t)}, que está en otra habitación.`, acc: btn(`Mover a ${nm(t)} a ${hn}`, `moverPasajero('${q(t)}','${q(hid)}')`) + (asg[t] ? btn(`Mover a ${nm(rid)} con ${nm(t)}`, `moverPasajero('${q(rid)}','${q(asg[t].hid)}')`) : '') });
+        }
+      });
+      if (cap > 1 && !h.cama){
+        const ped = [...new Set(oc.map(x => resps[x].tipoCama).filter(Boolean))];
+        if (ped.length > 1) W.push({ txt: `${hn}: piden camas distintas (${ped.join(' y ')}).`, acc: CAMAS.map(c => btn(`Cama ${c}`, `cambiarCama('${q(hid)}','${c}')`)).join('') });
+      }
+    });
+    sinHab.forEach(rid => W.push({ sev:'bad', txt: `${nm(rid)} no tiene habitación.`, acc: `<select onchange="moverPasajero('${q(rid)}', this.value)"><option value="">Asignar a…</option>${lista.map(([hid, h], i) => `<option value="${esc(hid)}">Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)} (${esc(h.tipo)})</option>`).join('')}<option value="__nueva">+ Nueva habitación</option></select>` }));
+  }
+  const nv = ids.filter(id => resps[id].comparte === 'Sí' && ['bad', 'warn'].includes(estadoVinculo(id, resps[id], resps).cls)).length;
+  if (nv) W.push({ txt: `${nv} vínculo${nv === 1 ? '' : 's'} de habitación sin resolver (nombres que no coinciden o sin confirmar).`, acc: btn('Revisar y resolver', 'revisarVinculos()') });
+  if (!g.meta.fechaViaje) W.push({ txt: 'Falta la fecha de regreso para controlar los pasaportes.', acc: btn('Ir a Ajustes', "setTab('cfg')") });
+  else ids.filter(id => venceProximo(resps[id], g.meta)).forEach(id => W.push({ sev:'bad', txt: `${nm(id)}: el pasaporte vence el ${esc(fmtFecha(resps[id].vencimiento))}, antes de 6 meses del viaje.`, acc: `<input type="date" id="wf-vencimiento-${esc(id)}" value="${esc(resps[id].vencimiento)}" style="width:auto">` + btn('Corregir vencimiento', `guardarFechaResp('${q(id)}','vencimiento')`) }));
+  ids.filter(id => !resps[id].nacimiento).forEach(id => W.push({ txt: `${nm(id)} no tiene fecha de nacimiento (no se puede clasificar ADT/CHD/INF).`, acc: `<input type="date" id="wf-nacimiento-${esc(id)}" style="width:auto">` + btn('Guardar', `guardarFechaResp('${q(id)}','nacimiento')`) }));
+  if (tieneCobros(g)){
+    const faltas = {};
+    ids.forEach(id => cobroDe(g, id, resps[id], ref, asg, {}).falta.filter(f => !/^habitación$|^tipo de pasajero/.test(f)).forEach(f => { faltas[f] = (faltas[f] || 0) + 1; }));
+    Object.entries(faltas).forEach(([f, k]) => W.push({ txt: `${k} pasajero${k === 1 ? '' : 's'}: falta ${esc(f)} para calcular lo que paga${k === 1 ? '' : 'n'}.`, acc: btn('Cargar precios en Ajustes', "setTab('cfg')") }));
+  }
+  return W;
+}
+function htmlWarnings(g){
+  const W = listaWarnings(g);
+  return `<div class="card" style="grid-column:1/-1"><h3>Warnings (${W.length})</h3><div class="hint" style="margin-bottom:6px">Cada warning ofrece cómo resolverlo. Cuando la solución corrige lo que cargó el pasajero (tipo de habitación, cama, "comparte", fechas), se actualiza su respuesta.</div>`
+    + (W.length ? W.map(w => `<div class="ocu" style="flex-wrap:wrap;gap:8px"><div class="nom" style="flex:1;min-width:240px"><span class="pill ${w.sev === 'bad' ? 'bad' : 'warn'}">⚠</span> ${w.txt}</div><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${w.acc || ''}</div></div>`).join('') : '<div class="hint" style="margin:0">Sin warnings.</div>') + '</div>';
+}
 function htmlResumen(g){
   const resps = g.respuestas || {}, ids = Object.keys(resps), n = ids.length;
   const ref = refViaje(g), asg = asignaciones(g), lista = listaHab(g), guardadas = Object.keys(g.habitaciones || {}).length > 0;
@@ -844,7 +900,7 @@ function htmlResumen(g){
   ids.forEach(id => eleccionPago(resps[id], qPago).forEach(v => { eleccion[v] = (eleccion[v] || 0) + 1; }));
   const fila = (et, val, accion) => `<div class="ocu"><div class="nom">${et}</div><div style="display:flex;align-items:center;gap:10px"><strong>${val}</strong>${accion ? `<button class="btn outline small" onclick="${accion}">Ver</button>` : ''}</div></div>`;
   const aviso = (cond, texto, tipo) => cond ? `<div class="alertas ${tipo === 'bad' ? 'red' : ''}" style="padding:4px 0">${texto}</div>` : '';
-  let html = `<div class="section-head"><h2>${esc(g.meta.nombre)}</h2><span class="hint" style="margin:0">${g.meta.activo ? 'Recibiendo respuestas' : 'Formulario cerrado'}${ref.origen !== 'hoy' ? ' · inicio del viaje ' + esc(fmtFecha(ref.fecha)) : ''}</span></div><div class="res-grid">`;
+  let html = `<div class="section-head"><h2>${esc(g.meta.nombre)}</h2><span class="hint" style="margin:0">${g.meta.activo ? 'Recibiendo respuestas' : 'Formulario cerrado'}${ref.origen !== 'hoy' ? ' · inicio del viaje ' + esc(fmtFecha(ref.fecha)) : ''}</span></div><div class="res-grid">` + htmlWarnings(g);
 
   html += `<div class="card"><h3>Pasajeros</h3>`
     + fila('Respuestas recibidas', `${n}${invitados.length ? ' de ' + invitados.length : ''}`, "irA('resp')")
