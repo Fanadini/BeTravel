@@ -888,10 +888,14 @@ function listaWarnings(g){
   }
   return W;
 }
+let WARN_CARD_PLEG = false; const WARN_PLEG = new Set();
+function togglePlegarWarn(k){ k === '*' ? (WARN_CARD_PLEG = !WARN_CARD_PLEG) : (WARN_PLEG.has(k) ? WARN_PLEG.delete(k) : WARN_PLEG.add(k)); render(); }
+function plegarWarns(v){ const W = listaWarnings(GRUPOS[GID_ABIERTO]); W.forEach(w => v ? WARN_PLEG.add(w.txt) : WARN_PLEG.delete(w.txt)); WARN_CARD_PLEG = false; render(); }
 function htmlWarnings(g){
-  const W = listaWarnings(g);
-  return `<div class="card" style="grid-column:1/-1"><h3>Warnings (${W.length})</h3><div class="hint" style="margin-bottom:6px">Cada warning ofrece cómo resolverlo. Cuando la solución corrige lo que cargó el pasajero (tipo de habitación, cama, "comparte", fechas), se actualiza su respuesta.</div>`
-    + (W.length ? W.map(w => `<div class="ocu" style="flex-wrap:wrap;gap:8px"><div class="nom" style="flex:1;min-width:240px"><span class="pill ${w.sev === 'bad' ? 'bad' : 'warn'}">⚠</span> ${w.txt}</div><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${w.ver ? `<button class="btn small" onclick="${w.ver}">Ver</button>` : ''}${w.acc || ''}</div></div>`).join('') : '<div class="hint" style="margin:0">Sin warnings.</div>') + '</div>';
+  const W = listaWarnings(g), kq = t => esc(t.replace(/'/g, "\\'"));
+  return `<div class="card" style="grid-column:1/-1"><h3 style="cursor:pointer;display:flex;align-items:center;gap:8px" onclick="togglePlegarWarn('*')"><span>${WARN_CARD_PLEG ? '▸' : '▾'}</span>Warnings (${W.length})</h3>`
+    + (WARN_CARD_PLEG ? '' : `<div class="hint" style="margin-bottom:6px">Cada warning ofrece cómo resolverlo. Cuando la solución corrige lo que cargó el pasajero (tipo de habitación, cama, "comparte", fechas), se actualiza su respuesta.${W.length > 1 ? ` <a href="#" class="lnk" onclick="plegarWarns(true);return false">Plegar todos</a> · <a href="#" class="lnk" onclick="plegarWarns(false);return false">Desplegar todos</a>` : ''}</div>`
+    + (W.length ? W.map(w => { const pl = WARN_PLEG.has(w.txt); return `<div class="ocu" style="flex-wrap:wrap;gap:8px"><div class="nom" style="flex:1;min-width:240px;cursor:pointer" onclick="togglePlegarWarn('${kq(w.txt)}')" title="Plegar / desplegar"><span style="color:var(--teal)">${pl ? '▸' : '▾'}</span> <span class="pill ${w.sev === 'bad' ? 'bad' : 'warn'}">⚠</span> ${w.txt}</div>${pl ? '' : `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${w.ver ? `<button class="btn small" onclick="${w.ver}">Ver</button>` : ''}${w.acc || ''}</div>`}</div>`; }).join('') : '<div class="hint" style="margin:0">Sin warnings.</div>')) + '</div>';
 }
 function htmlResumen(g){
   const resps = g.respuestas || {}, ids = Object.keys(resps), n = ids.length;
@@ -941,7 +945,7 @@ function htmlResumen(g){
     + `<div class="ocu"><div class="nom"><strong>${guardadas ? 'Confirmadas (completas)' : 'Completas (sugeridas)'}</strong></div><div style="display:flex;align-items:center;gap:10px"><strong>${completas} de ${lista.length}</strong><button class="btn outline small" onclick="setTab('hab')">Ver</button></div></div>`
     + TIPOS.filter(t => estado[t]).map(t => `<div class="ocu"><div class="nom">${esc(t)}</div><div style="display:flex;align-items:center;gap:10px"><strong>${estado[t].completas} de ${estado[t].total}</strong><button class="btn outline small" onclick="setTab('hab')">Ver</button></div></div>`).join('')
     + fila('Pasajeros sin habitación', sinHab, sinHab ? "irA('resp',{hab:'sin'})" : '')
-    + aviso(incompletas, `${incompletas} habitación${incompletas === 1 ? '' : 'es'} incompleta${incompletas === 1 ? '' : 's'} (falta gente): no se cuentan como confirmadas.`, 'bad', "setTab('hab')") + aviso(sobran, `${sobran} habitación${sobran === 1 ? '' : 'es'} con más gente de la que admite.`, 'bad', "setTab('hab')") + aviso(vacias, `${vacias} habitación${vacias === 1 ? '' : 'es'} vacía${vacias === 1 ? '' : 's'}.`, 'warn')
+    + aviso(incompletas, `${incompletas} ${incompletas === 1 ? 'habitación' : 'habitaciones'} incompleta${incompletas === 1 ? '' : 's'} (falta gente): no se cuentan como confirmadas.`, 'bad', "setTab('hab')") + aviso(sobran, `${sobran} ${sobran === 1 ? 'habitación' : 'habitaciones'} con más gente de la que admite.`, 'bad', "setTab('hab')") + aviso(vacias, `${vacias} ${vacias === 1 ? 'habitación' : 'habitaciones'} vacía${vacias === 1 ? '' : 's'}.`, 'warn')
     + aviso(!guardadas && n, 'Las habitaciones todavía son una sugerencia: guardalas en la pestaña Habitaciones para confirmarlas.', 'warn', "setTab('hab')") + `</div>`;
 
   if (tieneCobros(g)){
