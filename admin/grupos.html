@@ -50,6 +50,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);di
 .lista table{width:100%;border-collapse:collapse;font-size:12px}
 .lista th{text-align:left;font-weight:600;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:rgba(43,43,43,.55);padding:9px 12px;border-bottom:1px solid var(--beige-d);white-space:nowrap}
 .lista td{padding:9px 12px;border-bottom:1px solid rgba(213,206,195,.5);vertical-align:middle}
+.num{text-align:right !important}
 .lista tr.fila{cursor:pointer}
 .lista tr.fila:hover{background:var(--teal-l)}
 .vacio{padding:30px;text-align:center;font-size:12px;color:rgba(43,43,43,.5)}
@@ -162,6 +163,7 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
 <div class="loading-overlay" id="lo"><div class="spinner"></div><div class="loading-text">Conectando con Firebase…</div></div>
 
 <script src="nav.js"></script>
+<script src="ordenar.js"></script>
 <script>AdminNav.mount({ pagina:'grupos' });</script>
 
 <div class="main">
@@ -693,6 +695,47 @@ function cobroDe(g, rid, r, ref, asg, pp){
   const mon = (g.meta.precios || {}).moneda || 'USD', ap = aPagar(g, rid, r, ref, asg), pg = pagadoEn(pp, rid, mon);
   return { ...ap, mon, pagado: pg.v, sinTC: pg.sinTC, saldo: ap.total - pg.v };
 }
+// ── PLAN DE PAGOS: cuotas por pasajero, con los pasajeros que cubren los novios aparte ──
+const PLAN_DEFAULT = [{ pct: 40, fecha: '2026-11-05' }, { pct: 30, fecha: '2026-12-20' }, { pct: 30, fecha: '2027-01-20' }];
+const planCuotas = g => (Array.isArray(g.meta.cuotas) && g.meta.cuotas.length ? g.meta.cuotas : PLAN_DEFAULT).map(c => ({ pct: Number(c.pct) || 0, fecha: c.fecha || '' }));
+function repartirCuotas(total, cuotas){   // redondea a centavos; la última cuota absorbe la diferencia
+  let acum = 0;
+  return cuotas.map((c, i) => { const v = i === cuotas.length - 1 ? Math.round((total - acum) * 100) / 100 : Math.round(total * c.pct) / 100; acum += v; return v; });
+}
+function calcPlan(g){
+  const resps = g.respuestas || {}, ref = refViaje(g), asg = asignaciones(g), cuotas = planCuotas(g), mon = (g.meta.precios || {}).moneda || 'USD';
+  const filas = respuestasOrdenadas(g).map(([rid, r]) => { const c = cobroDe(g, rid, r, ref, asg, {}), cub = !!((g.cobros || {})[rid] || {}).cubierto; return { rid, r, cub, total: c.total, falta: c.falta.length > 0, cuotas: repartirCuotas(c.total, cuotas), t: tipoPax(g, rid, r, ref).t }; });
+  const suma = fs => ({ total: fs.reduce((a, f) => a + f.total, 0), cuotas: cuotas.map((_, i) => fs.reduce((a, f) => a + f.cuotas[i], 0)) });
+  return { cuotas, mon, filas, propios: suma(filas.filter(f => !f.cub)), novios: suma(filas.filter(f => f.cub)), todos: suma(filas) };
+}
+function htmlPlanTabla(g){
+  const P = calcPlan(g), m = x => moneyG(x, P.mon), N = P.cuotas.length;
+  const head = `<thead><tr><th>Pasajero</th><th>Tipo</th><th class="num">Total</th>${P.cuotas.map(c => `<th class="num">${c.pct}%${c.fecha ? ' · ' + esc(fmtFecha(c.fecha)) : ''}</th>`).join('')}</tr></thead>`;
+  const fila = f => `<tr><td>${esc(f.r.apellido)}, ${esc(f.r.nombre)}</td><td>${esc(f.t || '—')}</td><td class="num">${m(f.total)}${f.falta ? ' *' : ''}</td>${f.cuotas.map(v => `<td class="num">${m(v)}</td>`).join('')}</tr>`;
+  const tot = (et, o) => `<tr style="font-weight:600"><td colspan="2">${et}</td><td class="num">${m(o.total)}</td>${o.cuotas.map(v => `<td class="num">${m(v)}</td>`).join('')}</tr>`;
+  const sec = t => `<tr><td colspan="${3 + N}" style="background:var(--beige,#E6E1D8);font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase">${t}</td></tr>`;
+  const propios = P.filas.filter(f => !f.cub), novios = P.filas.filter(f => f.cub);
+  return `<table style="width:100%;border-collapse:collapse;font-size:12px">${head}<tbody>`
+    + (propios.length ? sec('Pagan por su cuenta') + propios.map(fila).join('') + tot('Subtotal por su cuenta', P.propios) : '')
+    + (novios.length ? sec('Los cubren los novios') + novios.map(fila).join('') + tot('Subtotal a cargo de los novios', P.novios) : '')
+    + sec('Total del grupo') + tot('Total a cobrar', P.todos) + '</tbody></table>'
+    + (P.filas.some(f => f.falta) ? '<div class="hint" style="margin-top:6px">* Faltan datos para calcular el total de ese pasajero (precio, habitación o fecha de nacimiento).</div>' : '')
+    + (!novios.length ? '<div class="hint" style="margin-top:6px">Todavía no marcó a nadie como cubierto por los novios: se marca en la ficha de cada pasajero.</div>' : '');
+}
+function verPlanPagos(){
+  const g = GRUPOS[GID_ABIERTO], cuotas = planCuotas(g), suma = cuotas.reduce((a, c) => a + c.pct, 0);
+  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal" style="max-width:980px"><h3>Plan de pagos</h3>
+    <div class="hint">Cuotas sobre el total de cada pasajero (aéreo + hotel + ajustes). Los pasajeros marcados "Lo cubren los novios" se suman aparte.</div>
+    <div class="filtros" style="align-items:center">${cuotas.map((c, i) => `<span>Cuota ${i + 1}: <input type="number" step="0.01" id="pl-pct-${i}" value="${c.pct}" style="width:70px"> % el <input type="date" id="pl-fec-${i}" value="${esc(c.fecha)}" style="width:auto"></span>`).join('')}
+      <button class="btn small" onclick="guardarCuotas(${cuotas.length})">Guardar plan</button>${Math.abs(suma - 100) > 0.001 ? `<span class="pill bad">Suman ${suma}%, deberían sumar 100%</span>` : ''}</div>
+    <div class="lista" style="margin-top:8px">${htmlPlanTabla(g)}</div>
+    <div class="row-btns" style="justify-content:flex-end;margin-top:10px"><button class="btn outline small" onclick="imprimir('plan')">Imprimir / PDF</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+}
+function guardarCuotas(n){
+  const arr = [];
+  for (let i = 0; i < n; i++) arr.push({ pct: parseFloat(document.getElementById('pl-pct-' + i).value) || 0, fecha: document.getElementById('pl-fec-' + i).value || '' });
+  GRUPOS_REF.child(`${GID_ABIERTO}/meta/cuotas`).set(arr).then(() => verPlanPagos(), handleWriteError);
+}
 function setCobro(rid, campo, valor){
   GRUPOS_REF.child(`${GID_ABIERTO}/cobros/${rid}/${campo}`).set(valor === '' || valor === false || valor == null ? null : valor).then(() => verRespuesta(rid), handleWriteError);
 }
@@ -745,7 +788,8 @@ function cobroFichaHtml(rid, r){
     ${x.falta.length ? `<div class="alertas" style="padding:0 0 8px">Faltan datos para el cálculo: ${esc(x.falta.join('; '))}.</div>` : ''}${x.sinTC ? '<div class="alertas" style="padding:0 0 8px">Hay pagos en otra moneda sin tipo de cambio: no se cuentan en "Pagó".</div>' : ''}
     <div class="filtros" style="align-items:center">
       <label class="chk"><input type="checkbox" ${c.sinAereo ? 'checked' : ''} onchange="setCobro('${esc(rid)}','sinAereo',this.checked)"> No incluye aéreo</label>
-      <label class="chk"><input type="checkbox" ${c.sinHotel ? 'checked' : ''} onchange="setCobro('${esc(rid)}','sinHotel',this.checked)"> No incluye hotel</label></div>
+      <label class="chk"><input type="checkbox" ${c.sinHotel ? 'checked' : ''} onchange="setCobro('${esc(rid)}','sinHotel',this.checked)"> No incluye hotel</label>
+      <label class="chk"><input type="checkbox" ${c.cubierto ? 'checked' : ''} onchange="setCobro('${esc(rid)}','cubierto',this.checked)"> Lo cubren los novios</label></div>
     <div class="filtros"><input type="number" step="0.01" placeholder="Ajuste (+ suma, − resta)" value="${esc(c.ajuste != null ? c.ajuste : '')}" style="width:190px" onchange="setCobro('${esc(rid)}','ajuste',this.value === '' ? '' : parseFloat(this.value))">
       <input type="text" placeholder="Motivo del ajuste" value="${esc(c.nota || '')}" style="flex:1;min-width:180px" onchange="setCobro('${esc(rid)}','nota',this.value.trim())"></div></div>`;
 }
@@ -960,7 +1004,7 @@ function htmlResumen(g){
     const conSaldo = veSaldo(), pp = conSaldo ? pagosPorPasajero(GID_ABIERTO) : {}, mon = (g.meta.precios || {}).moneda || 'USD';
     let total = 0, pagado = 0, alDia = 0, deben = 0, faltanDatos = 0, sinPagos = 0;
     ids.forEach(id => { const c = cobroDe(g, id, resps[id], ref, asg, pp); total += c.total; pagado += c.pagado; if (c.falta.length) faltanDatos++; else if (c.saldo <= 0.005) alDia++; else deben++; if (conSaldo && !pp[id]) sinPagos++; });
-    html += `<div class="card"><h3>Cobros (${esc(mon)})</h3>` + fila('A cobrar', moneyG(total, mon), "irA('resp')")
+    html += `<div class="card"><h3>Cobros (${esc(mon)})</h3><div style="margin:0 0 8px"><button class="btn small" onclick="verPlanPagos()">Plan de pagos (cuotas)</button></div>` + fila('A cobrar', moneyG(total, mon), "irA('resp')")
       + (conSaldo ? fila('Cobrado', moneyG(pagado, mon), "irA('resp',{pago:'con'})") + fila('Saldo pendiente', `<span style="color:${total - pagado > 0.005 ? 'var(--red)' : 'var(--green)'}">${moneyG(total - pagado, mon)}</span>`, "irA('resp',{saldo:'con'})") + `<div class="ocu"><div class="nom"><div style="height:8px;border-radius:99px;background:var(--beige-d);overflow:hidden"><div style="height:100%;width:${total ? Math.max(0, Math.min(100, pagado / total * 100)).toFixed(1) : 0}%;background:var(--teal)"></div></div></div><strong>${total ? Math.round(pagado / total * 100) : 0}%</strong></div>`
         + fila('Al día', alDia, alDia ? "irA('resp',{saldo:'ok'})" : '') + fila('Con saldo pendiente', deben, deben ? "irA('resp',{saldo:'con'})" : '') + fila('Sin ningún pago', sinPagos, sinPagos ? "irA('resp',{pago:'sin'})" : '')
         : '<div class="hint" style="margin-top:6px">Para ver lo cobrado hace falta vincular la reserva del grupo (o que un administrador abra Grupos).</div>')
@@ -1493,7 +1537,8 @@ const conPagos = hayPagos(GID_ABIERTO), pp = conPagos ? pagosPorPasajero(GID_ABI
 // ── EXPORTAR: PDF (impresión del navegador) ────────────────────────────────
 function imprimir(tipo){
   const g = GRUPOS[GID_ABIERTO], resps = g.respuestas || {};
-  let html = `<h1>${esc(g.meta.nombre)}</h1><div class="sub">${tipo === 'rooming' ? 'Rooming list' : 'Listado de pasajeros'} · ${new Date().toLocaleDateString('es-AR')}</div>`;
+  let html = `<h1>${esc(g.meta.nombre)}</h1><div class="sub">${tipo === 'plan' ? 'Plan de pagos' : tipo === 'rooming' ? 'Rooming list' : 'Listado de pasajeros'} · ${new Date().toLocaleDateString('es-AR')}</div>`;
+  if (tipo === 'plan'){ document.getElementById('print-area').innerHTML = html + htmlPlanTabla(g); window.print(); return; }
   if (tipo === 'rooming'){
     const refR2 = refViaje(g);
     html += '<table><thead><tr><th>Hab.</th><th>Tipo</th><th>Cama</th><th>Pasajero</th><th>Pasaporte</th><th>Vence</th><th>Observaciones</th></tr></thead><tbody>';
