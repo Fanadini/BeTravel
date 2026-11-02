@@ -402,7 +402,7 @@ function nuevoGrupo(){
   GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email, form: limpiarForm(window.FORM_DEFAULT) })
     .then(() => { IDX_REF.child(gid).set({ nombre }).catch(() => {}); abrirGrupo(gid); }, handleWriteError);
 }
-function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'' }; COLAPSADAS.clear(); render(); }
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'' }; SEL_LABEL = ''; COLAPSADAS.clear(); render(); }
 function volverLista(){ GID_ABIERTO = null; render(); }
 function setTab(t){ if (TAB === 'form' && t !== 'form' && DIRTY && !confirm('Hay cambios sin guardar en el formulario. ¿Salir igualmente?')) return; TAB = t; FORM_RENDER = true; render(); }
 function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
@@ -744,8 +744,9 @@ function cobroFichaHtml(rid, r){
     <div class="filtros"><input type="number" step="0.01" placeholder="Ajuste (+ suma, − resta)" value="${esc(c.ajuste != null ? c.ajuste : '')}" style="width:190px" onchange="setCobro('${esc(rid)}','ajuste',this.value === '' ? '' : parseFloat(this.value))">
       <input type="text" placeholder="Motivo del ajuste" value="${esc(c.nota || '')}" style="flex:1;min-width:180px" onchange="setCobro('${esc(rid)}','nota',this.value.trim())"></div></div>`;
 }
-let FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'' };
-const FILTRO_VACIO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'' };
+let SEL_LABEL = '';
+let FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'' };
+const FILTRO_VACIO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'' };
 const nFiltros = () => Object.values(FILTRO).filter(v => v !== '' && v != null).length;
 function pintarBotonFiltros(){
   const b = document.getElementById('btn-limpiar'); if (!b) return;
@@ -762,6 +763,7 @@ function tablaResp(g){
   const filas = respuestasOrdenadas(g).filter(([rid, r]) => {
     const inf = resolverInfo(rid, r, resps), comp = inf.id ? resps[inf.id] : null, v = estadoVinculo(rid, r, resps);
     if (qt.length){ const hay = norm([r.nombre, r.apellido, r.pasaporte, r.nacionalidad, r.email, r.compartiCon, comp ? nombreDe(comp) : ''].join(' ')); if (!qt.every(t => hay.includes(t))) return false; }
+    if (FILTRO.sel && !FILTRO.sel.split(',').includes(rid)) return false;
     if (FILTRO.vinc === 'ok' && v.cls !== 'ok') return false;
     if (FILTRO.vinc === 'pend' && v.cls !== 'bad' && v.cls !== 'warn') return false;
     if (FILTRO.vinc === 'ind' && v.cls !== '') return false;
@@ -785,7 +787,7 @@ function tablaResp(g){
     return true;
   });
   const total = Object.keys(resps).length;
-  let html = `<div class="hint" style="margin:6px 2px">Mostrando ${filas.length} de ${total}${conCobros ? ' · ' + (() => { const t = filas.reduce((a, [rid]) => ({ ap: a.ap + cob[rid].total, pg: a.pg + cob[rid].pagado }), { ap:0, pg:0 }), m = (g.meta.precios || {}).moneda || 'USD'; return `A cobrar <strong>${moneyG(t.ap, m)}</strong>` + (conSaldo ? ` · Cobrado <strong>${moneyG(t.pg, m)}</strong> · Saldo <strong>${moneyG(t.ap - t.pg, m)}</strong>` : ''); })() : ''}</div>`;
+  let html = `<div class="hint" style="margin:6px 2px">${FILTRO.sel ? `<strong>${esc(SEL_LABEL)}</strong> · ` : ''}Mostrando ${filas.length} de ${total}${conCobros ? ' · ' + (() => { const t = filas.reduce((a, [rid]) => ({ ap: a.ap + cob[rid].total, pg: a.pg + cob[rid].pagado }), { ap:0, pg:0 }), m = (g.meta.precios || {}).moneda || 'USD'; return `A cobrar <strong>${moneyG(t.ap, m)}</strong>` + (conSaldo ? ` · Cobrado <strong>${moneyG(t.pg, m)}</strong> · Saldo <strong>${moneyG(t.ap - t.pg, m)}</strong>` : ''); })() : ''}</div>`;
   if (!filas.length) return html + '<div class="vacio">Ninguna respuesta coincide con los filtros.</div>';
   html += '<div class="lista"><table><thead><tr><th>Pasajero</th><th>Tipo</th><th>Pasaporte</th><th>Vence</th><th>Habitación pedida</th><th>Comparte con</th><th>Vínculo</th><th>Hab.</th>' + (conMedio ? '<th>Medio de pago</th>' : '') + (conPagos ? '<th>Pagos</th>' : '') + (conCobros ? '<th>A pagar</th>' + (conSaldo ? '<th>Saldo</th>' : '') : '') + '</tr></thead><tbody>';
   filas.forEach(([rid, r]) => {
@@ -823,7 +825,69 @@ function selectorMedio(g){
 }
 // ── RESUMEN del grupo ────────────────────────────────────────────────────────
 // Cada dato con "Ver" lleva a la lista de Respuestas ya filtrada.
+function verSel(label, csv){ SEL_LABEL = label; irA('resp', { sel: csv }); }
+function verHab(hid){
+  setTab('hab'); COLAPSADAS.delete(hid); render();
+  const el = document.querySelector(`[data-hid="${hid}"]`); if (el){ el.scrollIntoView({ block:'center' }); el.style.outline = '2px solid var(--gold,#B08A5A)'; setTimeout(() => { el.style.outline = ''; }, 2500); }
+}
 function irA(tab, filtros){ FILTRO = { ...FILTRO_VACIO, ...(filtros || {}) }; setTab(tab); }
+// ── WARNINGS: lista única con acciones para resolverlos (algunas corrigen lo que cargó el pasajero) ──
+function setCampoResp(rid, campo, valor){ GRUPOS_REF.child(`${GID_ABIERTO}/respuestas/${rid}/${campo}`).set(valor).catch(handleWriteError); }
+function guardarFechaResp(rid, campo){ const el = document.getElementById(`wf-${campo}-${rid}`); if (el && el.value) setCampoResp(rid, campo, el.value); }
+function agregarAHab(rid, hid){ if (rid && hid) moverPasajero(rid, hid); }
+function comparteCon(rid, otro){
+  const o = GRUPOS[GID_ABIERTO].respuestas[otro]; if (!o) return;
+  GRUPOS_REF.child(`${GID_ABIERTO}/respuestas/${rid}`).update({ comparte: 'Sí', compartiCon: nombreDe(o).slice(0, 120), compartiConId: otro }).catch(handleWriteError);
+}
+function listaWarnings(g){
+  const resps = g.respuestas || {}, ids = Object.keys(resps), W = [], nm = id => esc(nombreDe(resps[id])), q = x => esc(String(x).replace(/'/g, "\\'"));
+  const btn = (txt, js) => `<button class="btn outline small" onclick="${js}">${txt}</button>`;
+  const guardadas = Object.keys(g.habitaciones || {}).length > 0, ref = refViaje(g), asg = asignaciones(g), lista = listaHab(g);
+  if (ids.length && !guardadas) W.push({ ver: "setTab('hab')", txt: 'Las habitaciones todavía son una sugerencia.', acc: btn('Guardar habitaciones sugeridas', 'guardarSugeridas()') });
+  if (guardadas){
+    const sinHab = ids.filter(id => !asg[id]);
+    lista.forEach(([hid, h], i) => {
+      const hn = `Hab. ${i + 1} (${esc(h.tipo)})`, oc = Object.keys(h.pasajeros || {}).filter(x => resps[x]), cap = CAPACIDAD[h.tipo] || 0, o = ocupacion(h, oc), tam = tipoPorTamano(oc.length);
+      if (o.vacia) W.push({ ver: `verHab('${q(hid)}')`, txt: `${hn} está vacía.`, acc: btn('Eliminar habitación', `borrarHabitacion('${q(hid)}')`) });
+      else if (o.faltan) W.push({ sev:'bad', ver: `verHab('${q(hid)}')`, txt: `${hn} está incompleta: ${oc.map(nm).join(', ')}. Faltan ${o.faltan}.`, acc: (tam !== h.tipo ? btn(`Pasar a ${tam}`, `cambiarTipo('${q(hid)}','${tam}')`) : '') + (sinHab.length ? `<select onchange="agregarAHab(this.value,'${q(hid)}')"><option value="">Agregar a esta habitación…</option>${sinHab.map(x => `<option value="${esc(x)}">${esc(nombreDe(resps[x]))}</option>`).join('')}</select>` : '') });
+      else if (o.sobran) W.push({ sev:'bad', ver: `verHab('${q(hid)}')`, txt: `${hn} tiene ${oc.length} ocupantes y admite ${cap}: ${oc.map(nm).join(', ')}.`, acc: oc.length <= 4 ? btn(`Pasar a ${tam}`, `cambiarTipo('${q(hid)}','${tam}')`) : '' });
+      oc.forEach(rid => {
+        const r = resps[rid];
+        if (r.tipoHabitacion && r.tipoHabitacion !== h.tipo) W.push({ ver: `verRespuesta('${q(rid)}')`, txt: `${nm(rid)} pidió habitación ${esc(r.tipoHabitacion)} y está en ${hn}.`, acc: btn(`Actualizar su pedido a ${esc(h.tipo)}`, `setCampoResp('${q(rid)}','tipoHabitacion','${q(h.tipo)}')`) + (CAPACIDAD[r.tipoHabitacion] >= oc.length ? btn(`Pasar la habitación a ${esc(r.tipoHabitacion)}`, `cambiarTipo('${q(hid)}','${q(r.tipoHabitacion)}')`) : '') });
+        if (cap > 1 && h.cama && r.tipoCama && r.tipoCama !== h.cama) W.push({ ver: `verRespuesta('${q(rid)}')`, txt: `${nm(rid)} pidió cama ${esc(r.tipoCama)} y ${hn} tiene cama ${esc(h.cama)}.`, acc: btn(`Actualizar su pedido a ${esc(h.cama)}`, `setCampoResp('${q(rid)}','tipoCama','${q(h.cama)}')`) + btn(`Cambiar la cama a ${esc(r.tipoCama)}`, `cambiarCama('${q(hid)}','${q(r.tipoCama)}')`) });
+        if (r.comparte !== 'Sí' && oc.length > 1){
+          const otro = oc.find(x => x !== rid);
+          W.push({ ver: `verHab('${q(hid)}')`, txt: `${nm(rid)} indicó que no comparte habitación pero está en ${hn} con ${oc.filter(x => x !== rid).map(nm).join(', ')}.`, acc: btn(`Marcar que comparte con ${nm(otro)}`, `comparteCon('${q(rid)}','${q(otro)}')`) + btn('Pasar a una habitación nueva', `moverPasajero('${q(rid)}','__nueva')`) });
+        } else if (r.comparte === 'Sí'){
+          const t = resolverInfo(rid, r, resps).id;
+          if (t && !h.pasajeros[t]) W.push({ ver: `verHab('${q(hid)}')`, txt: `${nm(rid)} pidió compartir con ${nm(t)}, que está en otra habitación.`, acc: btn(`Mover a ${nm(t)} a ${hn}`, `moverPasajero('${q(t)}','${q(hid)}')`) + (asg[t] ? btn(`Mover a ${nm(rid)} con ${nm(t)}`, `moverPasajero('${q(rid)}','${q(asg[t].hid)}')`) : '') });
+        }
+      });
+      if (cap > 1 && !h.cama){
+        const ped = [...new Set(oc.map(x => resps[x].tipoCama).filter(Boolean))];
+        if (ped.length > 1) W.push({ ver: `verHab('${q(hid)}')`, txt: `${hn}: piden camas distintas (${ped.join(' y ')}).`, acc: CAMAS.map(c => btn(`Cama ${c}`, `cambiarCama('${q(hid)}','${c}')`)).join('') });
+      }
+    });
+    sinHab.forEach(rid => W.push({ sev:'bad', ver: `verRespuesta('${q(rid)}')`, txt: `${nm(rid)} no tiene habitación.`, acc: `<select onchange="moverPasajero('${q(rid)}', this.value)"><option value="">Asignar a…</option>${lista.map(([hid, h], i) => `<option value="${esc(hid)}">Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)} (${esc(h.tipo)})</option>`).join('')}<option value="__nueva">+ Nueva habitación</option></select>` }));
+  }
+  const nv = ids.filter(id => resps[id].comparte === 'Sí' && ['bad', 'warn'].includes(estadoVinculo(id, resps[id], resps).cls)).length;
+  const idsV = ids.filter(id => resps[id].comparte === 'Sí' && ['bad', 'warn'].includes(estadoVinculo(id, resps[id], resps).cls));
+  if (nv) W.push({ ver: `verSel('Vínculos sin resolver','${idsV.join(',')}')`, txt: `${nv} vínculo${nv === 1 ? '' : 's'} de habitación sin resolver (nombres que no coinciden o sin confirmar).`, acc: btn('Revisar y resolver', 'revisarVinculos()') });
+  if (!g.meta.fechaViaje) W.push({ txt: 'Falta la fecha de regreso para controlar los pasaportes.', acc: btn('Ir a Ajustes', "setTab('cfg')") });
+  else ids.filter(id => venceProximo(resps[id], g.meta)).forEach(id => W.push({ sev:'bad', ver: `verRespuesta('${q(id)}')`, txt: `${nm(id)}: el pasaporte vence el ${esc(fmtFecha(resps[id].vencimiento))}, antes de 6 meses del viaje.`, acc: `<input type="date" id="wf-vencimiento-${esc(id)}" value="${esc(resps[id].vencimiento)}" style="width:auto">` + btn('Corregir vencimiento', `guardarFechaResp('${q(id)}','vencimiento')`) }));
+  ids.filter(id => !resps[id].nacimiento).forEach(id => W.push({ ver: `verRespuesta('${q(id)}')`, txt: `${nm(id)} no tiene fecha de nacimiento (no se puede clasificar ADT/CHD/INF).`, acc: `<input type="date" id="wf-nacimiento-${esc(id)}" style="width:auto">` + btn('Guardar', `guardarFechaResp('${q(id)}','nacimiento')`) }));
+  if (tieneCobros(g)){
+    const faltas = {}, faltasIds = {};
+    ids.forEach(id => cobroDe(g, id, resps[id], ref, asg, {}).falta.filter(f => !/^habitación$|^tipo de pasajero/.test(f)).forEach(f => { faltas[f] = (faltas[f] || 0) + 1; (faltasIds[f] = faltasIds[f] || []).push(id); }));
+    Object.entries(faltas).forEach(([f, k]) => W.push({ ver: `verSel('Falta ${q(f)}','${faltasIds[f].join(',')}')`, txt: `${k} pasajero${k === 1 ? '' : 's'}: falta ${esc(f)} para calcular lo que paga${k === 1 ? '' : 'n'}.`, acc: btn('Cargar precios en Ajustes', "setTab('cfg')") }));
+  }
+  return W;
+}
+function htmlWarnings(g){
+  const W = listaWarnings(g);
+  return `<div class="card" style="grid-column:1/-1"><h3>Warnings (${W.length})</h3><div class="hint" style="margin-bottom:6px">Cada warning ofrece cómo resolverlo. Cuando la solución corrige lo que cargó el pasajero (tipo de habitación, cama, "comparte", fechas), se actualiza su respuesta.</div>`
+    + (W.length ? W.map(w => `<div class="ocu" style="flex-wrap:wrap;gap:8px"><div class="nom" style="flex:1;min-width:240px"><span class="pill ${w.sev === 'bad' ? 'bad' : 'warn'}">⚠</span> ${w.txt}</div><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${w.ver ? `<button class="btn small" onclick="${w.ver}">Ver</button>` : ''}${w.acc || ''}</div></div>`).join('') : '<div class="hint" style="margin:0">Sin warnings.</div>') + '</div>';
+}
 function htmlResumen(g){
   const resps = g.respuestas || {}, ids = Object.keys(resps), n = ids.length;
   const ref = refViaje(g), asg = asignaciones(g), lista = listaHab(g), guardadas = Object.keys(g.habitaciones || {}).length > 0;
@@ -839,27 +903,29 @@ function htmlResumen(g){
   let incompletas = 0, sobran = 0, vacias = 0;
   lista.forEach(([, h]) => { const o = ocupacion(h, Object.keys(h.pasajeros || {}).filter(x => resps[x])); if (o.faltan) incompletas++; if (o.sobran) sobran++; if (o.vacia) vacias++; });
   const vencen = ids.filter(id => venceProximo(resps[id], g.meta)), sinNac = ids.filter(id => !resps[id].nacimiento);
-  const noNinguna = k => ids.filter(id => { const v = String(resps[id][k] || '').trim(); return v && !/^(ninguna?|no|-+|n\/a|no tengo|ninguno\.?)\.?$/i.test(v); }).length;
+  const idsNo = k => ids.filter(id => { const v = String(resps[id][k] || '').trim(); return v && !/^(ninguna?|no|-+|n\/a|no tengo|ninguno\.?)\.?$/i.test(v); });
+  const noNinguna = k => idsNo(k).length;
   const qPago = preguntasPago(g), eleccion = {};
   ids.forEach(id => eleccionPago(resps[id], qPago).forEach(v => { eleccion[v] = (eleccion[v] || 0) + 1; }));
   const fila = (et, val, accion) => `<div class="ocu"><div class="nom">${et}</div><div style="display:flex;align-items:center;gap:10px"><strong>${val}</strong>${accion ? `<button class="btn outline small" onclick="${accion}">Ver</button>` : ''}</div></div>`;
-  const aviso = (cond, texto, tipo) => cond ? `<div class="alertas ${tipo === 'bad' ? 'red' : ''}" style="padding:4px 0">${texto}</div>` : '';
-  let html = `<div class="section-head"><h2>${esc(g.meta.nombre)}</h2><span class="hint" style="margin:0">${g.meta.activo ? 'Recibiendo respuestas' : 'Formulario cerrado'}${ref.origen !== 'hoy' ? ' · inicio del viaje ' + esc(fmtFecha(ref.fecha)) : ''}</span></div><div class="res-grid">`;
+  const aviso = (cond, texto, tipo, accion) => cond ? `<div class="alertas ${tipo === 'bad' ? 'red' : ''}" style="padding:4px 0;display:flex;align-items:center;gap:8px;justify-content:space-between"><span>${texto}</span>${accion ? `<button class="btn outline small" onclick="${accion}">Ver</button>` : ''}</div>` : '';
+  const vs = (label, arr) => arr.length ? `verSel('${label}','${arr.join(',')}')` : '';
+  let html = `<div class="section-head"><h2>${esc(g.meta.nombre)}</h2><span class="hint" style="margin:0">${g.meta.activo ? 'Recibiendo respuestas' : 'Formulario cerrado'}${ref.origen !== 'hoy' ? ' · inicio del viaje ' + esc(fmtFecha(ref.fecha)) : ''}</span></div><div class="res-grid">` + htmlWarnings(g);
 
   html += `<div class="card"><h3>Pasajeros</h3>`
     + fila('Respuestas recibidas', `${n}${invitados.length ? ' de ' + invitados.length : ''}`, "irA('resp')")
-    + (invitados.length ? fila('Pendientes de responder', faltan.length) + (faltan.length ? `<div class="hint" style="margin:2px 0 6px">${faltan.slice(0, 8).map(esc).join(' · ')}${faltan.length > 8 ? ' · +' + (faltan.length - 8) : ''}</div>` : '') : '')
+    + (invitados.length ? fila('Pendientes de responder', faltan.length, faltan.length ? "setTab('cfg')" : '') + (faltan.length ? `<div class="hint" style="margin:2px 0 6px">${faltan.slice(0, 8).map(esc).join(' · ')}${faltan.length > 8 ? ' · +' + (faltan.length - 8) : ''}</div>` : '') : '')
     + fila('Adultos (ADT)', cuenta.ADT, cuenta.ADT ? "irA('resp',{tipo:'ADT'})" : '') + fila('Niños (CHD)', cuenta.CHD, cuenta.CHD ? "irA('resp',{tipo:'CHD'})" : '') + fila('Infantes (INF)', cuenta.INF, cuenta.INF ? "irA('resp',{tipo:'INF'})" : '')
-    + aviso(cuenta.sin, `${cuenta.sin} sin fecha de nacimiento: no se pueden clasificar.`, 'warn') + `</div>`;
+    + aviso(cuenta.sin, `${cuenta.sin} sin fecha de nacimiento: no se pueden clasificar.`, 'warn', vs('Sin fecha de nacimiento', ids.filter(id => !resps[id].nacimiento))) + `</div>`;
 
   // Vuelos: pasajeros que necesitan aéreo = todos menos los marcados "No incluye aéreo"; separados por tipo
-  const vuelo = { ADT:0, CHD:0, INF:0, sin:0, noNecesitan:0 };
-  ids.forEach(id => { if (((g.cobros || {})[id] || {}).sinAereo){ vuelo.noNecesitan++; return; } const t = tipoPax(g, id, resps[id], ref).t; t ? vuelo[t]++ : vuelo.sin++; });
+  const vuelo = { ADT:0, CHD:0, INF:0, sin:0, noNecesitan:0 }, vIds = { ADT:[], CHD:[], INF:[], sin:[], no:[] };
+  ids.forEach(id => { if (((g.cobros || {})[id] || {}).sinAereo){ vuelo.noNecesitan++; vIds.no.push(id); return; } const t = tipoPax(g, id, resps[id], ref).t; t ? (vuelo[t]++, vIds[t].push(id)) : (vuelo.sin++, vIds.sin.push(id)); });
   html += `<div class="card"><h3>Vuelos</h3><div class="hint" style="margin:0 0 6px">Pasajeros que necesitan pasaje aéreo, por tipo.</div>`
-    + fila('Adultos (ADT)', vuelo.ADT) + fila('Niños (CHD)', vuelo.CHD) + fila('Infantes (INF)', vuelo.INF)
-    + `<div class="ocu"><div class="nom"><strong>Total que necesitan vuelo</strong></div><strong>${vuelo.ADT + vuelo.CHD + vuelo.INF + vuelo.sin}</strong></div>`
-    + fila('No necesitan vuelo', vuelo.noNecesitan)
-    + aviso(vuelo.sin, `${vuelo.sin} sin fecha de nacimiento: sumados al total pero sin tipo.`, 'warn')
+    + fila('Adultos (ADT)', vuelo.ADT, vs('Necesitan vuelo · ADT', vIds.ADT)) + fila('Niños (CHD)', vuelo.CHD, vs('Necesitan vuelo · CHD', vIds.CHD)) + fila('Infantes (INF)', vuelo.INF, vs('Necesitan vuelo · INF', vIds.INF))
+    + `<div class="ocu"><div class="nom"><strong>Total que necesitan vuelo</strong></div><div style="display:flex;align-items:center;gap:10px"><strong>${vuelo.ADT + vuelo.CHD + vuelo.INF + vuelo.sin}</strong>${vs('Necesitan vuelo', [...vIds.ADT, ...vIds.CHD, ...vIds.INF, ...vIds.sin]) ? `<button class="btn outline small" onclick="${vs('Necesitan vuelo', [...vIds.ADT, ...vIds.CHD, ...vIds.INF, ...vIds.sin])}">Ver</button>` : ''}</div></div>`
+    + fila('No necesitan vuelo', vuelo.noNecesitan, vs('No necesitan vuelo', vIds.no))
+    + aviso(vuelo.sin, `${vuelo.sin} sin fecha de nacimiento: sumados al total pero sin tipo.`, 'warn', vs('Sin fecha de nacimiento', vIds.sin))
     + aviso(vuelo.noNecesitan, 'Son los marcados "No incluye aéreo" en su ficha.', '') + `</div>`;
 
   // Habitaciones confirmadas = guardadas y completas (con todos sus ocupantes); Single basta con una persona
@@ -868,32 +934,32 @@ function htmlResumen(g){
   lista.forEach(([, h]) => { const ids2 = Object.keys(h.pasajeros || {}).filter(x => resps[x]), o = ocupacion(h, ids2); const e = estado[h.tipo] = estado[h.tipo] || { total:0, completas:0 }; e.total++; if (ids2.length && !o.faltan && !o.sobran){ e.completas++; completas++; } });
   html += `<div class="card"><h3>Habitaciones</h3>`
     + `<div class="ocu"><div class="nom"><strong>${guardadas ? 'Confirmadas (completas)' : 'Completas (sugeridas)'}</strong></div><div style="display:flex;align-items:center;gap:10px"><strong>${completas} de ${lista.length}</strong><button class="btn outline small" onclick="setTab('hab')">Ver</button></div></div>`
-    + TIPOS.filter(t => estado[t]).map(t => `<div class="ocu"><div class="nom">${esc(t)}</div><strong>${estado[t].completas} de ${estado[t].total}</strong></div>`).join('')
+    + TIPOS.filter(t => estado[t]).map(t => `<div class="ocu"><div class="nom">${esc(t)}</div><div style="display:flex;align-items:center;gap:10px"><strong>${estado[t].completas} de ${estado[t].total}</strong><button class="btn outline small" onclick="setTab('hab')">Ver</button></div></div>`).join('')
     + fila('Pasajeros sin habitación', sinHab, sinHab ? "irA('resp',{hab:'sin'})" : '')
-    + aviso(incompletas, `${incompletas} habitación${incompletas === 1 ? '' : 'es'} incompleta${incompletas === 1 ? '' : 's'} (falta gente): no se cuentan como confirmadas.`, 'bad') + aviso(sobran, `${sobran} habitación${sobran === 1 ? '' : 'es'} con más gente de la que admite.`, 'bad') + aviso(vacias, `${vacias} habitación${vacias === 1 ? '' : 'es'} vacía${vacias === 1 ? '' : 's'}.`, 'warn')
-    + aviso(!guardadas && n, 'Las habitaciones todavía son una sugerencia: guardalas en la pestaña Habitaciones para confirmarlas.', 'warn') + `</div>`;
+    + aviso(incompletas, `${incompletas} habitación${incompletas === 1 ? '' : 'es'} incompleta${incompletas === 1 ? '' : 's'} (falta gente): no se cuentan como confirmadas.`, 'bad', "setTab('hab')") + aviso(sobran, `${sobran} habitación${sobran === 1 ? '' : 'es'} con más gente de la que admite.`, 'bad', "setTab('hab')") + aviso(vacias, `${vacias} habitación${vacias === 1 ? '' : 'es'} vacía${vacias === 1 ? '' : 's'}.`, 'warn')
+    + aviso(!guardadas && n, 'Las habitaciones todavía son una sugerencia: guardalas en la pestaña Habitaciones para confirmarlas.', 'warn', "setTab('hab')") + `</div>`;
 
   if (tieneCobros(g)){
     const conSaldo = veSaldo(), pp = conSaldo ? pagosPorPasajero(GID_ABIERTO) : {}, mon = (g.meta.precios || {}).moneda || 'USD';
     let total = 0, pagado = 0, alDia = 0, deben = 0, faltanDatos = 0, sinPagos = 0;
     ids.forEach(id => { const c = cobroDe(g, id, resps[id], ref, asg, pp); total += c.total; pagado += c.pagado; if (c.falta.length) faltanDatos++; else if (c.saldo <= 0.005) alDia++; else deben++; if (conSaldo && !pp[id]) sinPagos++; });
-    html += `<div class="card"><h3>Cobros (${esc(mon)})</h3>` + fila('A cobrar', moneyG(total, mon))
-      + (conSaldo ? fila('Cobrado', moneyG(pagado, mon)) + fila('Saldo pendiente', `<span style="color:${total - pagado > 0.005 ? 'var(--red)' : 'var(--green)'}">${moneyG(total - pagado, mon)}</span>`) + `<div class="ocu"><div class="nom"><div style="height:8px;border-radius:99px;background:var(--beige-d);overflow:hidden"><div style="height:100%;width:${total ? Math.max(0, Math.min(100, pagado / total * 100)).toFixed(1) : 0}%;background:var(--teal)"></div></div></div><strong>${total ? Math.round(pagado / total * 100) : 0}%</strong></div>`
+    html += `<div class="card"><h3>Cobros (${esc(mon)})</h3>` + fila('A cobrar', moneyG(total, mon), "irA('resp')")
+      + (conSaldo ? fila('Cobrado', moneyG(pagado, mon), "irA('resp',{pago:'con'})") + fila('Saldo pendiente', `<span style="color:${total - pagado > 0.005 ? 'var(--red)' : 'var(--green)'}">${moneyG(total - pagado, mon)}</span>`, "irA('resp',{saldo:'con'})") + `<div class="ocu"><div class="nom"><div style="height:8px;border-radius:99px;background:var(--beige-d);overflow:hidden"><div style="height:100%;width:${total ? Math.max(0, Math.min(100, pagado / total * 100)).toFixed(1) : 0}%;background:var(--teal)"></div></div></div><strong>${total ? Math.round(pagado / total * 100) : 0}%</strong></div>`
         + fila('Al día', alDia, alDia ? "irA('resp',{saldo:'ok'})" : '') + fila('Con saldo pendiente', deben, deben ? "irA('resp',{saldo:'con'})" : '') + fila('Sin ningún pago', sinPagos, sinPagos ? "irA('resp',{pago:'sin'})" : '')
         : '<div class="hint" style="margin-top:6px">Para ver lo cobrado hace falta vincular la reserva del grupo (o que un administrador abra Grupos).</div>')
-      + aviso(faltanDatos, `${faltanDatos} pasajero${faltanDatos === 1 ? '' : 's'} con datos faltantes para calcular lo que debe${faltanDatos === 1 ? '' : 'n'} pagar.`, 'warn') + `</div>`;
+      + aviso(faltanDatos, `${faltanDatos} pasajero${faltanDatos === 1 ? '' : 's'} con datos faltantes para calcular lo que debe${faltanDatos === 1 ? '' : 'n'} pagar.`, 'warn', "irA('resp',{saldo:'falta'})") + `</div>`;
   } else if (puedeEditarReservas()){
     html += `<div class="card"><h3>Cobros</h3><div class="hint" style="margin:0">Cargá los precios por persona en Ajustes para ver acá lo que se cobra, lo cobrado y el saldo.</div></div>`;
   }
 
   html += `<div class="card"><h3>Para revisar</h3>`
     + fila('Vínculos de habitación con problemas', vinc.pend, vinc.pend ? "irA('resp',{vinc:'pend'})" : '') + (vinc.pend ? '<div style="margin:2px 0 8px"><button class="btn small" onclick="revisarVinculos()">Revisar y resolver vínculos</button></div>' : '') + fila('Vínculos confirmados', vinc.ok, vinc.ok ? "irA('resp',{vinc:'ok'})" : '')
-    + fila('Pasaportes que vencen antes de 6 meses del viaje', g.meta.fechaViaje ? vencen.length : '—') + (vencen.length ? `<div class="hint" style="margin:2px 0 6px">${vencen.slice(0, 6).map(id => esc(`${resps[id].apellido}, ${resps[id].nombre}`)).join(' · ')}${vencen.length > 6 ? ' · +' + (vencen.length - 6) : ''}</div>` : '')
-    + aviso(!g.meta.fechaViaje, 'Cargá la fecha de regreso en Ajustes para controlar los pasaportes.', 'warn') + aviso(sinNac.length && false, '', '') + `</div>`;
+    + fila('Pasaportes que vencen antes de 6 meses del viaje', g.meta.fechaViaje ? vencen.length : '—', vs('Pasaporte vence antes de 6 meses', vencen)) + (vencen.length ? `<div class="hint" style="margin:2px 0 6px">${vencen.slice(0, 6).map(id => esc(`${resps[id].apellido}, ${resps[id].nombre}`)).join(' · ')}${vencen.length > 6 ? ' · +' + (vencen.length - 6) : ''}</div>` : '')
+    + aviso(!g.meta.fechaViaje, 'Cargá la fecha de regreso en Ajustes para controlar los pasaportes.', 'warn', "setTab('cfg')") + aviso(sinNac.length && false, '', '') + `</div>`;
 
   html += `<div class="card"><h3>Preferencias y salud</h3>`
     + (qPago.length ? `<div class="hint" style="margin:0 0 4px"><strong>Cómo eligen pagar</strong></div>` + (Object.keys(eleccion).length ? Object.entries(eleccion).sort((a, b) => b[1] - a[1]).map(([v, c]) => fila(esc(v), c, `irA('resp',{medio:'f:${esc(v).replace(/'/g, "\\'")}'})`)).join('') : '<div class="hint">Sin respuestas todavía.</div>') : '')
-    + fila('Con restricciones alimentarias o alergias', noNinguna('restricciones')) + fila('Con asistencia o movilidad especial', noNinguna('movilidad')) + fila('Con condiciones médicas informadas', noNinguna('medicas')) + `</div>`;
+    + fila('Con restricciones alimentarias o alergias', noNinguna('restricciones'), vs('Restricciones alimentarias o alergias', idsNo('restricciones'))) + fila('Con asistencia o movilidad especial', noNinguna('movilidad'), vs('Asistencia o movilidad especial', idsNo('movilidad'))) + fila('Con condiciones médicas informadas', noNinguna('medicas'), vs('Condiciones médicas', idsNo('medicas'))) + `</div>`;
 
   return html + '</div>';
 }
