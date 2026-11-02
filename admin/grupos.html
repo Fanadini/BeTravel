@@ -72,6 +72,8 @@ input[type=text],input[type=date],select,textarea{font-family:'Inter',sans-serif
 input:focus,select:focus,textarea:focus{border-color:var(--teal)}
 textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
 .hab{background:var(--white);border:1px solid var(--beige-d);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.res-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;align-items:start}
+.res-grid .card{margin:0}
 .hab-h{cursor:grab;color:rgba(43,43,43,.4);font-size:13px;letter-spacing:-3px;user-select:none;padding:0 4px}
 .hab-h:hover{color:var(--teal)}
 .hab-num{width:58px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:var(--teal);padding:3px 6px;border:1.5px solid var(--beige-d);border-radius:6px;background:var(--white)}
@@ -186,6 +188,7 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
       <button class="btn outline small" onclick="imprimir('lista')">PDF pasajeros</button>
     </div>
     <div class="tabs" id="tabs">
+      <button class="tab" data-t="res" onclick="setTab('res')">Resumen</button>
       <button class="tab on" data-t="resp" onclick="setTab('resp')">Respuestas</button>
       <button class="tab" data-t="hab" onclick="setTab('hab')">Habitaciones</button>
       <button class="tab" data-t="form" onclick="setTab('form')">Formulario</button>
@@ -289,7 +292,7 @@ function linkPublico(gid){ return new URL('../pasajeros.html?g=' + gid, location
 // ── ESTADO ─────────────────────────────────────────────────────────────────
 let GRUPOS = {};          // { gid: { meta, respuestas:{rid:{}}, habitaciones:{hid:{}} } }
 let GID_ABIERTO = null;
-let TAB = 'resp';
+let TAB = 'res';
 
 function attachListeners(){
   GRUPOS_REF.on('value', snap => {
@@ -337,7 +340,7 @@ function refrescarPagos(){
   if (!GID_ABIERTO || !GRUPOS[GID_ABIERTO]) return;
   const t = document.getElementById('resp-tabla');
   if (TAB === 'resp' && t) t.innerHTML = tablaResp(GRUPOS[GID_ABIERTO]);
-  else if (TAB === 'cfg') render();
+  else if (TAB === 'cfg' || TAB === 'res') render();
 }
 const reservasDelGrupo = gid => Object.entries(RESERVAS).filter(([, r]) => r && r.grupoId === gid);
 const moneyG = (n, m) => (m === 'USD' ? 'US$ ' : '$ ') + (Number(n) || 0).toLocaleString('es-AR', { minimumFractionDigits:2, maximumFractionDigits:2 });
@@ -399,7 +402,7 @@ function nuevoGrupo(){
   GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email, form: limpiarForm(window.FORM_DEFAULT) })
     .then(() => { IDX_REF.child(gid).set({ nombre }).catch(() => {}); abrirGrupo(gid); }, handleWriteError);
 }
-function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'resp'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'' }; COLAPSADAS.clear(); render(); }
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'' }; COLAPSADAS.clear(); render(); }
 function volverLista(){ GID_ABIERTO = null; render(); }
 function setTab(t){ if (TAB === 'form' && t !== 'form' && DIRTY && !confirm('Hay cambios sin guardar en el formulario. ¿Salir igualmente?')) return; TAB = t; FORM_RENDER = true; render(); }
 function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
@@ -587,7 +590,7 @@ function render(){
   }
   body.dataset.tab = TAB;
   const scroll = body.scrollTop;
-  body.innerHTML = TAB === 'resp' ? htmlRespuestas(g) : TAB === 'hab' ? htmlHabitaciones(g) : htmlAjustes(g);
+  body.innerHTML = TAB === 'res' ? htmlResumen(g) : TAB === 'resp' ? htmlRespuestas(g) : TAB === 'hab' ? htmlHabitaciones(g) : htmlAjustes(g);
   body.scrollTop = scroll;
 }
 function renderLista(){
@@ -811,6 +814,82 @@ function selectorMedio(g){
   return `<select onchange="setFiltro('medio',this.value)" title="Cómo eligen pagar"><option value="">Todos los medios de pago</option>`
     + (delForm.length ? `<optgroup label="Eligieron en el formulario">${delForm.map(v => op('f:' + v, v)).join('')}</optgroup>` : '')
     + (reg.length ? `<optgroup label="Medio de los pagos registrados">${reg.map(v => op('p:' + v, MEDIO_LABEL[v] || v)).join('')}</optgroup>` : '') + '</select>';
+}
+// ── RESUMEN del grupo ────────────────────────────────────────────────────────
+// Cada dato con "Ver" lleva a la lista de Respuestas ya filtrada.
+function irA(tab, filtros){ FILTRO = { ...FILTRO_VACIO, ...(filtros || {}) }; setTab(tab); }
+function htmlResumen(g){
+  const resps = g.respuestas || {}, ids = Object.keys(resps), n = ids.length;
+  const ref = refViaje(g), asg = asignaciones(g), lista = listaHab(g), guardadas = Object.keys(g.habitaciones || {}).length > 0;
+  const invitados = g.meta.invitados ? Object.values(g.meta.invitados) : [];
+  const respondieron = new Set(Object.values(resps).map(r => norm(r.invitado)).filter(Boolean));
+  const faltan = invitados.filter(x => !respondieron.has(norm(x)));
+  const cuenta = { ADT:0, CHD:0, INF:0, sin:0 };
+  ids.forEach(id => { const t = tipoPax(g, id, resps[id], ref).t; t ? cuenta[t]++ : cuenta.sin++; });
+  const vinc = { ok:0, pend:0, ind:0 };
+  ids.forEach(id => { const c = estadoVinculo(id, resps[id], resps).cls; if (c === 'ok') vinc.ok++; else if (c === 'bad' || c === 'warn') vinc.pend++; else vinc.ind++; });
+  const sinHab = ids.filter(id => !asg[id]).length;
+  const porTipo = {}; lista.forEach(([, h]) => { porTipo[h.tipo] = (porTipo[h.tipo] || 0) + 1; });
+  let incompletas = 0, sobran = 0, vacias = 0;
+  lista.forEach(([, h]) => { const o = ocupacion(h, Object.keys(h.pasajeros || {}).filter(x => resps[x])); if (o.faltan) incompletas++; if (o.sobran) sobran++; if (o.vacia) vacias++; });
+  const vencen = ids.filter(id => venceProximo(resps[id], g.meta)), sinNac = ids.filter(id => !resps[id].nacimiento);
+  const noNinguna = k => ids.filter(id => { const v = String(resps[id][k] || '').trim(); return v && !/^(ninguna?|no|-+|n\/a|no tengo|ninguno\.?)\.?$/i.test(v); }).length;
+  const qPago = preguntasPago(g), eleccion = {};
+  ids.forEach(id => eleccionPago(resps[id], qPago).forEach(v => { eleccion[v] = (eleccion[v] || 0) + 1; }));
+  const fila = (et, val, accion) => `<div class="ocu"><div class="nom">${et}</div><div style="display:flex;align-items:center;gap:10px"><strong>${val}</strong>${accion ? `<button class="btn outline small" onclick="${accion}">Ver</button>` : ''}</div></div>`;
+  const aviso = (cond, texto, tipo) => cond ? `<div class="alertas ${tipo === 'bad' ? 'red' : ''}" style="padding:4px 0">${texto}</div>` : '';
+  let html = `<div class="section-head"><h2>${esc(g.meta.nombre)}</h2><span class="hint" style="margin:0">${g.meta.activo ? 'Recibiendo respuestas' : 'Formulario cerrado'}${ref.origen !== 'hoy' ? ' · inicio del viaje ' + esc(fmtFecha(ref.fecha)) : ''}</span></div><div class="res-grid">`;
+
+  html += `<div class="card"><h3>Pasajeros</h3>`
+    + fila('Respuestas recibidas', `${n}${invitados.length ? ' de ' + invitados.length : ''}`, "irA('resp')")
+    + (invitados.length ? fila('Pendientes de responder', faltan.length) + (faltan.length ? `<div class="hint" style="margin:2px 0 6px">${faltan.slice(0, 8).map(esc).join(' · ')}${faltan.length > 8 ? ' · +' + (faltan.length - 8) : ''}</div>` : '') : '')
+    + fila('Adultos (ADT)', cuenta.ADT, cuenta.ADT ? "irA('resp',{tipo:'ADT'})" : '') + fila('Niños (CHD)', cuenta.CHD, cuenta.CHD ? "irA('resp',{tipo:'CHD'})" : '') + fila('Infantes (INF)', cuenta.INF, cuenta.INF ? "irA('resp',{tipo:'INF'})" : '')
+    + aviso(cuenta.sin, `${cuenta.sin} sin fecha de nacimiento: no se pueden clasificar.`, 'warn') + `</div>`;
+
+  // Vuelos: pasajeros que necesitan aéreo = todos menos los marcados "No incluye aéreo"; separados por tipo
+  const vuelo = { ADT:0, CHD:0, INF:0, sin:0, noNecesitan:0 };
+  ids.forEach(id => { if (((g.cobros || {})[id] || {}).sinAereo){ vuelo.noNecesitan++; return; } const t = tipoPax(g, id, resps[id], ref).t; t ? vuelo[t]++ : vuelo.sin++; });
+  html += `<div class="card"><h3>Vuelos</h3><div class="hint" style="margin:0 0 6px">Pasajeros que necesitan pasaje aéreo, por tipo.</div>`
+    + fila('Adultos (ADT)', vuelo.ADT) + fila('Niños (CHD)', vuelo.CHD) + fila('Infantes (INF)', vuelo.INF)
+    + `<div class="ocu"><div class="nom"><strong>Total que necesitan vuelo</strong></div><strong>${vuelo.ADT + vuelo.CHD + vuelo.INF + vuelo.sin}</strong></div>`
+    + fila('No necesitan vuelo', vuelo.noNecesitan)
+    + aviso(vuelo.sin, `${vuelo.sin} sin fecha de nacimiento: sumados al total pero sin tipo.`, 'warn')
+    + aviso(vuelo.noNecesitan, 'Son los marcados "No incluye aéreo" en su ficha.', '') + `</div>`;
+
+  // Habitaciones confirmadas = guardadas y completas (con todos sus ocupantes); Single basta con una persona
+  const estado = {};   // tipo -> { total, completas }
+  let completas = 0;
+  lista.forEach(([, h]) => { const ids2 = Object.keys(h.pasajeros || {}).filter(x => resps[x]), o = ocupacion(h, ids2); const e = estado[h.tipo] = estado[h.tipo] || { total:0, completas:0 }; e.total++; if (ids2.length && !o.faltan && !o.sobran){ e.completas++; completas++; } });
+  html += `<div class="card"><h3>Habitaciones</h3>`
+    + `<div class="ocu"><div class="nom"><strong>${guardadas ? 'Confirmadas (completas)' : 'Completas (sugeridas)'}</strong></div><div style="display:flex;align-items:center;gap:10px"><strong>${completas} de ${lista.length}</strong><button class="btn outline small" onclick="setTab('hab')">Ver</button></div></div>`
+    + TIPOS.filter(t => estado[t]).map(t => `<div class="ocu"><div class="nom">${esc(t)}</div><strong>${estado[t].completas} de ${estado[t].total}</strong></div>`).join('')
+    + fila('Pasajeros sin habitación', sinHab, sinHab ? "irA('resp',{hab:'sin'})" : '')
+    + aviso(incompletas, `${incompletas} habitación${incompletas === 1 ? '' : 'es'} incompleta${incompletas === 1 ? '' : 's'} (falta gente): no se cuentan como confirmadas.`, 'bad') + aviso(sobran, `${sobran} habitación${sobran === 1 ? '' : 'es'} con más gente de la que admite.`, 'bad') + aviso(vacias, `${vacias} habitación${vacias === 1 ? '' : 'es'} vacía${vacias === 1 ? '' : 's'}.`, 'warn')
+    + aviso(!guardadas && n, 'Las habitaciones todavía son una sugerencia: guardalas en la pestaña Habitaciones para confirmarlas.', 'warn') + `</div>`;
+
+  if (tieneCobros(g)){
+    const conSaldo = veSaldo(), pp = conSaldo ? pagosPorPasajero(GID_ABIERTO) : {}, mon = (g.meta.precios || {}).moneda || 'USD';
+    let total = 0, pagado = 0, alDia = 0, deben = 0, faltanDatos = 0, sinPagos = 0;
+    ids.forEach(id => { const c = cobroDe(g, id, resps[id], ref, asg, pp); total += c.total; pagado += c.pagado; if (c.falta.length) faltanDatos++; else if (c.saldo <= 0.005) alDia++; else deben++; if (conSaldo && !pp[id]) sinPagos++; });
+    html += `<div class="card"><h3>Cobros (${esc(mon)})</h3>` + fila('A cobrar', moneyG(total, mon))
+      + (conSaldo ? fila('Cobrado', moneyG(pagado, mon)) + fila('Saldo pendiente', `<span style="color:${total - pagado > 0.005 ? 'var(--red)' : 'var(--green)'}">${moneyG(total - pagado, mon)}</span>`) + `<div class="ocu"><div class="nom"><div style="height:8px;border-radius:99px;background:var(--beige-d);overflow:hidden"><div style="height:100%;width:${total ? Math.max(0, Math.min(100, pagado / total * 100)).toFixed(1) : 0}%;background:var(--teal)"></div></div></div><strong>${total ? Math.round(pagado / total * 100) : 0}%</strong></div>`
+        + fila('Al día', alDia, alDia ? "irA('resp',{saldo:'ok'})" : '') + fila('Con saldo pendiente', deben, deben ? "irA('resp',{saldo:'con'})" : '') + fila('Sin ningún pago', sinPagos, sinPagos ? "irA('resp',{pago:'sin'})" : '')
+        : '<div class="hint" style="margin-top:6px">Para ver lo cobrado hace falta vincular la reserva del grupo (o que un administrador abra Grupos).</div>')
+      + aviso(faltanDatos, `${faltanDatos} pasajero${faltanDatos === 1 ? '' : 's'} con datos faltantes para calcular lo que debe${faltanDatos === 1 ? '' : 'n'} pagar.`, 'warn') + `</div>`;
+  } else if (puedeEditarReservas()){
+    html += `<div class="card"><h3>Cobros</h3><div class="hint" style="margin:0">Cargá los precios por persona en Ajustes para ver acá lo que se cobra, lo cobrado y el saldo.</div></div>`;
+  }
+
+  html += `<div class="card"><h3>Para revisar</h3>`
+    + fila('Vínculos de habitación con problemas', vinc.pend, vinc.pend ? "irA('resp',{vinc:'pend'})" : '') + fila('Vínculos confirmados', vinc.ok, vinc.ok ? "irA('resp',{vinc:'ok'})" : '')
+    + fila('Pasaportes que vencen antes de 6 meses del viaje', g.meta.fechaViaje ? vencen.length : '—') + (vencen.length ? `<div class="hint" style="margin:2px 0 6px">${vencen.slice(0, 6).map(id => esc(`${resps[id].apellido}, ${resps[id].nombre}`)).join(' · ')}${vencen.length > 6 ? ' · +' + (vencen.length - 6) : ''}</div>` : '')
+    + aviso(!g.meta.fechaViaje, 'Cargá la fecha de regreso en Ajustes para controlar los pasaportes.', 'warn') + aviso(sinNac.length && false, '', '') + `</div>`;
+
+  html += `<div class="card"><h3>Preferencias y salud</h3>`
+    + (qPago.length ? `<div class="hint" style="margin:0 0 4px"><strong>Cómo eligen pagar</strong></div>` + (Object.keys(eleccion).length ? Object.entries(eleccion).sort((a, b) => b[1] - a[1]).map(([v, c]) => fila(esc(v), c, `irA('resp',{medio:'f:${esc(v).replace(/'/g, "\\'")}'})`)).join('') : '<div class="hint">Sin respuestas todavía.</div>') : '')
+    + fila('Con restricciones alimentarias o alergias', noNinguna('restricciones')) + fila('Con asistencia o movilidad especial', noNinguna('movilidad')) + fila('Con condiciones médicas informadas', noNinguna('medicas')) + `</div>`;
+
+  return html + '</div>';
 }
 function htmlRespuestas(g){
   const resps = g.respuestas || {}, lista = respuestasOrdenadas(g);
