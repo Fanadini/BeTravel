@@ -407,7 +407,7 @@ function nuevoGrupo(){
   GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email, form: limpiarForm(window.FORM_DEFAULT) })
     .then(() => { IDX_REF.child(gid).set({ nombre }).catch(() => {}); abrirGrupo(gid); }, handleWriteError);
 }
-function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'' }; SEL_LABEL = ''; COLAPSADAS.clear(); render(); }
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'' }; SEL_LABEL = ''; HAB_TIPO = ''; COLAPSADAS.clear(); render(); }
 function volverLista(){ GID_ABIERTO = null; render(); }
 function setTab(t){ if (TAB === 'form' && t !== 'form' && DIRTY && !confirm('Hay cambios sin guardar en el formulario. ¿Salir igualmente?')) return; TAB = t; FORM_RENDER = true; render(); }
 function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
@@ -1157,6 +1157,8 @@ function verRespuesta(rid){
 function cerrarModal(){ document.getElementById('modal-root').innerHTML = ''; }
 
 const COLAPSADAS = new Set();
+let HAB_TIPO = '';
+function setHabTipo(v){ HAB_TIPO = v; render(); }
 function toggleHab(hid){ COLAPSADAS.has(hid) ? COLAPSADAS.delete(hid) : COLAPSADAS.add(hid); render(); }
 function plegarTodas(v){ listaHab(GRUPOS[GID_ABIERTO]).forEach(([hid]) => v ? COLAPSADAS.add(hid) : COLAPSADAS.delete(hid)); render(); }
 function cambiarCama(hid, v){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}/cama`).set(v || null).catch(handleWriteError); }
@@ -1187,13 +1189,15 @@ function htmlHabitaciones(g){
   if (!Object.keys(resps).length) return '<div class="vacio">Cuando lleguen respuestas, acá se arman las habitaciones.</div>';
   const roomOptions = (actual) => (actual ? '<option value="__sin">— Sin habitación</option>' : '') + lista.map(([hid, h], i) => `<option value="${esc(hid)}" ${hid === actual ? 'selected' : ''}>Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)}</option>`).join('') + '<option value="__nueva">+ Nueva habitación</option>';
   let html = `<div class="section-head"><h2>${hay ? 'Habitaciones' : 'Habitaciones sugeridas'}</h2><div class="row-btns">`
-    + `${''}<button class="btn outline small" onclick="plegarTodas(true)">Plegar todas</button><button class="btn outline small" onclick="plegarTodas(false)">Desplegar todas</button>`
+    + `<select title="Filtrar por tipo de habitación" onchange="setHabTipo(this.value)"><option value="">Todos los tipos (${lista.length})</option>${TIPOS.filter(t => lista.some(([, h]) => h.tipo === t)).map(t => `<option value="${t}" ${HAB_TIPO === t ? 'selected' : ''}>${t} (${lista.filter(([, h]) => h.tipo === t).length})</option>`).join('')}</select>`
+    + `<button class="btn outline small" onclick="plegarTodas(true)">Plegar todas</button><button class="btn outline small" onclick="plegarTodas(false)">Desplegar todas</button>`
     + (hay ? `<button class="btn outline small" onclick="ordenarHabAZ()" title="Renumerar por el apellido del primer ocupante">Ordenar A–Z</button><button class="btn outline small" onclick="agregarHabitacion()">+ Habitación vacía</button><button class="btn outline small" onclick="regenerarHabitaciones()">Volver a sugerir</button>`
            : `<button class="btn" onclick="guardarSugeridas()">Guardar habitaciones sugeridas</button>`) + '</div></div>';
   if (!hay) html += '<div class="hint">Armadas automáticamente a partir de los vínculos "comparte con". Revisalas y guardalas para poder ajustarlas a mano.</div>';
   const asignados = new Set();
   lista.forEach(([hid, h], i) => {
     const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]); ids.forEach(x => asignados.add(x));
+    if (HAB_TIPO && h.tipo !== HAB_TIPO) return;
     const al = alertasHabitacion(h, resps, idx), col = COLAPSADAS.has(hid), cap = CAPACIDAD[h.tipo] || 0, cama = camaHab(h, resps);
     const nombres = ids.map(x => `${resps[x].apellido}, ${resps[x].nombre}${tp(x) ? ' (' + tp(x) + ')' : ''}`).join(' · ');
     const pedida = camaDeOcupantes(ids, resps);
