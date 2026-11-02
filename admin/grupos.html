@@ -72,6 +72,12 @@ input[type=text],input[type=date],select,textarea{font-family:'Inter',sans-serif
 input:focus,select:focus,textarea:focus{border-color:var(--teal)}
 textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
 .hab{background:var(--white);border:1px solid var(--beige-d);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.hab-h{cursor:grab;color:rgba(43,43,43,.4);font-size:13px;letter-spacing:-3px;user-select:none;padding:0 4px}
+.hab-h:hover{color:var(--teal)}
+.hab-num{width:58px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:var(--teal);padding:3px 6px;border:1.5px solid var(--beige-d);border-radius:6px;background:var(--white)}
+.dnd-ghost{opacity:.4}
+.dnd-before{box-shadow:0 -3px 0 0 var(--teal)}
+.dnd-after{box-shadow:0 3px 0 0 var(--teal)}
 .hab-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--teal-l);font-size:12px;font-weight:600;color:var(--teal);flex-wrap:wrap}
 .hab-head .grow{flex:1}
 .hab-body{padding:6px 14px 10px}
@@ -517,7 +523,8 @@ function camaHab(h, resps){
   if ((CAPACIDAD[h.tipo] || 0) < 2) return '';
   return h.cama || camaDeOcupantes(Object.keys(h.pasajeros || {}).filter(x => resps[x]), resps);
 }
-function listaHab(g){ const sav = g.habitaciones || {}; return Object.keys(sav).length ? Object.entries(sav) : sugerirHabitaciones(g.respuestas || {}).map((h, i) => ['s' + i, h]); }
+// Habitaciones guardadas: el orden (y el número) lo define el campo "orden"; las que no lo tienen van al final, en el orden en que se crearon.
+function listaHab(g){ const sav = g.habitaciones || {}; return Object.keys(sav).length ? Object.entries(sav).map((e, i) => [e, i]).sort((a, b) => ((a[0][1].orden != null ? Number(a[0][1].orden) : 1e9) - (b[0][1].orden != null ? Number(b[0][1].orden) : 1e9)) || a[1] - b[1]).map(x => x[0]) : sugerirHabitaciones(g.respuestas || {}).map((h, i) => ['s' + i, h]); }
 function asignaciones(g){   // rid -> { n, h, hid }
   const resps = g.respuestas || {}, m = {};
   listaHab(g).forEach(([hid, h], i) => Object.keys(h.pasajeros || {}).forEach(rid => { if (resps[rid]) m[rid] = { n: i + 1, h, hid }; }));
@@ -934,8 +941,8 @@ function htmlHabitaciones(g){
   if (!Object.keys(resps).length) return '<div class="vacio">Cuando lleguen respuestas, acá se arman las habitaciones.</div>';
   const roomOptions = (actual) => lista.map(([hid, h], i) => `<option value="${esc(hid)}" ${hid === actual ? 'selected' : ''}>Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)}</option>`).join('') + '<option value="__nueva">+ Nueva habitación</option>';
   let html = `<div class="section-head"><h2>${hay ? 'Habitaciones' : 'Habitaciones sugeridas'}</h2><div class="row-btns">`
-    + `<button class="btn outline small" onclick="plegarTodas(true)">Plegar todas</button><button class="btn outline small" onclick="plegarTodas(false)">Desplegar todas</button>`
-    + (hay ? `<button class="btn outline small" onclick="agregarHabitacion()">+ Habitación vacía</button><button class="btn outline small" onclick="regenerarHabitaciones()">Volver a sugerir</button>`
+    + `${''}<button class="btn outline small" onclick="plegarTodas(true)">Plegar todas</button><button class="btn outline small" onclick="plegarTodas(false)">Desplegar todas</button>`
+    + (hay ? `<button class="btn outline small" onclick="ordenarHabAZ()" title="Renumerar por el apellido del primer ocupante">Ordenar A–Z</button><button class="btn outline small" onclick="agregarHabitacion()">+ Habitación vacía</button><button class="btn outline small" onclick="regenerarHabitaciones()">Volver a sugerir</button>`
            : `<button class="btn" onclick="guardarSugeridas()">Guardar habitaciones sugeridas</button>`) + '</div></div>';
   if (!hay) html += '<div class="hint">Armadas automáticamente a partir de los vínculos "comparte con". Revisalas y guardalas para poder ajustarlas a mano.</div>';
   const asignados = new Set();
@@ -944,7 +951,9 @@ function htmlHabitaciones(g){
     const al = alertasHabitacion(h, resps, idx), col = COLAPSADAS.has(hid), cap = CAPACIDAD[h.tipo] || 0, cama = camaHab(h, resps);
     const nombres = ids.map(x => `${resps[x].apellido}, ${resps[x].nombre}${tp(x) ? ' (' + tp(x) + ')' : ''}`).join(' · ');
     const pedida = camaDeOcupantes(ids, resps);
-    html += `<div class="hab"><div class="hab-head" style="cursor:pointer" onclick="toggleHab('${esc(hid)}')"><span class="chev">${col ? '▸' : '▾'}</span><span>Hab. ${i + 1}</span>` + pillOcupacion(h, ids)
+    html += `<div class="hab" data-hid="${esc(hid)}"><div class="hab-head" style="cursor:pointer" onclick="toggleHab('${esc(hid)}')">`
+      + (hay ? '<span class="hab-h" title="Arrastrar para cambiar el orden" onclick="event.stopPropagation()">⋮⋮</span>' : '')
+      + `<span class="chev">${col ? '▸' : '▾'}</span>` + (hay ? `<span onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:4px">Hab. <input type="number" class="hab-num" min="1" max="${lista.length}" value="${i + 1}" title="Número de habitación: cambialo para moverla a ese lugar" onchange="moverHab('${esc(hid)}', this.value)"></span>` : `<span>Hab. ${i + 1}</span>`) + pillOcupacion(h, ids)
       + (conCobrosH && ids.length ? (() => { const t = totalHab(ids); return `<span class="pill" title="Suma de lo que paga cada pasajero de la habitación (aéreo, hotel y ajustes)${t.falta ? '. Faltan datos de algún pasajero' : ''}">Total ${moneyG(t.total, t.mon)}${t.falta ? ' *' : ''}</span>` + (conSaldoH ? (t.saldo <= 0.005 && !t.falta ? '<span class="pill ok">Al día</span>' : `<span class="pill ${t.saldo < t.total - 0.005 ? 'warn' : 'bad'}" title="Saldo pendiente de la habitación">Saldo ${moneyG(t.saldo, t.mon)}</span>`) : ''); })() : '')
       + (col ? `<span class="hab-res">${esc(nombres) || 'Sin ocupantes'}</span>` : '') + '<span class="grow"></span>'
       + (al.length ? `<span class="pill warn" title="${esc(al.join('\n'))}">⚠ ${al.length}</span>` : '')
@@ -1127,16 +1136,67 @@ function htmlFormulario(g){
 // ── HABITACIONES: ESCRITURA ────────────────────────────────────────────────
 function guardarSugeridas(){
   const g = GRUPOS[GID_ABIERTO], hs = sugerirHabitaciones(g.respuestas || {}), up = {};
-  hs.forEach(h => { up[`${GID_ABIERTO}/habitaciones/${GRUPOS_REF.push().key}`] = h; });
+  hs.forEach((h, i) => { up[`${GID_ABIERTO}/habitaciones/${GRUPOS_REF.push().key}`] = { ...h, orden: i + 1 }; });
   GRUPOS_REF.update(up).catch(handleWriteError);
 }
 function regenerarHabitaciones(){
   if (!confirm('Se reemplazan las habitaciones actuales por una nueva sugerencia. Se pierden los ajustes manuales. ¿Continuar?')) return;
   const g = GRUPOS[GID_ABIERTO], up = {};
   up[`${GID_ABIERTO}/habitaciones`] = null;
-  GRUPOS_REF.update(up).then(() => { const n = {}; sugerirHabitaciones(g.respuestas || {}).forEach(h => { n[`${GID_ABIERTO}/habitaciones/${GRUPOS_REF.push().key}`] = h; }); return GRUPOS_REF.update(n); }).catch(handleWriteError);
+  GRUPOS_REF.update(up).then(() => { const n = {}; sugerirHabitaciones(g.respuestas || {}).forEach((h, i) => { n[`${GID_ABIERTO}/habitaciones/${GRUPOS_REF.push().key}`] = { ...h, orden: i + 1 }; }); return GRUPOS_REF.update(n); }).catch(handleWriteError);
 }
-function agregarHabitacion(){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones`).push({ tipo:'Doble' }).catch(handleWriteError); }
+const siguienteOrden = g => Math.max(0, ...Object.values(g.habitaciones || {}).map(h => Number(h.orden) || 0), Object.keys(g.habitaciones || {}).length) + 1;
+function agregarHabitacion(){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones`).push({ tipo:'Doble', orden: siguienteOrden(GRUPOS[GID_ABIERTO]) }).catch(handleWriteError); }
+// Cambiar el número de una habitación: se la lleva a esa posición y las demás se corren (se renumeran de 1 a N)
+function moverHab(hid, pos){
+  const g = GRUPOS[GID_ABIERTO], ids = listaHab(g).map(x => x[0]), i = ids.indexOf(hid); if (i < 0) return;
+  const n = Math.max(1, Math.min(ids.length, parseInt(pos, 10) || i + 1));
+  if (n - 1 === i){ render(); return; }
+  ids.splice(i, 1); ids.splice(n - 1, 0, hid);
+  guardarOrdenHab(ids);
+}
+function guardarOrdenHab(ids){
+  const g = GRUPOS[GID_ABIERTO], up = {};
+  ids.forEach((id, k) => { if (Number((g.habitaciones[id] || {}).orden) !== k + 1) up[`${GID_ABIERTO}/habitaciones/${id}/orden`] = k + 1; });
+  if (Object.keys(up).length) GRUPOS_REF.update(up).catch(handleWriteError); else render();
+}
+function ordenarHabAZ(){
+  const g = GRUPOS[GID_ABIERTO], resps = g.respuestas || {};
+  if (!confirm('Se renumeran las habitaciones por el apellido del primer ocupante (de la A a la Z). ¿Continuar?')) return;
+  guardarOrdenHab(listaHab(g).sort((a, b) => nombreHab(a[1], resps).localeCompare(nombreHab(b[1], resps), 'es') || 0).map(x => x[0]));
+}
+// Arrastrar una habitación para cambiar su lugar
+let DND_H = null;
+document.addEventListener('mousedown', e => {
+  const h = e.target.closest && e.target.closest('.hab-h'); if (!h) return;
+  const it = h.closest('.hab[data-hid]'); if (it){ it.draggable = true; DND_H = { it, hid: it.dataset.hid, objetivo:null, lado:'' }; }
+});
+document.addEventListener('mouseup', () => { if (DND_H && !DND_H.arrastrando){ DND_H.it.draggable = false; DND_H = null; } });
+document.addEventListener('dragstart', e => {
+  if (!DND_H || e.target !== DND_H.it) return;
+  DND_H.arrastrando = true; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', 'hab'); } catch (x) {}
+  setTimeout(() => DND_H && DND_H.it.classList.add('dnd-ghost'), 0);
+});
+document.addEventListener('dragover', e => {
+  if (!DND_H || !DND_H.arrastrando) return;
+  const sobre = e.target.closest && e.target.closest('.hab[data-hid]'); if (!sobre || sobre === DND_H.it) return;
+  e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+  const r = sobre.getBoundingClientRect(), lado = e.clientY > r.top + r.height / 2 ? 'after' : 'before';
+  if (DND_H.objetivo !== sobre || DND_H.lado !== lado){
+    document.querySelectorAll('.dnd-before,.dnd-after').forEach(x => x.classList.remove('dnd-before', 'dnd-after'));
+    sobre.classList.add('dnd-' + lado); DND_H.objetivo = sobre; DND_H.lado = lado;
+  }
+});
+document.addEventListener('drop', e => {
+  if (!DND_H || !DND_H.arrastrando || !DND_H.objetivo) return;
+  e.preventDefault();
+  const { hid, objetivo, lado } = DND_H, ids = listaHab(GRUPOS[GID_ABIERTO]).map(x => x[0]);
+  const desde = ids.indexOf(hid); let hasta = ids.indexOf(objetivo.dataset.hid) + (lado === 'after' ? 1 : 0);
+  DND_H.it.draggable = false; document.querySelectorAll('.dnd-ghost,.dnd-before,.dnd-after').forEach(x => x.classList.remove('dnd-ghost', 'dnd-before', 'dnd-after')); DND_H = null;
+  if (desde < 0) return; if (desde < hasta) hasta -= 1; if (desde === hasta) return;
+  ids.splice(desde, 1); ids.splice(hasta, 0, hid); guardarOrdenHab(ids);
+});
+document.addEventListener('dragend', () => { if (DND_H){ DND_H.it.draggable = false; document.querySelectorAll('.dnd-ghost,.dnd-before,.dnd-after').forEach(x => x.classList.remove('dnd-ghost', 'dnd-before', 'dnd-after')); DND_H = null; } });
 function cambiarTipo(hid, tipo){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}/tipo`).set(tipo).catch(handleWriteError); }
 function borrarHabitacion(hid){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}`).remove().catch(handleWriteError); }
 function moverPasajero(rid, destino){
@@ -1145,7 +1205,7 @@ function moverPasajero(rid, destino){
   if (actual) up[`${GID_ABIERTO}/habitaciones/${actual.hid}/pasajeros/${rid}`] = null;
   if (destino === '__nueva'){   // crea una habitación con el tipo y la cama que pidió el pasajero
     const r = g.respuestas[rid], key = GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones`).push().key;
-    const h = { tipo: CAPACIDAD[r.tipoHabitacion] ? r.tipoHabitacion : 'Single', pasajeros: { [rid]: true } };
+    const h = { tipo: CAPACIDAD[r.tipoHabitacion] ? r.tipoHabitacion : 'Single', pasajeros: { [rid]: true }, orden: siguienteOrden(g) };
     if (CAPACIDAD[h.tipo] > 1 && CAMAS.includes(r.tipoCama)) h.cama = r.tipoCama;
     up[`${GID_ABIERTO}/habitaciones/${key}`] = h;
   } else up[`${GID_ABIERTO}/habitaciones/${destino}/pasajeros/${rid}`] = true;
