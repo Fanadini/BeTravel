@@ -888,14 +888,22 @@ function listaWarnings(g){
   }
   return W;
 }
-let WARN_CARD_PLEG = false; const WARN_PLEG = new Set();
+let WARN_CARD_PLEG = false, WARN_VER_OCULTOS = false; const WARN_PLEG = new Set();
 function togglePlegarWarn(k){ k === '*' ? (WARN_CARD_PLEG = !WARN_CARD_PLEG) : (WARN_PLEG.has(k) ? WARN_PLEG.delete(k) : WARN_PLEG.add(k)); render(); }
 function plegarWarns(v){ const W = listaWarnings(GRUPOS[GID_ABIERTO]); W.forEach(w => v ? WARN_PLEG.add(w.txt) : WARN_PLEG.delete(w.txt)); WARN_CARD_PLEG = false; render(); }
+// Desestimar: queda guardado en el grupo (grupos/{id}/warningsOcultos) para todos los usuarios. Si el problema cambia, el warning vuelve a aparecer.
+const warnId = t => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0; return 'w' + h.toString(36); };
+const warnPlano = t => t.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").slice(0, 300);
+function desestimarWarn(txt){ GRUPOS_REF.child(`${GID_ABIERTO}/warningsOcultos/${warnId(txt)}`).set({ txt: warnPlano(txt), por: CURRENT_USER.email, ts: Date.now() }).catch(handleWriteError); }
+function restaurarWarn(txt){ GRUPOS_REF.child(`${GID_ABIERTO}/warningsOcultos/${warnId(txt)}`).remove().catch(handleWriteError); }
+function verOcultosWarn(){ WARN_VER_OCULTOS = !WARN_VER_OCULTOS; render(); }
 function htmlWarnings(g){
-  const W = listaWarnings(g), kq = t => esc(t.replace(/'/g, "\\'"));
+  const todos = listaWarnings(g), oc = g.warningsOcultos || {}, kq = t => esc(t.replace(/'/g, "\\'"));
+  const W = todos.filter(w => !oc[warnId(w.txt)]), ocultos = todos.filter(w => oc[warnId(w.txt)]);
   return `<div class="card" style="grid-column:1/-1"><h3 style="cursor:pointer;display:flex;align-items:center;gap:8px" onclick="togglePlegarWarn('*')"><span>${WARN_CARD_PLEG ? '▸' : '▾'}</span>Warnings (${W.length})</h3>`
-    + (WARN_CARD_PLEG ? '' : `<div class="hint" style="margin-bottom:6px">Cada warning ofrece cómo resolverlo. Cuando la solución corrige lo que cargó el pasajero (tipo de habitación, cama, "comparte", fechas), se actualiza su respuesta.${W.length > 1 ? ` <a href="#" class="lnk" onclick="plegarWarns(true);return false">Plegar todos</a> · <a href="#" class="lnk" onclick="plegarWarns(false);return false">Desplegar todos</a>` : ''}</div>`
-    + (W.length ? W.map(w => { const pl = WARN_PLEG.has(w.txt); return `<div class="ocu" style="flex-wrap:wrap;gap:8px"><div class="nom" style="flex:1;min-width:240px;cursor:pointer" onclick="togglePlegarWarn('${kq(w.txt)}')" title="Plegar / desplegar"><span style="color:var(--teal)">${pl ? '▸' : '▾'}</span> <span class="pill ${w.sev === 'bad' ? 'bad' : 'warn'}">⚠</span> ${w.txt}</div>${pl ? '' : `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${w.ver ? `<button class="btn small" onclick="${w.ver}">Ver</button>` : ''}${w.acc || ''}</div>`}</div>`; }).join('') : '<div class="hint" style="margin:0">Sin warnings.</div>')) + '</div>';
+    + (WARN_CARD_PLEG ? '' : `<div class="hint" style="margin-bottom:6px">Cada warning ofrece cómo resolverlo, o podés desestimarlo si no aplica. Cuando la solución corrige lo que cargó el pasajero (tipo de habitación, cama, "comparte", fechas), se actualiza su respuesta.${W.length > 1 ? ` <a href="#" class="lnk" onclick="plegarWarns(true);return false">Plegar todos</a> · <a href="#" class="lnk" onclick="plegarWarns(false);return false">Desplegar todos</a>` : ''}</div>`
+    + (W.length ? W.map(w => { const pl = WARN_PLEG.has(w.txt); return `<div class="ocu" style="flex-wrap:wrap;gap:8px"><div class="nom" style="flex:1;min-width:240px;cursor:pointer" onclick="togglePlegarWarn('${kq(w.txt)}')" title="Plegar / desplegar"><span style="color:var(--teal)">${pl ? '▸' : '▾'}</span> <span class="pill ${w.sev === 'bad' ? 'bad' : 'warn'}">⚠</span> ${w.txt}</div>${pl ? '' : `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${w.ver ? `<button class="btn small" onclick="${w.ver}">Ver</button>` : ''}${w.acc || ''}<button class="btn outline small" title="No aplica: dejar de mostrar este warning" onclick="desestimarWarn('${kq(w.txt)}')">Desestimar</button></div>`}</div>`; }).join('') : '<div class="hint" style="margin:0">Sin warnings.</div>')
+    + (ocultos.length ? `<div class="hint" style="margin:8px 0 0"><a href="#" class="lnk" onclick="verOcultosWarn();return false">${WARN_VER_OCULTOS ? '▾' : '▸'} ${ocultos.length} desestimado${ocultos.length === 1 ? '' : 's'}</a></div>` + (WARN_VER_OCULTOS ? ocultos.map(w => `<div class="ocu" style="gap:8px;opacity:.75"><div class="nom" style="flex:1">${w.txt}</div><button class="btn outline small" onclick="restaurarWarn('${kq(w.txt)}')">Restaurar</button></div>`).join('') : '') : '')) + '</div>';
 }
 function htmlResumen(g){
   const resps = g.respuestas || {}, ids = Object.keys(resps), n = ids.length;
