@@ -308,6 +308,7 @@ function attachListeners(){
   }, err => { document.getElementById('lo').classList.add('hidden'); handleWriteError(err); });
   IDX_REF.on('value', snap => { IDX = snap.val() || {}; sincronizarIndice(); }, () => {});
   escucharReservas();
+  escucharCompromisos();
 }
 
 // ── Índice de grupos (gruposIndex): lo usa Gestión interna para elegir el grupo de una reserva ──
@@ -927,6 +928,9 @@ function listaWarnings(g){
     });
     sinHab.forEach(rid => W.push({ sev:'bad', ver: `verRespuesta('${q(rid)}')`, txt: `${nm(rid)} no tiene habitación.`, acc: `<select onchange="moverPasajero('${q(rid)}', this.value)"><option value="">Asignar a…</option>${lista.map(([hid, h], i) => `<option value="${esc(hid)}">Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)} (${esc(h.tipo)})</option>`).join('')}<option value="__nueva">+ Nueva habitación</option></select>` }));
   }
+  if (puedeEditarReservas()) Object.entries(COMPROMISOS[GID_ABIERTO] || {}).forEach(([pid, p]) => nCuotas(p).forEach((c, i) => {
+    if (!c.pagado && c.fecha && c.fecha < hoyISO()) W.push({ sev:'bad', txt: `${esc(p.nombre || 'Proveedor sin nombre')}: la cuota ${i + 1} (${Number(c.pct) || 0}%) vencía el ${esc(fmtFecha(c.fecha))} y no figura pagada.`, acc: btn('Marcar pagada', `setCuota('${q(pid)}','${q(c.cid)}','pagado',true)`) });
+  }));
   const nv = ids.filter(id => resps[id].comparte === 'Sí' && ['bad', 'warn'].includes(estadoVinculo(id, resps[id], resps).cls)).length;
   const idsV = ids.filter(id => resps[id].comparte === 'Sí' && ['bad', 'warn'].includes(estadoVinculo(id, resps[id], resps).cls));
   if (nv) W.push({ ver: `verSel('Vínculos sin resolver','${idsV.join(',')}')`, txt: `${nv} vínculo${nv === 1 ? '' : 's'} de habitación sin resolver (nombres que no coinciden o sin confirmar).`, acc: btn('Revisar y resolver', 'revisarVinculos()') });
@@ -957,6 +961,58 @@ function htmlWarnings(g){
     + (W.length ? W.map(w => { const pl = WARN_PLEG.has(w.txt); return `<div class="ocu" style="flex-wrap:wrap;gap:8px"><div class="nom" style="flex:1;min-width:240px;cursor:pointer" onclick="togglePlegarWarn('${kq(w.txt)}')" title="Plegar / desplegar"><span style="color:var(--teal)">${pl ? '▸' : '▾'}</span> <span class="pill ${w.sev === 'bad' ? 'bad' : 'warn'}">⚠</span> ${w.txt}</div>${pl ? '' : `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${w.ver ? `<button class="btn small" onclick="${w.ver}">Ver</button>` : ''}${w.acc || ''}<button class="btn outline small" title="No aplica: dejar de mostrar este warning" onclick="desestimarWarn('${kq(w.txt)}')">Desestimar</button></div>`}</div>`; }).join('') : '<div class="hint" style="margin:0">Sin warnings.</div>')
     + (ocultos.length ? `<div class="hint" style="margin:8px 0 0"><a href="#" class="lnk" onclick="verOcultosWarn();return false">${WARN_VER_OCULTOS ? '▾' : '▸'} ${ocultos.length} desestimado${ocultos.length === 1 ? '' : 's'}</a></div>` + (WARN_VER_OCULTOS ? ocultos.map(w => `<div class="ocu" style="gap:8px;opacity:.75"><div class="nom" style="flex:1">${w.txt}</div><button class="btn outline small" onclick="restaurarWarn('${kq(w.txt)}')">Restaurar</button></div>`).join('') : '') : '')) + '</div>';
 }
+// ── COMPROMISOS CON PROVEEDORES (aéreo, hotel…): total, cuotas con % y fecha (o sin fecha), y si ya se pagó ──
+// Se guardan en finanzas/compromisosGrupo/{grupo}/{proveedor} (solo personal: las cuentas cotizador no los ven).
+let COMPROMISOS = {};
+function escucharCompromisos(){
+  if (!puedeEditarReservas()) return;
+  db.ref('finanzas/compromisosGrupo').on('value', s => { COMPROMISOS = s.val() || {}; refrescarPagos(); }, () => {});
+}
+const cbase = () => `finanzas/compromisosGrupo/${GID_ABIERTO}`;
+const hoyISO = () => new Date().toISOString().slice(0, 10);
+const nCuotas = p => Object.entries(p.cuotas || {}).map(([cid, c]) => ({ cid, ...c }));
+function addProv(){ db.ref(cbase()).push({ nombre: '', tipo: 'Aéreo', moneda: (GRUPOS[GID_ABIERTO].meta.precios || {}).moneda || 'USD', total: 0, ts: Date.now() }).catch(handleWriteError); }
+function delProv(pid){ if (confirm('¿Quitar este proveedor y sus cuotas?')) db.ref(`${cbase()}/${pid}`).remove().catch(handleWriteError); }
+function setProv(pid, campo, valor){ db.ref(`${cbase()}/${pid}/${campo}`).set(campo === 'total' ? (parseFloat(valor) || 0) : valor).catch(handleWriteError); }
+function addCuota(pid){
+  const p = (COMPROMISOS[GID_ABIERTO] || {})[pid] || {}, resto = Math.max(0, Math.round((100 - nCuotas(p).reduce((a, c) => a + (Number(c.pct) || 0), 0)) * 100) / 100);
+  db.ref(`${cbase()}/${pid}/cuotas`).push({ pct: resto, fecha: '', pagado: false }).catch(handleWriteError);
+}
+function delCuota(pid, cid){ db.ref(`${cbase()}/${pid}/cuotas/${cid}`).remove().catch(handleWriteError); }
+function setCuota(pid, cid, campo, valor){ db.ref(`${cbase()}/${pid}/cuotas/${cid}/${campo}`).set(campo === 'pct' ? (parseFloat(valor) || 0) : campo === 'pagado' ? !!valor : valor).catch(handleWriteError); }
+function resumenCompromisos(g){
+  const provs = Object.entries(COMPROMISOS[GID_ABIERTO] || {}).map(([pid, p]) => ({ pid, ...p })).sort((a, b) => (a.ts || 0) - (b.ts || 0)), tot = {};
+  provs.forEach(p => { const m = p.moneda || 'USD', t = tot[m] = tot[m] || { comp: 0, pag: 0 }; nCuotas(p).forEach(c => { const v = (Number(p.total) || 0) * (Number(c.pct) || 0) / 100; t.comp += v; if (c.pagado) t.pag += v; }); });
+  return { provs, tot };
+}
+function htmlCompromisos(g){
+  if (!puedeEditarReservas()) return '';
+  const { provs, tot } = resumenCompromisos(g), hoy = hoyISO();
+  const inp = (pid, campo, v, extra) => `<input type="${extra && extra.t || 'text'}" ${extra && extra.a || ''} value="${esc(v == null ? '' : v)}" onchange="setProv('${esc(pid)}','${campo}',this.value)" style="${extra && extra.st || ''}">`;
+  let h = `<div class="card" style="grid-column:1/-1"><h3>Compromisos con proveedores</h3>`
+    + `<div class="hint" style="margin-bottom:6px">Total acordado con cada proveedor y cómo se paga: porcentaje y fecha de cada cuota (la fecha puede quedar sin definir y completarse después). Solo la ve el personal.</div>`;
+  const totTxt = Object.entries(tot).map(([m, t]) => `${esc(m)}: comprometido ${moneyG(t.comp, m)} · pagado ${moneyG(t.pag, m)} · <strong>pendiente ${moneyG(t.comp - t.pag, m)}</strong>`).join('  |  ');
+  if (totTxt) h += `<div class="ocu"><div class="nom">${totTxt}</div></div>`;
+  provs.forEach(p => {
+    const cs = nCuotas(p), suma = cs.reduce((a, c) => a + (Number(c.pct) || 0), 0), m = p.moneda || 'USD';
+    h += `<div class="card" style="margin:8px 0 0"><div class="filtros" style="align-items:center">`
+      + inp(p.pid, 'nombre', p.nombre, { st: 'flex:1;min-width:160px', a: 'placeholder="Proveedor (ej: Tucano Tours, Hotel Palladium)"' })
+      + `<select onchange="setProv('${esc(p.pid)}','tipo',this.value)">${['Aéreo', 'Hotel', 'Otro'].map(t => `<option ${t === p.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select>`
+      + `<select onchange="setProv('${esc(p.pid)}','moneda',this.value)">${['USD', 'ARS'].map(t => `<option ${t === m ? 'selected' : ''}>${t}</option>`).join('')}</select>`
+      + inp(p.pid, 'total', p.total || '', { t: 'number', a: 'step="0.01" placeholder="Total acordado"', st: 'width:150px' })
+      + `<button class="btn danger small" onclick="delProv('${esc(p.pid)}')">Quitar</button></div>`;
+    if (cs.length){
+      h += '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th>Cuota</th><th style="width:90px">%</th><th>Fecha de pago</th><th class="num">Monto</th><th>Pagada</th><th></th></tr></thead><tbody>'
+        + cs.map((c, i) => { const venc = !c.pagado && c.fecha && c.fecha < hoy; return `<tr><td>${i + 1}</td><td><input type="number" step="0.01" value="${esc(c.pct)}" onchange="setCuota('${esc(p.pid)}','${esc(c.cid)}','pct',this.value)" style="width:80px"></td>`
+          + `<td><input type="date" value="${esc(c.fecha || '')}" onchange="setCuota('${esc(p.pid)}','${esc(c.cid)}','fecha',this.value)" style="width:auto">${c.fecha ? '' : ' <span class="hint" style="margin:0">sin fecha</span>'}${venc ? ' <span class="pill bad">vencida</span>' : ''}</td>`
+          + `<td class="num">${moneyG((Number(p.total) || 0) * (Number(c.pct) || 0) / 100, m)}</td><td><input type="checkbox" ${c.pagado ? 'checked' : ''} onchange="setCuota('${esc(p.pid)}','${esc(c.cid)}','pagado',this.checked)"></td>`
+          + `<td><button class="btn outline small" onclick="delCuota('${esc(p.pid)}','${esc(c.cid)}')">✕</button></td></tr>`; }).join('') + '</tbody></table>';
+    }
+    h += `<div class="filtros" style="align-items:center;margin-top:6px"><button class="btn outline small" onclick="addCuota('${esc(p.pid)}')">+ Agregar cuota</button>`
+      + (cs.length ? `<span class="hint" style="margin:0">${suma}% asignado</span>${Math.abs(suma - 100) > 0.001 ? `<span class="pill ${suma > 100 ? 'bad' : 'warn'}">${suma > 100 ? 'Pasa de 100%' : 'Falta ' + Math.round((100 - suma) * 100) / 100 + '% por asignar'}</span>` : ''}` : '') + '</div></div>';
+  });
+  return h + `<div style="margin-top:8px"><button class="btn small" onclick="addProv()">+ Agregar proveedor</button></div></div>`;
+}
 function htmlResumen(g){
   const resps = g.respuestas || {}, ids = Object.keys(resps), n = ids.length;
   const ref = refViaje(g), asg = asignaciones(g), lista = listaHab(g), guardadas = Object.keys(g.habitaciones || {}).length > 0;
@@ -979,7 +1035,7 @@ function htmlResumen(g){
   const fila = (et, val, accion) => `<div class="ocu"><div class="nom">${et}</div><div style="display:flex;align-items:center;gap:10px"><strong>${val}</strong>${accion ? `<button class="btn outline small" onclick="${accion}">Ver</button>` : ''}</div></div>`;
   const aviso = (cond, texto, tipo, accion) => cond ? `<div class="alertas ${tipo === 'bad' ? 'red' : ''}" style="padding:4px 0;display:flex;align-items:center;gap:8px;justify-content:space-between"><span>${texto}</span>${accion ? `<button class="btn outline small" onclick="${accion}">Ver</button>` : ''}</div>` : '';
   const vs = (label, arr) => arr.length ? `verSel('${label}','${arr.join(',')}')` : '';
-  let html = `<div class="section-head"><h2>${esc(g.meta.nombre)}</h2><span class="hint" style="margin:0">${g.meta.activo ? 'Recibiendo respuestas' : 'Formulario cerrado'}${ref.origen !== 'hoy' ? ' · inicio del viaje ' + esc(fmtFecha(ref.fecha)) : ''}</span></div><div class="res-grid">` + htmlWarnings(g);
+  let html = `<div class="section-head"><h2>${esc(g.meta.nombre)}</h2><span class="hint" style="margin:0">${g.meta.activo ? 'Recibiendo respuestas' : 'Formulario cerrado'}${ref.origen !== 'hoy' ? ' · inicio del viaje ' + esc(fmtFecha(ref.fecha)) : ''}</span></div><div class="res-grid">` + htmlWarnings(g) + htmlCompromisos(g);
 
   html += `<div class="card"><h3>Pasajeros</h3>`
     + fila('Respuestas recibidas', `${n}${invitados.length ? ' de ' + invitados.length : ''}`, "irA('resp')")
