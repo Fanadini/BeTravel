@@ -985,17 +985,29 @@ function resumenCompromisos(g){
   provs.forEach(p => { const m = p.moneda || 'USD', t = tot[m] = tot[m] || { comp: 0, pag: 0 }; nCuotas(p).forEach(c => { const v = (Number(p.total) || 0) * (Number(c.pct) || 0) / 100; t.comp += v; if (c.pagado) t.pag += v; }); });
   return { provs, tot };
 }
+let COMP_CARD_PLEG = false; const COMP_PLEG = new Set();
+function togglePlegarComp(k){ k === '*' ? (COMP_CARD_PLEG = !COMP_CARD_PLEG) : (COMP_PLEG.has(k) ? COMP_PLEG.delete(k) : COMP_PLEG.add(k)); render(); }
+function plegarComps(v){ Object.keys(COMPROMISOS[GID_ABIERTO] || {}).forEach(k => v ? COMP_PLEG.add(k) : COMP_PLEG.delete(k)); COMP_CARD_PLEG = false; render(); }
 function htmlCompromisos(g){
   if (!puedeEditarReservas()) return '';
   const { provs, tot } = resumenCompromisos(g), hoy = hoyISO();
   const inp = (pid, campo, v, extra) => `<input type="${extra && extra.t || 'text'}" ${extra && extra.a || ''} value="${esc(v == null ? '' : v)}" onchange="setProv('${esc(pid)}','${campo}',this.value)" style="${extra && extra.st || ''}">`;
-  let h = `<div class="card" style="grid-column:1/-1"><h3>Compromisos con proveedores</h3>`
-    + `<div class="hint" style="margin-bottom:6px">Total acordado con cada proveedor y cómo se paga: porcentaje y fecha de cada cuota (la fecha puede quedar sin definir y completarse después). Solo la ve el personal.</div>`;
+  let h = `<div class="card" style="grid-column:1/-1"><h3 style="cursor:pointer;display:flex;align-items:center;gap:8px" onclick="togglePlegarComp('*')"><span>${COMP_CARD_PLEG ? '▸' : '▾'}</span>Compromisos con proveedores${provs.length ? ` (${provs.length})` : ''}</h3>`;
+  if (COMP_CARD_PLEG){
+    const rs = Object.entries(tot).map(([m, t]) => `${esc(m)}: pendiente <strong>${moneyG(t.comp - t.pag, m)}</strong>`).join(' | ');
+    return h + (rs ? `<div class="hint" style="margin:0">${rs}</div>` : '') + '</div>';
+  }
+  h += `<div class="hint" style="margin-bottom:6px">Total acordado con cada proveedor y cómo se paga: porcentaje y fecha de cada cuota (la fecha puede quedar sin definir y completarse después). Solo la ve el personal.${provs.length > 1 ? ` <a href="#" class="lnk" onclick="plegarComps(true);return false">Plegar todos</a> · <a href="#" class="lnk" onclick="plegarComps(false);return false">Desplegar todos</a>` : ''}</div>`;
   const totTxt = Object.entries(tot).map(([m, t]) => `${esc(m)}: comprometido ${moneyG(t.comp, m)} · pagado ${moneyG(t.pag, m)} · <strong>pendiente ${moneyG(t.comp - t.pag, m)}</strong>`).join('  |  ');
   if (totTxt) h += `<div class="ocu"><div class="nom">${totTxt}</div></div>`;
   provs.forEach(p => {
     const cs = nCuotas(p), suma = cs.reduce((a, c) => a + (Number(c.pct) || 0), 0), m = p.moneda || 'USD';
-    h += `<div class="card" style="margin:8px 0 0"><div class="filtros" style="align-items:center">`
+    const pl = COMP_PLEG.has(p.pid), pagadas = cs.filter(c => c.pagado).length, prox = cs.filter(c => !c.pagado && c.fecha).map(c => c.fecha).sort()[0];
+    if (pl){
+      h += `<div class="card" style="margin:8px 0 0;cursor:pointer" onclick="togglePlegarComp('${esc(p.pid)}')" title="Desplegar"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="color:var(--teal)">▸</span><strong>${esc(p.nombre || 'Proveedor sin nombre')}</strong><span class="pill">${esc(p.tipo || '')}</span><span>${moneyG(p.total || 0, m)}</span><span class="hint" style="margin:0">${pagadas} de ${cs.length} cuota${cs.length === 1 ? '' : 's'} pagada${pagadas === 1 ? '' : 's'}${prox ? ' · próxima ' + esc(fmtFecha(prox)) : ''}</span>${Math.abs(suma - 100) > 0.001 && cs.length ? '<span class="pill warn">' + suma + '%</span>' : ''}${cs.some(c => !c.pagado && c.fecha && c.fecha < hoy) ? '<span class="pill bad">vencida</span>' : ''}</div></div>`;
+      return;
+    }
+    h += `<div class="card" style="margin:8px 0 0"><div class="filtros" style="align-items:center"><span class="pleg-t" style="cursor:pointer;color:var(--teal)" onclick="togglePlegarComp('${esc(p.pid)}')" title="Plegar">▾</span>`
       + inp(p.pid, 'nombre', p.nombre, { st: 'flex:1;min-width:160px', a: 'placeholder="Proveedor (ej: Tucano Tours, Hotel Palladium)"' })
       + `<select onchange="setProv('${esc(p.pid)}','tipo',this.value)">${['Aéreo', 'Hotel', 'Otro'].map(t => `<option ${t === p.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select>`
       + `<select onchange="setProv('${esc(p.pid)}','moneda',this.value)">${['USD', 'ARS'].map(t => `<option ${t === m ? 'selected' : ''}>${t}</option>`).join('')}</select>`
