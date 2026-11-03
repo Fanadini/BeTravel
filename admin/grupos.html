@@ -1119,6 +1119,20 @@ const CAMPOS = [
   ['comparte','Comparte habitación'],['compartiCon','Comparte con'],['restricciones','Restricciones alimentarias'],['movilidad','Movilidad / asistencia'],['medicas','Condiciones médicas'],
 ];
 const FECHAS = new Set(['nacimiento','emision','vencimiento']);
+// Medio de pago elegido en el formulario: se puede corregir desde la ficha (actualiza la respuesta del pasajero)
+function medioFichaHtml(rid, r){
+  const g = GRUPOS[GID_ABIERTO], qs = preguntasPago(g); if (!qs.length) return '';
+  return qs.map(q => {
+    const actual = String(r[q.id] || '').split(', ').filter(Boolean), ops = [...(q.opciones || []), ...actual.filter(v => !(q.opciones || []).includes(v))], multi = q.tipo === 'multiple';
+    return `<div class="card" style="margin:0 0 12px"><h3>${esc(q.etiqueta)}</h3><div class="hint">Corregí lo que eligió el pasajero. Se actualiza su respuesta.</div>
+      <div class="filtros" id="mp-${esc(q.id)}">${ops.map(o => `<label class="chk"><input type="${multi ? 'checkbox' : 'radio'}" name="mp-${esc(q.id)}" value="${esc(o)}" ${actual.includes(o) ? 'checked' : ''}> ${esc(o)}</label>`).join('')}
+      <button class="btn small" onclick="guardarMedioResp('${esc(rid)}','${esc(q.id)}')">Guardar</button>${multi ? '' : `<button class="btn outline small" onclick="guardarMedioResp('${esc(rid)}','${esc(q.id)}',true)">Quitar</button>`}</div></div>`;
+  }).join('');
+}
+function guardarMedioResp(rid, qid, vaciar){
+  const v = vaciar ? [] : [...document.querySelectorAll(`#mp-${CSS.escape(qid)} input:checked`)].map(i => i.value);
+  GRUPOS_REF.child(`${GID_ABIERTO}/respuestas/${rid}/${qid}`).set(v.length ? v.join(', ') : null).then(() => verRespuesta(rid), handleWriteError);
+}
 function tipoFichaHtml(rid, r){
   const g = GRUPOS[GID_ABIERTO], ref = refViaje(g), x = tipoPax(g, rid, r, ref), man = (g.tiposPax || {})[rid] || '';
   return `<div class="card" style="margin:0 0 12px"><h3>Tipo de pasajero: ${x.t || 'sin dato'}</h3><div class="hint">${x.edad != null ? esc(x.edad + ' año' + (x.edad === 1 ? '' : 's') + ' al ' + fmtFecha(ref.fecha)) : 'Falta la fecha de nacimiento.'} Si la aerolínea lo clasifica distinto, corregilo acá.</div>
@@ -1217,7 +1231,7 @@ function verRespuesta(rid){
   const r = GRUPOS[GID_ABIERTO].respuestas[rid]; if (!r) return;
   const rows = columnasForm(GRUPOS[GID_ABIERTO]).filter(c => r[c.id] != null && r[c.id] !== '').map(c => `<dt>${esc(c.etiqueta)}</dt><dd>${esc(valorTxt(r, c))}</dd>`).join('');
   const ts = r.ts ? new Date(r.ts).toLocaleString('de-DE') : '';
-  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl>${tipoFichaHtml(rid, r)}${cobroFichaHtml(rid, r)}${vincHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl>${tipoFichaHtml(rid, r)}${medioFichaHtml(rid, r)}${cobroFichaHtml(rid, r)}${vincHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
 function cerrarModal(){ document.getElementById('modal-root').innerHTML = ''; }
 
