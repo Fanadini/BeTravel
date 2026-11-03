@@ -734,7 +734,7 @@ function verPlanPagos(){
     <div class="hint">Cuotas sobre el total de cada pasajero (aéreo + hotel + ajustes). Los pasajeros marcados "Lo cubren los novios" se suman aparte.</div>
     ${selectorMedio(g, 'setPlanMedio(this.value)', PLAN_MEDIO) ? `<div class="filtros" style="align-items:center"><span>Medio de pago:</span>${selectorMedio(g, 'setPlanMedio(this.value)', PLAN_MEDIO)}${PLAN_MEDIO ? '<span class="hint" style="margin:0">Los totales corresponden solo a los pasajeros filtrados.</span>' : ''}</div>` : ''}
     <div class="filtros" style="align-items:center">${cuotas.map((c, i) => `<span>Cuota ${i + 1}: <input type="number" step="0.01" id="pl-pct-${i}" value="${c.pct}" style="width:70px"> % el <input type="date" id="pl-fec-${i}" value="${esc(c.fecha)}" style="width:auto"></span>`).join('')}
-      <button class="btn small" onclick="guardarCuotas(${cuotas.length})">Guardar plan</button>${Math.abs(suma - 100) > 0.001 ? `<span class="pill bad">Suman ${suma}%, deberían sumar 100%</span>` : ''}</div>
+      <button class="btn small" onclick="guardarCuotas(${cuotas.length})">Guardar plan</button>${Math.abs(suma - 100) > 0.05 ? `<span class="pill bad">Suman ${suma}%, deberían sumar 100%</span>` : ''}</div>
     <div class="lista" style="margin-top:8px">${htmlPlanTabla(g)}</div>
     <div class="row-btns" style="justify-content:flex-end;margin-top:10px"><button class="btn outline small" onclick="imprimir('plan')">Imprimir / PDF</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
@@ -970,19 +970,35 @@ function escucharCompromisos(){
 }
 const cbase = () => `finanzas/compromisosGrupo/${GID_ABIERTO}`;
 const hoyISO = () => new Date().toISOString().slice(0, 10);
+// El monto de una cuota sale del % del total, salvo que se haya fijado a mano (monto)
+const cuotaMonto = (p, c) => (c.monto != null && c.monto !== '') ? Number(c.monto) || 0 : (Number(p.total) || 0) * (Number(c.pct) || 0) / 100;
 const nCuotas = p => Object.entries(p.cuotas || {}).map(([cid, c]) => ({ cid, ...c }));
 function addProv(){ db.ref(cbase()).push({ nombre: '', tipo: 'Aéreo', moneda: (GRUPOS[GID_ABIERTO].meta.precios || {}).moneda || 'USD', total: 0, ts: Date.now() }).catch(handleWriteError); }
 function delProv(pid){ if (confirm('¿Quitar este proveedor y sus cuotas?')) db.ref(`${cbase()}/${pid}`).remove().catch(handleWriteError); }
-function setProv(pid, campo, valor){ db.ref(`${cbase()}/${pid}/${campo}`).set(campo === 'total' ? (parseFloat(valor) || 0) : valor).catch(handleWriteError); }
+function setProv(pid, campo, valor){
+  if (campo !== 'total'){ db.ref(`${cbase()}/${pid}/${campo}`).set(valor).catch(handleWriteError); return; }
+  const t = parseFloat(valor) || 0, p = (COMPROMISOS[GID_ABIERTO] || {})[pid] || {}, up = {};
+  up[`${cbase()}/${pid}/total`] = t;
+  nCuotas(p).forEach(c => { if (c.monto != null && c.monto !== '' && t > 0) up[`${cbase()}/${pid}/cuotas/${c.cid}/pct`] = Math.round(Number(c.monto) / t * 10000) / 100; });   // las cuotas con monto fijo recalculan su %
+  db.ref().update(up).catch(handleWriteError);
+}
 function addCuota(pid){
   const p = (COMPROMISOS[GID_ABIERTO] || {})[pid] || {}, resto = Math.max(0, Math.round((100 - nCuotas(p).reduce((a, c) => a + (Number(c.pct) || 0), 0)) * 100) / 100);
   db.ref(`${cbase()}/${pid}/cuotas`).push({ pct: resto, fecha: '', pagado: false }).catch(handleWriteError);
 }
 function delCuota(pid, cid){ db.ref(`${cbase()}/${pid}/cuotas/${cid}`).remove().catch(handleWriteError); }
-function setCuota(pid, cid, campo, valor){ db.ref(`${cbase()}/${pid}/cuotas/${cid}/${campo}`).set(campo === 'pct' ? (parseFloat(valor) || 0) : campo === 'pagado' ? !!valor : valor).catch(handleWriteError); }
+function setCuota(pid, cid, campo, valor){
+  const b = `${cbase()}/${pid}/cuotas/${cid}`, p = (COMPROMISOS[GID_ABIERTO] || {})[pid] || {}, up = {};
+  if (campo === 'pct'){ up[b + '/pct'] = parseFloat(valor) || 0; up[b + '/monto'] = null; }   // editar el % vuelve a calcular el monto
+  else if (campo === 'monto'){
+    if (valor === '' || valor == null){ up[b + '/monto'] = null; }
+    else { const m = parseFloat(valor) || 0; up[b + '/monto'] = m; if (Number(p.total) > 0) up[b + '/pct'] = Math.round(m / Number(p.total) * 10000) / 100; }
+  } else up[b + '/' + campo] = campo === 'pagado' ? !!valor : valor;
+  db.ref().update(up).catch(handleWriteError);
+}
 function resumenCompromisos(g){
   const provs = Object.entries(COMPROMISOS[GID_ABIERTO] || {}).map(([pid, p]) => ({ pid, ...p })).sort((a, b) => (a.ts || 0) - (b.ts || 0)), tot = {};
-  provs.forEach(p => { const m = p.moneda || 'USD', t = tot[m] = tot[m] || { comp: 0, pag: 0 }; nCuotas(p).forEach(c => { const v = (Number(p.total) || 0) * (Number(c.pct) || 0) / 100; t.comp += v; if (c.pagado) t.pag += v; }); });
+  provs.forEach(p => { const m = p.moneda || 'USD', t = tot[m] = tot[m] || { comp: 0, pag: 0 }; nCuotas(p).forEach(c => { const v = cuotaMonto(p, c); t.comp += v; if (c.pagado) t.pag += v; }); });
   return { provs, tot };
 }
 let COMP_CARD_PLEG = false; const COMP_PLEG = new Set();
@@ -1004,7 +1020,7 @@ function htmlCompromisos(g){
     const cs = nCuotas(p), suma = cs.reduce((a, c) => a + (Number(c.pct) || 0), 0), m = p.moneda || 'USD';
     const pl = COMP_PLEG.has(p.pid), pagadas = cs.filter(c => c.pagado).length, prox = cs.filter(c => !c.pagado && c.fecha).map(c => c.fecha).sort()[0];
     if (pl){
-      h += `<div class="card" style="margin:8px 0 0;cursor:pointer" onclick="togglePlegarComp('${esc(p.pid)}')" title="Desplegar"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="color:var(--teal)">▸</span><strong>${esc(p.nombre || 'Proveedor sin nombre')}</strong><span class="pill">${esc(p.tipo || '')}</span><span>${moneyG(p.total || 0, m)}</span><span class="hint" style="margin:0">${pagadas} de ${cs.length} cuota${cs.length === 1 ? '' : 's'} pagada${pagadas === 1 ? '' : 's'}${prox ? ' · próxima ' + esc(fmtFecha(prox)) : ''}</span>${Math.abs(suma - 100) > 0.001 && cs.length ? '<span class="pill warn">' + suma + '%</span>' : ''}${cs.some(c => !c.pagado && c.fecha && c.fecha < hoy) ? '<span class="pill bad">vencida</span>' : ''}</div></div>`;
+      h += `<div class="card" style="margin:8px 0 0;cursor:pointer" onclick="togglePlegarComp('${esc(p.pid)}')" title="Desplegar"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="color:var(--teal)">▸</span><strong>${esc(p.nombre || 'Proveedor sin nombre')}</strong><span class="pill">${esc(p.tipo || '')}</span><span>${moneyG(p.total || 0, m)}</span><span class="hint" style="margin:0">${pagadas} de ${cs.length} cuota${cs.length === 1 ? '' : 's'} pagada${pagadas === 1 ? '' : 's'}${prox ? ' · próxima ' + esc(fmtFecha(prox)) : ''}</span>${Math.abs(suma - 100) > 0.05 && cs.length ? '<span class="pill warn">' + suma + '%</span>' : ''}${cs.some(c => !c.pagado && c.fecha && c.fecha < hoy) ? '<span class="pill bad">vencida</span>' : ''}</div></div>`;
       return;
     }
     h += `<div class="card" style="margin:8px 0 0"><div class="filtros" style="align-items:center"><span class="pleg-t" style="cursor:pointer;color:var(--teal)" onclick="togglePlegarComp('${esc(p.pid)}')" title="Plegar">▾</span>`
@@ -1017,11 +1033,11 @@ function htmlCompromisos(g){
       h += '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th>Cuota</th><th style="width:90px">%</th><th>Fecha de pago</th><th class="num">Monto</th><th>Pagada</th><th></th></tr></thead><tbody>'
         + cs.map((c, i) => { const venc = !c.pagado && c.fecha && c.fecha < hoy; return `<tr><td>${i + 1}</td><td><input type="number" step="0.01" value="${esc(c.pct)}" onchange="setCuota('${esc(p.pid)}','${esc(c.cid)}','pct',this.value)" style="width:80px"></td>`
           + `<td><input type="date" value="${esc(c.fecha || '')}" onchange="setCuota('${esc(p.pid)}','${esc(c.cid)}','fecha',this.value)" style="width:auto">${c.fecha ? '' : ' <span class="hint" style="margin:0">sin fecha</span>'}${venc ? ' <span class="pill bad">vencida</span>' : ''}</td>`
-          + `<td class="num">${moneyG((Number(p.total) || 0) * (Number(c.pct) || 0) / 100, m)}</td><td><input type="checkbox" ${c.pagado ? 'checked' : ''} onchange="setCuota('${esc(p.pid)}','${esc(c.cid)}','pagado',this.checked)"></td>`
+          + `<td class="num"><input type="number" step="0.01" value="${esc(Math.round(cuotaMonto(p, c) * 100) / 100)}" onchange="setCuota('${esc(p.pid)}','${esc(c.cid)}','monto',this.value)" style="width:120px;text-align:right" title="Monto de la cuota: si lo cambiás, se recalcula el %"></td><td><input type="checkbox" ${c.pagado ? 'checked' : ''} onchange="setCuota('${esc(p.pid)}','${esc(c.cid)}','pagado',this.checked)"></td>`
           + `<td><button class="btn outline small" onclick="delCuota('${esc(p.pid)}','${esc(c.cid)}')">✕</button></td></tr>`; }).join('') + '</tbody></table>';
     }
     h += `<div class="filtros" style="align-items:center;margin-top:6px"><button class="btn outline small" onclick="addCuota('${esc(p.pid)}')">+ Agregar cuota</button>`
-      + (cs.length ? `<span class="hint" style="margin:0">${suma}% asignado</span>${Math.abs(suma - 100) > 0.001 ? `<span class="pill ${suma > 100 ? 'bad' : 'warn'}">${suma > 100 ? 'Pasa de 100%' : 'Falta ' + Math.round((100 - suma) * 100) / 100 + '% por asignar'}</span>` : ''}` : '') + '</div></div>';
+      + (cs.length ? `<span class="hint" style="margin:0">${suma}% asignado</span>${Math.abs(suma - 100) > 0.05 ? `<span class="pill ${suma > 100 ? 'bad' : 'warn'}">${suma > 100 ? 'Pasa de 100%' : 'Falta ' + Math.round((100 - suma) * 100) / 100 + '% por asignar'}</span>` : ''}` : '') + '</div></div>';
   });
   return h + `<div style="margin-top:8px"><button class="btn small" onclick="addProv()">+ Agregar proveedor</button></div></div>`;
 }
