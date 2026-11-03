@@ -408,7 +408,7 @@ function nuevoGrupo(){
   GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email, form: limpiarForm(window.FORM_DEFAULT) })
     .then(() => { IDX_REF.child(gid).set({ nombre }).catch(() => {}); abrirGrupo(gid); }, handleWriteError);
 }
-function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'' }; SEL_LABEL = ''; HAB_TIPO = ''; HAB_Q = ''; PLAN_MEDIO = ''; PLAN_VISTA = 'pax'; PLAN_CUB = ''; COLAPSADAS.clear(); render(); }
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'', ast:'' }; SEL_LABEL = ''; HAB_TIPO = ''; HAB_Q = ''; PLAN_MEDIO = ''; PLAN_VISTA = 'pax'; PLAN_CUB = ''; COLAPSADAS.clear(); render(); }
 function volverLista(){ GID_ABIERTO = null; render(); }
 function setTab(t){ if (TAB === 'form' && t !== 'form' && DIRTY && !confirm('Hay cambios sin guardar en el formulario. ¿Salir igualmente?')) return; TAB = t; FORM_RENDER = true; render(); }
 function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
@@ -842,8 +842,8 @@ function cobroFichaHtml(rid, r){
       <input type="text" placeholder="Motivo del ajuste" value="${esc(c.nota || '')}" style="flex:1;min-width:180px" onchange="setCobro('${esc(rid)}','nota',this.value.trim())"></div></div>`;
 }
 let SEL_LABEL = '';
-let FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'' };
-const FILTRO_VACIO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'' };
+let FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'', ast:'' };
+const FILTRO_VACIO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'', ast:'' };
 const nFiltros = () => Object.values(FILTRO).filter(v => v !== '' && v != null).length;
 function pintarBotonFiltros(){
   const b = document.getElementById('btn-limpiar'); if (!b) return;
@@ -862,6 +862,7 @@ function tablaResp(g){
     if (qt.length){ const hay = norm([r.nombre, r.apellido, r.pasaporte, r.nacionalidad, r.email, r.compartiCon, comp ? nombreDe(comp) : ''].join(' ')); if (!qt.every(t => hay.includes(t))) return false; }
     if (FILTRO.sel && !FILTRO.sel.split(',').includes(rid)) return false;
     if (FILTRO.aer && (FILTRO.aer === 'sin') !== !!((g.cobros || {})[rid] || {}).sinAereo) return false;
+    if (FILTRO.ast && (FILTRO.ast === 'sin') !== !!((g.cobros || {})[rid] || {}).sinAssist) return false;
     if (FILTRO.cub){ const cu = !!((g.cobros || {})[rid] || {}).cubierto; if ((FILTRO.cub === 'si') !== cu) return false; }
     if (FILTRO.vinc === 'ok' && v.cls !== 'ok') return false;
     if (FILTRO.vinc === 'pend' && v.cls !== 'bad' && v.cls !== 'warn') return false;
@@ -1102,6 +1103,7 @@ function htmlResumen(g){
   const noNinguna = k => idsNo(k).length;
   const qPago = preguntasPago(g), eleccion = {};
   ids.forEach(id => eleccionPago(resps[id], qPago).forEach(v => { eleccion[v] = (eleccion[v] || 0) + 1; }));
+  const sinAst = ids.filter(id => ((g.cobros || {})[id] || {}).sinAssist);
   const fila = (et, val, accion) => `<div class="ocu"><div class="nom">${et}</div><div style="display:flex;align-items:center;gap:10px"><strong>${val}</strong>${accion ? `<button class="btn outline small" onclick="${accion}">Ver</button>` : ''}</div></div>`;
   const aviso = (cond, texto, tipo, accion) => cond ? `<div class="alertas ${tipo === 'bad' ? 'red' : ''}" style="padding:4px 0;display:flex;align-items:center;gap:8px;justify-content:space-between"><span>${texto}</span>${accion ? `<button class="btn outline small" onclick="${accion}">Ver</button>` : ''}</div>` : '';
   const vs = (label, arr) => arr.length ? `verSel('${label}','${arr.join(',')}')` : '';
@@ -1111,6 +1113,7 @@ function htmlResumen(g){
     + fila('Respuestas recibidas', `${n}${invitados.length ? ' de ' + invitados.length : ''}`, "irA('resp')")
     + (invitados.length ? fila('Pendientes de responder', faltan.length, faltan.length ? "setTab('cfg')" : '') + (faltan.length ? `<div class="hint" style="margin:2px 0 6px">${faltan.slice(0, 8).map(esc).join(' · ')}${faltan.length > 8 ? ' · +' + (faltan.length - 8) : ''}</div>` : '') : '')
     + fila('Adultos (ADT)', cuenta.ADT, cuenta.ADT ? "irA('resp',{tipo:'ADT'})" : '') + fila('Niños (CHD)', cuenta.CHD, cuenta.CHD ? "irA('resp',{tipo:'CHD'})" : '') + fila('Infantes (INF)', cuenta.INF, cuenta.INF ? "irA('resp',{tipo:'INF'})" : '')
+    + fila('No necesitan assist card', sinAst.length, sinAst.length ? vs('No necesitan assist card', sinAst) : '')
     + aviso(cuenta.sin, `${cuenta.sin} sin fecha de nacimiento: no se pueden clasificar.`, 'warn', vs('Sin fecha de nacimiento', ids.filter(id => !resps[id].nacimiento))) + `</div>`;
 
   // Vuelos: pasajeros que necesitan aéreo = todos menos los marcados "No incluye aéreo"; separados por tipo
@@ -1175,6 +1178,7 @@ function htmlRespuestas(g){
     <select onchange="setFiltro('hab',this.value)">${opt('', 'Todas las habitaciones', FILTRO.hab)}${opt('sin', 'Sin asignar', FILTRO.hab)}${Array.from({ length: nHab }, (_, i) => opt(String(i + 1), 'Hab. ' + (i + 1), FILTRO.hab)).join('')}</select>
     ${hayPagos(GID_ABIERTO) ? `<select onchange="setFiltro('pago',this.value)">${opt('', 'Todos los pagos', FILTRO.pago)}${opt('con', 'Con pagos', FILTRO.pago)}${opt('sin', 'Sin pagos', FILTRO.pago)}</select>` : ''}
     <select onchange="setFiltro('tipo',this.value)" title="Tipo de pasajero">${opt('', 'ADT, CHD e INF', FILTRO.tipo)}${opt('ADT', 'Adultos (ADT)', FILTRO.tipo)}${opt('CHD', 'Niños (CHD)', FILTRO.tipo)}${opt('INF', 'Infantes (INF)', FILTRO.tipo)}${opt('-', 'Sin fecha de nacimiento', FILTRO.tipo)}</select>
+    <select onchange="setFiltro('ast',this.value)" title="Assist card">${opt('', 'Con y sin assist card', FILTRO.ast)}${opt('con', 'Necesitan assist card', FILTRO.ast)}${opt('sin', 'No necesitan assist card', FILTRO.ast)}</select>
     ${tieneCobros(g) ? `<select onchange="setFiltro('cub',this.value)" title="Quién paga">${opt('', 'Todos (cubran o no los novios)', FILTRO.cub)}${opt('si', 'Los cubren los novios', FILTRO.cub)}${opt('no', 'No los cubren los novios', FILTRO.cub)}</select><select onchange="setFiltro('aer',this.value)" title="Aéreo">${opt('', 'Con y sin aéreo', FILTRO.aer)}${opt('con', 'Con aéreo', FILTRO.aer)}${opt('sin', 'Sin aéreo', FILTRO.aer)}</select>` : ''}
     ${tieneCobros(g) && veSaldo() ? `<select onchange="setFiltro('saldo',this.value)" title="Saldo">${opt('', 'Todos los saldos', FILTRO.saldo)}${opt('con', 'Con saldo pendiente', FILTRO.saldo)}${opt('ok', 'Al día', FILTRO.saldo)}${opt('falta', 'Con datos faltantes', FILTRO.saldo)}</select>` : ''}
     ${selectorMedio(g)}
@@ -1202,6 +1206,11 @@ function medioFichaHtml(rid, r){
 function guardarMedioResp(rid, qid, vaciar){
   const v = vaciar ? [] : [...document.querySelectorAll(`#mp-${CSS.escape(qid)} input:checked`)].map(i => i.value);
   GRUPOS_REF.child(`${GID_ABIERTO}/respuestas/${rid}/${qid}`).set(v.length ? v.join(', ') : null).then(() => verRespuesta(rid), handleWriteError);
+}
+// Assist card: solo una marca informativa ("no la necesita"); no afecta ningún valor ni cálculo
+function assistFichaHtml(rid){
+  const c = ((GRUPOS[GID_ABIERTO].cobros || {})[rid]) || {};
+  return `<div class="card" style="margin:0 0 12px"><h3>Assist card</h3><label class="chk"><input type="checkbox" ${c.sinAssist ? 'checked' : ''} onchange="setCobro('${esc(rid)}','sinAssist',this.checked)"> No necesita assist card</label><div class="hint" style="margin:4px 0 0">Es solo una marca: no cambia lo que paga.</div></div>`;
 }
 function tipoFichaHtml(rid, r){
   const g = GRUPOS[GID_ABIERTO], ref = refViaje(g), x = tipoPax(g, rid, r, ref), man = (g.tiposPax || {})[rid] || '';
@@ -1301,7 +1310,7 @@ function verRespuesta(rid){
   const r = GRUPOS[GID_ABIERTO].respuestas[rid]; if (!r) return;
   const rows = columnasForm(GRUPOS[GID_ABIERTO]).filter(c => r[c.id] != null && r[c.id] !== '').map(c => `<dt>${esc(c.etiqueta)}</dt><dd>${esc(valorTxt(r, c))}</dd>`).join('');
   const ts = r.ts ? new Date(r.ts).toLocaleString('de-DE') : '';
-  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl>${tipoFichaHtml(rid, r)}${medioFichaHtml(rid, r)}${cobroFichaHtml(rid, r)}${vincHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl>${tipoFichaHtml(rid, r)}${assistFichaHtml(rid)}${medioFichaHtml(rid, r)}${cobroFichaHtml(rid, r)}${vincHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
 function cerrarModal(){ document.getElementById('modal-root').innerHTML = ''; }
 
