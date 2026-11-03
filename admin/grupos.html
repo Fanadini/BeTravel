@@ -717,6 +717,28 @@ function calcPlan(g){
   return { cuotas, mon, filas, propios: suma(filas.filter(f => !f.cub)), novios: suma(filas.filter(f => f.cub)), todos: suma(filas) };
 }
 const cuentaPax = fs => { const c = { ADT:0, CHD:0, INF:0, sin:0 }; fs.forEach(f => { f.t ? c[f.t]++ : c.sin++; }); return `${fs.length} persona${fs.length === 1 ? '' : 's'}: ${c.ADT} ADT · ${c.CHD} CHD · ${c.INF} INF${c.sin ? ' · ' + c.sin + ' sin clasificar' : ''}`; };
+function exportarPlanExcel(){
+  const g = GRUPOS[GID_ABIERTO], P = calcPlan(g), asg = asignaciones(g), N = P.cuotas.length, mon = P.mon;
+  const cab = P.cuotas.map((c, i) => `Cuota ${i + 1} · ${c.pct}%${c.fecha ? ' · ' + fmtFecha(c.fecha) : ''} (${mon})`);
+  const r2 = x => Math.round(x * 100) / 100, suma = fs => ({ total: fs.reduce((a, f) => a + f.total, 0), cuotas: P.cuotas.map((_, i) => fs.reduce((a, f) => a + f.cuotas[i], 0)) });
+  const fila = f => [f.r.apellido, f.r.nombre, f.t || '', asg[f.rid] ? asg[f.rid].n : '', asg[f.rid] ? asg[f.rid].h.tipo : '', f.cub ? 'Sí' : 'No', r2(f.total), ...f.cuotas.map(r2)];
+  const tot = (et, fs) => { const o = suma(fs); return [et, `${fs.length} personas`, '', '', '', '', r2(o.total), ...o.cuotas.map(r2)]; };
+  const filtros = [PLAN_MEDIO ? 'medio de pago: ' + PLAN_MEDIO.slice(2) : '', PLAN_CUB ? (PLAN_CUB === 'si' ? 'solo cubiertos por los novios' : 'solo no cubiertos por los novios') : ''].filter(Boolean).join(' · ');
+  const pax = P.filas.map(fila).concat([[], tot('Pagan por su cuenta', P.filas.filter(f => !f.cub)), tot('Cubren los novios', P.filas.filter(f => f.cub)), tot('TOTAL', P.filas)]);
+  const porRid = Object.fromEntries(P.filas.map(f => [f.rid, f]));
+  const habs = listaHab(g).map(([, h], i) => ({ n: i + 1, h, fs: Object.keys(h.pasajeros || {}).map(x => porRid[x]).filter(Boolean) })).filter(x => x.fs.length);
+  const sinH = P.filas.filter(f => !asg[f.rid]);
+  const nomf = f => `${f.r.apellido}, ${f.r.nombre}${f.t && f.t !== 'ADT' ? ' (' + f.t + ')' : ''}`;
+  const filaH = (n, tipo, fs) => { const pr = fs.filter(f => !f.cub), nv = fs.filter(f => f.cub), o = suma(pr); return [n, tipo, fs.length, pr.map(nomf).join(' / ') || 'Cubierta por los novios', nv.map(nomf).join(' / '), r2(o.total), ...o.cuotas.map(r2)]; };
+  const hab = habs.map(x => filaH(x.n, x.h.tipo, x.fs)).concat(sinH.length ? [filaH('—', 'Sin habitación', sinH)] : []).concat([[], ['TOTAL a cobrar a los pasajeros', '', P.filas.length, '', '', r2(P.propios.total), ...P.propios.cuotas.map(r2)], ['A cargo de los novios', '', P.filas.filter(f => f.cub).length, '', '', r2(P.novios.total), ...P.novios.cuotas.map(r2)]]);
+  const blob = armarXlsx([
+    { nombre:'Por pasajero', cabecera:['Apellido', 'Nombre', 'ADT/CHD/INF', 'Hab.', 'Tipo de habitación', 'Lo cubren los novios', `Total (${mon})`, ...cab], filas: pax },
+    { nombre:'Por habitación', cabecera:['Hab.', 'Tipo', 'Personas', 'Pasajeros que pagan', 'Los cubren los novios', `Total (${mon})`, ...cab], filas: hab },
+  ]);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'Plan_de_pagos_' + (g.meta.nombre || 'grupo').replace(/[^\w\-]+/g, '_') + (filtros ? '_filtrado' : '') + '.xlsx';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
 function htmlPlanTabla(g){
   const P = calcPlan(g), m = x => moneyG(x, P.mon), N = P.cuotas.length;
   if ((PLAN_MEDIO || PLAN_CUB) && !P.filas.length) return `<div class="vacio">Ningún pasajero coincide con los filtros.</div>`;
@@ -755,7 +777,7 @@ function verPlanPagos(){
     <div class="filtros" style="align-items:center">${cuotas.map((c, i) => `<span>Cuota ${i + 1}: <input type="number" step="0.01" id="pl-pct-${i}" value="${c.pct}" style="width:70px"> % el <input type="date" id="pl-fec-${i}" value="${esc(c.fecha)}" style="width:auto"></span>`).join('')}
       <button class="btn small" onclick="guardarCuotas(${cuotas.length})">Guardar plan</button>${Math.abs(suma - 100) > 0.05 ? `<span class="pill bad">Suman ${suma}%, deberían sumar 100%</span>` : ''}</div>
     <div class="lista" style="margin-top:8px">${htmlPlanTabla(g)}</div>
-    <div class="row-btns" style="justify-content:flex-end;margin-top:10px"><button class="btn outline small" onclick="imprimir('plan')">Imprimir / PDF</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+    <div class="row-btns" style="justify-content:flex-end;margin-top:10px"><button class="btn outline small" onclick="exportarPlanExcel()">Descargar Excel</button><button class="btn outline small" onclick="imprimir('plan')">Imprimir / PDF</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
 function guardarCuotas(n){
   const arr = [];
@@ -1643,7 +1665,7 @@ const xmlEsc = s => String(s == null ? '' : s).replace(/[\u0000-\u0008\u000B\u00
 function hojaXml(cabecera, filas){
   const todas = [cabecera, ...filas];
   const anchos = cabecera.map((_, c) => Math.min(48, Math.max(10, ...todas.map(f => String(f[c] == null ? '' : f[c]).split('\n').reduce((m, l) => Math.max(m, l.length), 0))) + 2));
-  const celda = (v, r, c, s) => `<c r="${colLetra(c)}${r}" t="inlineStr"${s ? ` s="${s}"` : ''}><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+  const celda = (v, r, c, s) => typeof v === 'number' && isFinite(v) ? `<c r="${colLetra(c)}${r}"${s ? ` s="${s}"` : ''}><v>${v}</v></c>` : `<c r="${colLetra(c)}${r}" t="inlineStr"${s ? ` s="${s}"` : ''}><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
   const rows = todas.map((f, i) => `<row r="${i + 1}">` + f.map((v, c) => celda(v, i + 1, c, i === 0 ? 1 : 2)).join('') + '</row>').join('');
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
     + '<cols>' + anchos.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + `</cols><sheetData>${rows}</sheetData></worksheet>`;
