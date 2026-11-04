@@ -1229,6 +1229,13 @@ function assistFichaHtml(rid){
   const c = ((GRUPOS[GID_ABIERTO].cobros || {})[rid]) || {};
   return `<div class="card" style="margin:0 0 12px"><h3>Assist card</h3><label class="chk"><input type="checkbox" ${c.sinAssist ? 'checked' : ''} onchange="setCobro('${esc(rid)}','sinAssist',this.checked)"> No necesita assist card</label><div class="hint" style="margin:4px 0 0">Es solo una marca: no cambia lo que paga.</div></div>`;
 }
+// Comentarios libres: por pasajero (grupos/{id}/notasPax/{rid}) y por habitación (habitaciones/{hid}/nota)
+const notaPax = (g, rid) => ((g.notasPax || {})[rid] || '');
+function setNotaPax(rid, v){ GRUPOS_REF.child(`${GID_ABIERTO}/notasPax/${rid}`).set(v.trim() ? v.trim().slice(0, 1000) : null).then(() => verRespuesta(rid), handleWriteError); }
+function setNotaHab(hid, v){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}/nota`).set(v.trim() ? v.trim().slice(0, 1000) : null).catch(handleWriteError); }
+function notaFichaHtml(rid){
+  return `<div class="card" style="margin:0 0 12px"><h3>Comentarios</h3><textarea rows="3" style="width:100%" placeholder="Notas libres sobre este pasajero (se guardan al salir del campo)" onchange="setNotaPax('${esc(rid)}', this.value)">${esc(notaPax(GRUPOS[GID_ABIERTO], rid))}</textarea></div>`;
+}
 function tipoFichaHtml(rid, r){
   const g = GRUPOS[GID_ABIERTO], ref = refViaje(g), x = tipoPax(g, rid, r, ref), man = (g.tiposPax || {})[rid] || '';
   return `<div class="card" style="margin:0 0 12px"><h3>Tipo de pasajero: ${x.t || 'sin dato'}</h3><div class="hint">${x.edad != null ? esc(x.edad + ' año' + (x.edad === 1 ? '' : 's') + ' al ' + fmtFecha(ref.fecha)) : 'Falta la fecha de nacimiento.'} Si la aerolínea lo clasifica distinto, corregilo acá.</div>
@@ -1327,7 +1334,7 @@ function verRespuesta(rid){
   const r = GRUPOS[GID_ABIERTO].respuestas[rid]; if (!r) return;
   const rows = columnasForm(GRUPOS[GID_ABIERTO]).filter(c => r[c.id] != null && r[c.id] !== '').map(c => `<dt>${esc(c.etiqueta)}</dt><dd>${esc(valorTxt(r, c))}</dd>`).join('');
   const ts = r.ts ? new Date(r.ts).toLocaleString('de-DE') : '';
-  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl>${tipoFichaHtml(rid, r)}${assistFichaHtml(rid)}${medioFichaHtml(rid, r)}${cobroFichaHtml(rid, r)}${vincHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl>${tipoFichaHtml(rid, r)}${notaFichaHtml(rid)}${assistFichaHtml(rid)}${medioFichaHtml(rid, r)}${cobroFichaHtml(rid, r)}${vincHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
 function cerrarModal(){ document.getElementById('modal-root').innerHTML = ''; }
 
@@ -1395,6 +1402,7 @@ function htmlHabitaciones(g){
       + `<span class="chev">${col ? '▸' : '▾'}</span>` + (hay ? `<span onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:4px">Hab. <input type="number" class="hab-num" min="1" max="${lista.length}" value="${i + 1}" title="Número de habitación: cambialo para moverla a ese lugar" onchange="moverHab('${esc(hid)}', this.value)"></span>` : `<span>Hab. ${i + 1}</span>`) + pillOcupacion(h, ids)
       + (conCobrosH && ids.length ? (() => { const t = totalHab(ids); return `<span class="pill" title="Suma de lo que paga cada pasajero de la habitación (aéreo, hotel y ajustes)${t.falta ? '. Faltan datos de algún pasajero' : ''}">Total ${moneyG(t.total, t.mon)}${t.falta ? ' *' : ''}</span>` + (conSaldoH ? (t.saldo <= 0.005 && !t.falta ? '<span class="pill ok">Al día</span>' : `<span class="pill ${t.saldo < t.total - 0.005 ? 'warn' : 'bad'}" title="Saldo pendiente de la habitación">Saldo ${moneyG(t.saldo, t.mon)}</span>`) : ''); })() : '')
       + (col ? `<span class="hab-res">${esc(nombres) || 'Sin ocupantes'}</span>` : '') + '<span class="grow"></span>'
+      + (h.nota ? `<span class="pill" title="${esc(h.nota)}">Nota</span>` : '')
       + (al.length ? `<span class="pill warn" title="${esc(al.join('\n'))}">⚠ ${al.length}</span>` : '')
       + '<span style="display:flex;gap:8px;align-items:center" onclick="event.stopPropagation()">'
       + (hay ? `<select onchange="cambiarTipo('${esc(hid)}', this.value)">${TIPOS.map(t => `<option ${t === h.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select>` : `<span class="pill">${esc(h.tipo)}</span>`)
@@ -1403,10 +1411,11 @@ function htmlHabitaciones(g){
       + (hay && !ids.length ? `<button class="btn danger small" onclick="borrarHabitacion('${esc(hid)}')">Eliminar</button>` : '') + '</span></div>';
     if (!col){
       html += '<div class="hab-body">';
+      if (hay) html += `<div style="padding:4px 0 8px"><textarea rows="2" style="width:100%" placeholder="Comentarios de la habitación (se guardan al salir del campo)" onchange="setNotaHab('${esc(hid)}', this.value)">${esc(h.nota || '')}</textarea></div>`;
       if (!ids.length) html += '<div class="vacio" style="padding:10px">Sin ocupantes</div>';
       ids.forEach(rid => {
         const r = resps[rid];
-        html += `<div class="ocu"><div class="nom"><strong class="lnk" onclick="verRespuesta('${esc(rid)}')" title="Ver todos los datos">${esc(r.apellido)}, ${esc(r.nombre)}</strong> ${pillTipo(g, rid, r, refH)}<div class="sub">${esc(r.tipoCama || '')}${r.restricciones && !/^ninguna?\.?$/i.test(r.restricciones.trim()) ? ' · ' + esc(r.restricciones) : ''}</div></div>`
+        html += `<div class="ocu"><div class="nom"><strong class="lnk" onclick="verRespuesta('${esc(rid)}')" title="Ver todos los datos">${esc(r.apellido)}, ${esc(r.nombre)}</strong> ${pillTipo(g, rid, r, refH)}<div class="sub">${esc(r.tipoCama || '')}${notaPax(g, rid) ? ' · Nota: ' + esc(notaPax(g, rid)) : ''}${r.restricciones && !/^ninguna?\.?$/i.test(r.restricciones.trim()) ? ' · ' + esc(r.restricciones) : ''}</div></div>`
           + (hay ? `<select onchange="moverPasajero('${esc(rid)}', this.value)">${roomOptions(hid)}</select>` : '') + '</div>';
       });
       html += '</div>' + (al.length ? `<div class="alertas">${al.map(a => '• ' + esc(a)).join('<br>')}</div>` : '');
@@ -1656,7 +1665,7 @@ function filasHabitaciones(g){
   const resps = g.respuestas || {}, filas = [], asignados = new Set();
   listaHab(g).forEach(([, h], i) => {
     const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]), cama = camaHab(h, resps);
-    ids.forEach(x => { asignados.add(x); filas.push({ n: i + 1, tipo: h.tipo, cama, primero: filas.length === 0 || filas[filas.length - 1].n !== i + 1, r: resps[x], rid: x }); });
+    ids.forEach(x => { asignados.add(x); filas.push({ hnota: h.nota || '', n: i + 1, tipo: h.tipo, cama, primero: filas.length === 0 || filas[filas.length - 1].n !== i + 1, r: resps[x], rid: x }); });
   });
   Object.keys(resps).filter(x => !asignados.has(x)).forEach(x => filas.push({ n:'—', tipo:'Sin asignar', cama:'', primero:true, r: resps[x], rid: x }));
   return filas;
@@ -1715,12 +1724,12 @@ function exportarExcel(){
 const conPagos = hayPagos(GID_ABIERTO), pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {}, qPagoX = preguntasPago(g);
   const refX = refViaje(g);
   const conCobrosX = tieneCobros(g), asgX = asg;
-  const pax = respuestasOrdenadas(g).map(([rid, r]) => [tipoPax(g, rid, r, refX).t, ...cols.map(c => valorTxt(r, c)), asg[rid] ? asg[rid].n : '', asg[rid] ? asg[rid].h.tipo : '', asg[rid] ? camaHab(asg[rid].h, resps) : '', ...(conPagos ? [pp[rid] ? totTxt(pp[rid].tot) : 'Sin pagos'] : []), ...(qPagoX.length ? [eleccionPago(r, qPagoX).join(', ')] : []), ...(conCobrosX ? (c => veSaldo() ? [c.aereo, c.hotel, c.ajuste, c.total, c.pagado, c.saldo] : [c.aereo, c.hotel, c.ajuste, c.total])(cobroDe(g, rid, r, refX, asgX, pp)) : [])]);
+  const pax = respuestasOrdenadas(g).map(([rid, r]) => [tipoPax(g, rid, r, refX).t, ...cols.map(c => valorTxt(r, c)), asg[rid] ? asg[rid].n : '', asg[rid] ? asg[rid].h.tipo : '', asg[rid] ? camaHab(asg[rid].h, resps) : '', ...(conPagos ? [pp[rid] ? totTxt(pp[rid].tot) : 'Sin pagos'] : []), ...(qPagoX.length ? [eleccionPago(r, qPagoX).join(', ')] : []), ...(conCobrosX ? (c => veSaldo() ? [c.aereo, c.hotel, c.ajuste, c.total, c.pagado, c.saldo] : [c.aereo, c.hotel, c.ajuste, c.total])(cobroDe(g, rid, r, refX, asgX, pp)) : []), notaPax(g, rid)]);
   const refE = refViaje(g);
-  const hab = filasHabitaciones(g).map(f => [f.n, f.tipo, f.cama, f.r.apellido, f.r.nombre, tipoPax(g, f.rid, f.r, refE).t, f.r.pasaporte, fmtFecha(f.r.vencimiento), f.r.restricciones || '', f.r.movilidad || '']);
+  const hab = filasHabitaciones(g).map(f => [f.n, f.tipo, f.cama, f.r.apellido, f.r.nombre, tipoPax(g, f.rid, f.r, refE).t, f.r.pasaporte, fmtFecha(f.r.vencimiento), f.r.restricciones || '', f.r.movilidad || '', f.hnota || '', notaPax(g, f.rid)]);
   const blob = armarXlsx([
-    { nombre:'Pasajeros', cabecera: ['Tipo (ADT/CHD/INF)', ...cols.map(c => c.etiqueta), 'Habitación asignada', 'Tipo de habitación asignada', 'Cama de la habitación', ...(conPagos ? ['Pagos'] : []), ...(qPagoX.length ? ['Medio de pago elegido'] : []), ...(conCobrosX ? (veSaldo() ? ['Aéreo', 'Hotel', 'Ajuste', 'A pagar', 'Pagó', 'Saldo'] : ['Aéreo', 'Hotel', 'Ajuste', 'A pagar']) : [])], filas: pax },
-    { nombre:'Habitaciones', cabecera:['Habitación','Tipo','Cama','Apellido','Nombre','ADT/CHD/INF','Pasaporte','Vencimiento','Restricciones alimentarias','Movilidad / asistencia'], filas: hab },
+    { nombre:'Pasajeros', cabecera: ['Tipo (ADT/CHD/INF)', ...cols.map(c => c.etiqueta), 'Habitación asignada', 'Tipo de habitación asignada', 'Cama de la habitación', ...(conPagos ? ['Pagos'] : []), ...(qPagoX.length ? ['Medio de pago elegido'] : []), ...(conCobrosX ? (veSaldo() ? ['Aéreo', 'Hotel', 'Ajuste', 'A pagar', 'Pagó', 'Saldo'] : ['Aéreo', 'Hotel', 'Ajuste', 'A pagar']) : []), 'Comentarios'], filas: pax },
+    { nombre:'Habitaciones', cabecera:['Habitación','Tipo','Cama','Apellido','Nombre','ADT/CHD/INF','Pasaporte','Vencimiento','Restricciones alimentarias','Movilidad / asistencia','Comentarios de la habitación','Comentarios del pasajero'], filas: hab },
   ]);
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = (g.meta.nombre || 'grupo').replace(/[^\w\-]+/g, '_') + '.xlsx';
