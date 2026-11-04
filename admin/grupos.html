@@ -717,23 +717,28 @@ function calcPlan(g){
   return { cuotas, mon, filas, propios: suma(filas.filter(f => !f.cub)), novios: suma(filas.filter(f => f.cub)), todos: suma(filas) };
 }
 const cuentaPax = fs => { const c = { ADT:0, CHD:0, INF:0, sin:0 }; fs.forEach(f => { f.t ? c[f.t]++ : c.sin++; }); return `${fs.length} persona${fs.length === 1 ? '' : 's'}: ${c.ADT} ADT · ${c.CHD} CHD · ${c.INF} INF${c.sin ? ' · ' + c.sin + ' sin clasificar' : ''}`; };
+// Teléfono de contacto: la pregunta "telefono" del formulario o la primera pregunta de tipo teléfono
+function telDe(g, r){
+  if (r.telefono) return String(r.telefono);
+  const q = listaForm(g.meta).find(x => x.tipo === 'tel'); return q && r[q.id] ? String(r[q.id]) : '';
+}
 function exportarPlanExcel(){
   const g = GRUPOS[GID_ABIERTO], P = calcPlan(g), asg = asignaciones(g), N = P.cuotas.length, mon = P.mon;
   const cab = P.cuotas.map((c, i) => `Cuota ${i + 1} · ${c.pct}%${c.fecha ? ' · ' + fmtFecha(c.fecha) : ''} (${mon})`);
   const r2 = x => Math.round(x * 100) / 100, suma = fs => ({ total: fs.reduce((a, f) => a + f.total, 0), cuotas: P.cuotas.map((_, i) => fs.reduce((a, f) => a + f.cuotas[i], 0)) });
-  const fila = f => [f.r.apellido, f.r.nombre, f.t || '', asg[f.rid] ? asg[f.rid].n : '', asg[f.rid] ? asg[f.rid].h.tipo : '', f.cub ? 'Sí' : 'No', r2(f.total), ...f.cuotas.map(r2)];
-  const tot = (et, fs) => { const o = suma(fs); return [et, `${fs.length} personas`, '', '', '', '', r2(o.total), ...o.cuotas.map(r2)]; };
+  const fila = f => [f.r.apellido, f.r.nombre, telDe(g, f.r), f.t || '', asg[f.rid] ? asg[f.rid].n : '', asg[f.rid] ? asg[f.rid].h.tipo : '', f.cub ? 'Sí' : 'No', r2(f.total), ...f.cuotas.map(r2)];
+  const tot = (et, fs) => { const o = suma(fs); return [et, `${fs.length} personas`, '', '', '', '', '', r2(o.total), ...o.cuotas.map(r2)]; };
   const filtros = [PLAN_MEDIO ? 'medio de pago: ' + PLAN_MEDIO.slice(2) : '', PLAN_CUB ? (PLAN_CUB === 'si' ? 'solo cubiertos por los novios' : 'solo no cubiertos por los novios') : ''].filter(Boolean).join(' · ');
   const pax = P.filas.map(fila).concat([[], tot('Pagan por su cuenta', P.filas.filter(f => !f.cub)), tot('Cubren los novios', P.filas.filter(f => f.cub)), tot('TOTAL', P.filas)]);
   const porRid = Object.fromEntries(P.filas.map(f => [f.rid, f]));
   const habs = listaHab(g).map(([, h], i) => ({ n: i + 1, h, fs: Object.keys(h.pasajeros || {}).map(x => porRid[x]).filter(Boolean) })).filter(x => x.fs.length);
   const sinH = P.filas.filter(f => !asg[f.rid]);
-  const nomf = f => `${f.r.apellido}, ${f.r.nombre}${f.t && f.t !== 'ADT' ? ' (' + f.t + ')' : ''}`;
-  const filaH = (n, tipo, fs) => { const pr = fs.filter(f => !f.cub), nv = fs.filter(f => f.cub), o = suma(pr); return [n, tipo, fs.length, pr.map(nomf).join(' / ') || 'Cubierta por los novios', nv.map(nomf).join(' / '), r2(o.total), ...o.cuotas.map(r2)]; };
-  const hab = habs.map(x => filaH(x.n, x.h.tipo, x.fs)).concat(sinH.length ? [filaH('—', 'Sin habitación', sinH)] : []).concat([[], ['TOTAL a cobrar a los pasajeros', '', P.filas.length, '', '', r2(P.propios.total), ...P.propios.cuotas.map(r2)], ['A cargo de los novios', '', P.filas.filter(f => f.cub).length, '', '', r2(P.novios.total), ...P.novios.cuotas.map(r2)]]);
+  const nomf = f => `${f.r.apellido}, ${f.r.nombre}${f.t && f.t !== 'ADT' ? ' (' + f.t + ')' : ''}`, telf = f => `${f.r.apellido}, ${f.r.nombre}: ${telDe(g, f.r) || '—'}`;
+  const filaH = (n, tipo, fs) => { const pr = fs.filter(f => !f.cub), nv = fs.filter(f => f.cub), o = suma(pr); return [n, tipo, fs.length, pr.map(nomf).join(' / ') || 'Cubierta por los novios', nv.map(nomf).join(' / '), fs.map(telf).join('\n'), r2(o.total), ...o.cuotas.map(r2)]; };
+  const hab = habs.map(x => filaH(x.n, x.h.tipo, x.fs)).concat(sinH.length ? [filaH('—', 'Sin habitación', sinH)] : []).concat([[], ['TOTAL a cobrar a los pasajeros', '', P.filas.length, '', '', '', r2(P.propios.total), ...P.propios.cuotas.map(r2)], ['A cargo de los novios', '', P.filas.filter(f => f.cub).length, '', '', '', r2(P.novios.total), ...P.novios.cuotas.map(r2)]]);
   const blob = armarXlsx([
-    { nombre:'Por pasajero', cabecera:['Apellido', 'Nombre', 'ADT/CHD/INF', 'Hab.', 'Tipo de habitación', 'Lo cubren los novios', `Total (${mon})`, ...cab], filas: pax },
-    { nombre:'Por habitación', cabecera:['Hab.', 'Tipo', 'Personas', 'Pasajeros que pagan', 'Los cubren los novios', `Total (${mon})`, ...cab], filas: hab },
+    { nombre:'Por pasajero', cabecera:['Apellido', 'Nombre', 'Teléfono', 'ADT/CHD/INF', 'Hab.', 'Tipo de habitación', 'Lo cubren los novios', `Total (${mon})`, ...cab], filas: pax },
+    { nombre:'Por habitación', cabecera:['Hab.', 'Tipo', 'Personas', 'Pasajeros que pagan', 'Los cubren los novios', 'Teléfonos de contacto', `Total (${mon})`, ...cab], filas: hab },
   ]);
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = 'Plan_de_pagos_' + (g.meta.nombre || 'grupo').replace(/[^\w\-]+/g, '_') + (filtros ? '_filtrado' : '') + '.xlsx';
