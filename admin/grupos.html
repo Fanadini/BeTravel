@@ -722,6 +722,17 @@ function telDe(g, r){
   if (r.telefono) return String(r.telefono);
   const q = listaForm(g.meta).find(x => x.tipo === 'tel'); return q && r[q.id] ? String(r[q.id]) : '';
 }
+// Listado para pasar a la assist card: pasajeros que la necesitan (todos menos los marcados "no necesita")
+function exportarAssistCard(){
+  const g = GRUPOS[GID_ABIERTO], ref = refViaje(g), cob = g.cobros || {};
+  const lista = respuestasOrdenadas(g).filter(([rid]) => !(cob[rid] || {}).sinAssist);
+  const filas = lista.map(([rid, r]) => { const x = tipoPax(g, rid, r, ref);
+    return [r.apellido || '', r.nombre || '', fmtFecha(r.nacimiento), x.edad != null ? x.edad : '', x.t || '', r.nacionalidad || '', r.pasaporte || '', r.paisPasaporte || '', fmtFecha(r.vencimiento), r.email || '', telDe(g, r), r.emergencia || '', fmtFecha(g.meta.fechaInicioViaje), fmtFecha(g.meta.fechaViaje)]; });
+  const blob = armarXlsx([{ nombre:'Assist card', cabecera:['Apellido', 'Nombre', 'Fecha de nacimiento', 'Edad al inicio del viaje', 'ADT/CHD/INF', 'Nacionalidad', 'Pasaporte', 'País emisor', 'Vencimiento del pasaporte', 'Correo electrónico', 'Teléfono', 'Contacto de emergencia', 'Inicio del viaje', 'Regreso'], filas }]);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'Assist_card_' + (g.meta.nombre || 'grupo').replace(/[^\w\-]+/g, '_') + '.xlsx';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
 function exportarPlanExcel(){
   const g = GRUPOS[GID_ABIERTO], P = calcPlan(g), asg = asignaciones(g), N = P.cuotas.length, mon = P.mon;
   const cab = P.cuotas.map((c, i) => `Cuota ${i + 1} · ${c.pct}%${c.fecha ? ' · ' + fmtFecha(c.fecha) : ''} (${mon})`);
@@ -1119,6 +1130,7 @@ function htmlResumen(g){
     + (invitados.length ? fila('Pendientes de responder', faltan.length, faltan.length ? "setTab('cfg')" : '') + (faltan.length ? `<div class="hint" style="margin:2px 0 6px">${faltan.slice(0, 8).map(esc).join(' · ')}${faltan.length > 8 ? ' · +' + (faltan.length - 8) : ''}</div>` : '') : '')
     + fila('Adultos (ADT)', cuenta.ADT, cuenta.ADT ? "irA('resp',{tipo:'ADT'})" : '') + fila('Niños (CHD)', cuenta.CHD, cuenta.CHD ? "irA('resp',{tipo:'CHD'})" : '') + fila('Infantes (INF)', cuenta.INF, cuenta.INF ? "irA('resp',{tipo:'INF'})" : '')
     + fila('No necesitan assist card', sinAst.length, sinAst.length ? vs('No necesitan assist card', sinAst) : '')
+    + `<div style="margin:8px 0 2px"><button class="btn small" onclick="exportarAssistCard()" title="Excel con los datos de los pasajeros que necesitan assist card">Descargar listado para assist card (${n - sinAst.length})</button></div>`
     + aviso(cuenta.sin, `${cuenta.sin} sin fecha de nacimiento: no se pueden clasificar.`, 'warn', vs('Sin fecha de nacimiento', ids.filter(id => !resps[id].nacimiento))) + `</div>`;
 
   // Vuelos: pasajeros que necesitan aéreo = todos menos los marcados "No incluye aéreo"; separados por tipo
