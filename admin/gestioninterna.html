@@ -2909,8 +2909,8 @@ function renderPagoQuien(row){
   box.innerHTML = `<span class="item-field-label">¿Quién pagó? (pasajeros del grupo)</span>
     <details class="pax-pick" ${abierto ? 'open' : ''}><summary>${escHtml(resumenPax(set))}</summary>
       ${GRUPO_PAX.habs.length ? `<div style="display:flex;gap:6px;margin:8px 8px 0"><button type="button" class="btn small ${modo === 'pax' ? '' : 'outline'}" onclick="setModoPagoQuien(this,'pax')">Por persona</button><button type="button" class="btn small ${modo === 'hab' ? '' : 'outline'}" onclick="setModoPagoQuien(this,'hab')">Por habitación</button></div>` : ''}
-      <input class="fi pax-filter" placeholder="${modo === 'hab' ? 'Buscar habitación o pasajero…' : 'Buscar pasajero…'}" oninput="filtrarPax(this)">
-      ${modo === 'hab' ? `<div class="pax-list">${GRUPO_PAX.habs.filter(h => h.pax.length).map(h => `<label><input type="checkbox" data-pax="${escHtml(h.pax.join(','))}" ${h.pax.every(id => set.has(id)) ? 'checked' : ''} onchange="togglePagoHab(this)"> ${escHtml(nombreHab(h))}</label>`).join('')}</div>` : `
+      <input class="fi pax-filter" placeholder="${modo === 'hab' ? 'Buscar por nombre o n° de habitación…' : 'Buscar pasajero…'}" oninput="filtrarPax(this)">
+      ${modo === 'hab' ? `<div class="pax-list">${GRUPO_PAX.habs.filter(h => h.pax.length).map(h => `<label data-n="${h.n}"><input type="checkbox" data-pax="${escHtml(h.pax.join(','))}" ${h.pax.every(id => set.has(id)) ? 'checked' : ''} onchange="togglePagoHab(this)"> ${escHtml(nombreHab(h))}</label>`).join('')}</div>` : `
       <div class="pax-list">${GRUPO_PAX.list.map(p => `<label><input type="checkbox" value="${escHtml(p.rid)}" ${set.has(p.rid)?'checked':''} onchange="togglePagoPax(this)"> ${escHtml(p.n)}</label>`).join('') || '<div class="upload-hint">El grupo todavía no tiene respuestas.</div>'}</div>`}</details>
     <div class="pax-nota">${modo === 'hab' ? 'Al marcar una habitación se marcan todos sus ocupantes. ' : ''}Si elegís más de uno, el monto se reparte entre ellos sin pasar de lo que debe cada uno; lo que sobra va a los demás marcados y a los de sus habitaciones.${box.dataset.origen === 'grupos' ? ' Pago registrado desde Grupos.' : ''}</div>`;
 }
@@ -2931,9 +2931,11 @@ function togglePagoPax(inp){
   saveReserva();
 }
 function filtrarPax(inp){
-  const q = inp.value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  const norm = t => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[.·,]/g, ' ');
+  const toks = norm(inp.value).split(/\s+/).filter(Boolean);
   inp.closest('details').querySelectorAll('.pax-list label').forEach(l => {
-    l.style.display = l.textContent.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(q) ? '' : 'none';
+    const txt = norm(l.textContent);
+    l.style.display = toks.every(t => /^\d+$/.test(t) && l.dataset.n ? l.dataset.n === t : txt.includes(t)) ? '' : 'none';
   });
 }
 // Si desde Grupos se registra un pago mientras esta reserva está abierta, se suma al panel para que el autoguardado no lo pise.
