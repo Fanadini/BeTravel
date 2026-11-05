@@ -120,6 +120,9 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
 .chk{display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0}
 /* selector de pasajeros que cubre un pago: lista desplegable, con buscador y desplazamiento propio */
 .pax-pick{border:1.5px solid var(--beige-d);border-radius:8px;background:var(--white);padding:0;overflow:hidden}
+.pax-pick.hab-filtro{position:relative;overflow:visible;align-self:flex-start}
+.pax-pick.hab-filtro[open] summary{border-bottom:0}
+.hab-pop{position:absolute;z-index:30;top:calc(100% + 4px);left:0;width:min(560px,92vw);background:var(--white);border:1.5px solid var(--beige-d);border-radius:8px;box-shadow:0 6px 20px rgba(15,61,62,.18);padding-bottom:2px}
 .pax-pick summary{cursor:pointer;padding:8px 10px;font-size:12px;color:var(--dark,#2B2B2B);list-style:none}
 .pax-pick summary::-webkit-details-marker{display:none}
 .pax-pick summary::after{content:'▾';float:right;color:rgba(43,43,43,.45)}
@@ -972,6 +975,7 @@ function setHabFiltro(inp){
   d.querySelector('summary').textContent = resumenHabFiltro(sel.join(','));
   setFiltro('hab', sel.join(','));
 }
+document.addEventListener('click', e => { document.querySelectorAll('details.hab-filtro[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }); });
 function limpiarHabFiltro(btn){ const d = btn.closest('details'); d.querySelectorAll('input[type=checkbox]').forEach(c => { c.checked = false; }); d.querySelector('summary').textContent = resumenHabFiltro(''); setFiltro('hab', ''); }
 function tablaResp(g){
   const resps = g.respuestas || {}, asg = asignaciones(g), qt = tokens(FILTRO.q);
@@ -1301,10 +1305,10 @@ function htmlRespuestas(g){
   const opt = (v, t, sel) => `<option value="${esc(v)}" ${sel === v ? 'selected' : ''}>${esc(t)}</option>`;
   html += `<div class="filtros"><input type="text" placeholder="Buscar por nombre, pasaporte, correo…" value="${esc(FILTRO.q)}" oninput="setFiltro('q',this.value)">
     <select onchange="setFiltro('vinc',this.value)">${opt('', 'Todos los vínculos', FILTRO.vinc)}${opt('ok', 'Recíprocos', FILTRO.vinc)}${opt('pend', 'Con problemas o sin confirmar', FILTRO.vinc)}${opt('ind', 'Sin compañero (individual / no comparte)', FILTRO.vinc)}</select>
-    <details class="pax-pick hab-filtro" style="flex:0 0 auto;min-width:240px;max-width:100%"><summary>${esc(resumenHabFiltro(FILTRO.hab))}</summary>
+    <details class="pax-pick hab-filtro" style="flex:0 0 auto;min-width:240px;max-width:100%"><summary>${esc(resumenHabFiltro(FILTRO.hab))}</summary><div class="hab-pop">
       <input type="text" class="pax-filter" placeholder="Buscar por n° de habitación o nombre…" oninput="filtrarPaxPick(this)">
       <div class="share-list"><label data-n="sin"><input type="checkbox" value="sin" ${(FILTRO.hab || '').split(',').includes('sin') ? 'checked' : ''} onchange="setHabFiltro(this)"> <span>Sin habitación</span></label>${listaHab(g).map(([, h], i) => { const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]); return `<label data-n="${i + 1}"><input type="checkbox" value="${i + 1}" ${(FILTRO.hab || '').split(',').includes(String(i + 1)) ? 'checked' : ''} onchange="setHabFiltro(this)"> <span style="overflow-wrap:anywhere"><strong>Hab. ${i + 1} · ${esc(h.tipo)}</strong>${ids.length ? ' · ' + ids.map(x => esc(resps[x].apellido + ', ' + resps[x].nombre)).join(' / ') : ''}</span></label>`; }).join('')}</div>
-      <div style="margin:0 8px 8px"><button type="button" class="btn outline small" onclick="limpiarHabFiltro(this)">Quitar selección</button></div></details>
+      <div style="margin:0 8px 8px"><button type="button" class="btn outline small" onclick="limpiarHabFiltro(this)">Quitar selección</button></div></div></details>
     ${hayPagos(GID_ABIERTO) ? `<select onchange="setFiltro('pago',this.value)">${opt('', 'Todos los pagos', FILTRO.pago)}${opt('con', 'Con pagos', FILTRO.pago)}${opt('sin', 'Sin pagos', FILTRO.pago)}</select>` : ''}
     <select onchange="setFiltro('tipo',this.value)" title="Tipo de pasajero">${opt('', 'ADT, CHD e INF', FILTRO.tipo)}${opt('ADT', 'Adultos (ADT)', FILTRO.tipo)}${opt('CHD', 'Niños (CHD)', FILTRO.tipo)}${opt('INF', 'Infantes (INF)', FILTRO.tipo)}${opt('-', 'Sin fecha de nacimiento', FILTRO.tipo)}</select>
     <select onchange="setFiltro('ast',this.value)" title="Assist card">${opt('', 'Con y sin assist card', FILTRO.ast)}${opt('con', 'Necesitan assist card', FILTRO.ast)}${opt('sin', 'No necesitan assist card', FILTRO.ast)}</select>
