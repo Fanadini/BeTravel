@@ -149,3 +149,5 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 - Sparring activo: señalar riesgos e inconsistencias, no solo ejecutar
 - Para contenido: checkpoints cortos de confirmación antes de versión final
 - Idioma de trabajo: **español**
+
+- Si un despliegue de Pages queda trabado en cola o falla, no se puede cancelar ni relanzar desde la API: un commit nuevo a `main` genera un build distinto que lo reemplaza
