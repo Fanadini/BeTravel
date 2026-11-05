@@ -166,6 +166,12 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 #reserva-panel.open{right:0}
 #reserva-panel .panel-header,#reserva-panel .panel-last-edit{padding-left:max(24px,3vw);padding-right:max(24px,3vw)}
 #reserva-panel .panel-body{padding:22px max(24px,3vw) 32px;background:var(--beige)}
+.pagos-resumen{margin:0 0 10px}
+.pagos-resumen .pr-tit{font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--teal);margin-bottom:4px}
+.pagos-resumen .pr-fila{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:5px 0;border-bottom:1px solid rgba(213,206,195,.6)}
+.pagos-resumen .pr-fila small{color:rgba(43,43,43,.55);font-size:10.5px;margin-left:3px}
+.pagos-resumen .pr-monto{text-align:right;font-weight:600}
+.pagos-resumen .pr-total{border-bottom:0;border-top:1.5px solid var(--beige-d);margin-top:2px;font-weight:600}
 .panel-pleg{flex-shrink:0;display:flex;gap:8px;align-items:center;font-size:12px;padding:8px max(24px,3vw);background:var(--beige);border-bottom:1px solid var(--beige-d);color:rgba(43,43,43,.65)}
 .panel-pleg a{color:var(--teal);cursor:pointer;text-decoration:underline}
 #reserva-panel .pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,430px),1fr));gap:22px;align-items:start;max-width:1900px;margin:0 auto}
@@ -2475,10 +2481,10 @@ function pagoRowHtml(p, monedaReserva){
       <div class="item-field"><span class="item-field-label">Moneda</span><select class="pago-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],pMoneda)}</select></div>
     </div>
     <div class="item-fields" style="margin-top:6px">
-      <div class="item-field"><span class="item-field-label">Medio</span><select class="pago-medio">${selOpts(['','transferencia','efectivo','tarjeta','cheque','otro'],['—','Transferencia','Efectivo','Tarjeta','Cheque','Otro'],p.medio||'')}</select></div>
+      <div class="item-field"><span class="item-field-label">Medio</span><select class="pago-medio" onchange="recalcDerived()">${selOpts(['','transferencia','efectivo','tarjeta','cheque','otro'],['—','Transferencia','Efectivo','Tarjeta','Cheque','Otro'],p.medio||'')}</select></div>
       <div class="item-field"><span class="item-field-label">T.C. (si pagó en otra moneda)</span><input type="number" step="0.01" class="pago-tc" value="${p.tipoCambio??''}" oninput="recalcDerived()" placeholder="Ej: 1050"></div>
     </div>
-    <div class="item-field" style="margin-top:6px"><span class="item-field-label">Comentario</span><input class="pago-comentario" value="${escHtml(p.comentario)}" placeholder="Nota sobre este pago"></div>
+    <div class="item-field" style="margin-top:6px"><span class="item-field-label">Comentario</span><input class="pago-comentario" oninput="recalcDerived()" value="${escHtml(p.comentario)}" placeholder="Nota sobre este pago"></div>
     <div class="item-field" style="margin-top:6px"><span class="item-field-label">Link al comprobante</span><input class="pago-link" type="url" value="${escHtml(p.link)}" placeholder="https://drive.google.com/…"></div>
     <div class="pago-quien item-field" style="margin-top:6px" data-pax="${escHtml(Object.keys(p.grupoPasajeros||{}).join(','))}" data-origen="${escHtml(p.origen||'')}"></div>
     ${String(p.id).startsWith('new_') ? '' : `<div style="margin-top:6px"><button type="button" class="add-item-btn" onclick="reciboDesdePago('${escHtml(reservaCtx.id||'')}','${escHtml(p.id)}')">Hacer recibo de este pago</button></div>`}
@@ -2758,7 +2764,27 @@ function getCurrentMargen(){
   return { margen: valorResult.total - costoResult.total, moneda, ok, valorConv, costoTotal: costoResult.total };
 }
 
+// Resumen de lo recibido por cada medio de pago (los pagos de "Otro" se separan por su comentario, ej. "Depósito TTS")
+function pintarResumenPagos(){
+  const el = document.getElementById('pagos-resumen'); if (!el) return;
+  const rows = [...document.querySelectorAll('#pagos-list .pago-row')], grupos = {}, tot = {};
+  rows.forEach(row => {
+    const monto = parseFloat(row.querySelector('.pago-monto').value) || 0; if (!monto) return;
+    const mon = row.querySelector('.pago-moneda').value, medio = row.querySelector('.pago-medio').value, com = (row.querySelector('.pago-comentario').value || '').trim();
+    const nom = (medio ? (MEDIO_PAGO_LABELS[medio] || medio.charAt(0).toUpperCase() + medio.slice(1)) : 'Sin medio') + (medio === 'otro' && com ? ' · ' + com : '');
+    const g = grupos[nom] = grupos[nom] || {}; const x = g[mon] = g[mon] || { sum:0, n:0 }; x.sum += monto; x.n++;
+    tot[mon] = (tot[mon] || 0) + monto;
+  });
+  const monedas = Object.keys(tot).sort();
+  if (!monedas.length){ el.innerHTML = ''; return; }
+  const orden = Object.keys(grupos).sort((a, b) => monedas.reduce((s, m) => s + ((grupos[b][m] || {}).sum || 0) - ((grupos[a][m] || {}).sum || 0), 0));
+  el.innerHTML = `<div class="pr-tit">Recibido por medio de pago</div>` + orden.map(nom => {
+    const n = monedas.reduce((s, m) => s + ((grupos[nom][m] || {}).n || 0), 0);
+    return `<div class="pr-fila"><span class="pr-med">${escHtml(nom)} <small>${n} pago${n === 1 ? '' : 's'}</small></span><span class="pr-monto">${monedas.filter(m => grupos[nom][m]).map(m => `${fmtMoney(grupos[nom][m].sum, m)} <small>${Math.round(grupos[nom][m].sum / tot[m] * 100)}%</small>`).join(' + ')}</span></div>`;
+  }).join('') + `<div class="pr-fila pr-total"><span class="pr-med">Total recibido <small>${rows.filter(r => parseFloat(r.querySelector('.pago-monto').value) > 0).length} pagos</small></span><span class="pr-monto">${monedas.map(m => fmtMoney(tot[m], m)).join(' + ')}</span></div>`;
+}
 function recalcDerived(){
+  pintarResumenPagos();
   const { margen, moneda, ok, valorConv } = getCurrentMargen();
 
   let pagosTotal = 0;
@@ -3092,6 +3118,7 @@ function renderReservaPanel(){
     <div class="psec">
       <div class="psec-title">Pagos recibidos</div>
       <div class="upload-hint" style="margin-bottom:8px">Si un pago llega en otra moneda que la de la reserva, cargale el tipo de cambio para saber cuánto convertís realmente para pagarle a los proveedores.</div>
+      <div id="pagos-resumen" class="pagos-resumen"></div>
       <div id="pagos-list">${(d.pagos||[]).map(p => pagoRowHtml(p, d.moneda)).join('')}</div>
       <button type="button" class="add-item-btn" onclick="addPago()">+ Agregar pago</button>
     </div>
