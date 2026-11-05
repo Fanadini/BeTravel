@@ -767,16 +767,60 @@ function telDe(g, r){
   if (r.telefono) return String(r.telefono);
   const q = listaForm(g.meta).find(x => x.tipo === 'tel'); return q && r[q.id] ? String(r[q.id]) : '';
 }
-// Listado para pasar a la assist card: pasajeros que la necesitan (todos menos los marcados "no necesita")
-function exportarAssistCard(){
-  const g = GRUPOS[GID_ABIERTO], ref = refViaje(g), cob = g.cobros || {};
+// Listado para la assist card: se completa la planilla modelo del proveedor (admin/assist-card-modelo.xlsx) con los pasajeros que la necesitan
+// (todos menos los marcados "no necesita"). Columnas del modelo: Apellido, Nombre, DNI, Fecha de nac., Fecha de salida, Fecha de regreso, Contacto de emergencia.
+function leerZipStore(buf){   // zip sin compresión (el modelo se guarda así)
+  const u8 = new Uint8Array(buf), dv = new DataView(buf), dec = new TextDecoder(); let e = u8.length - 22;
+  while (e >= 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('Archivo de modelo inválido');
+  const n = dv.getUint16(e + 10, true); let off = dv.getUint32(e + 16, true); const out = [];
+  for (let i = 0; i < n; i++){
+    if (dv.getUint32(off, true) !== 0x02014b50) throw new Error('Archivo de modelo inválido');
+    const method = dv.getUint16(off + 10, true), cs = dv.getUint32(off + 20, true), nl = dv.getUint16(off + 28, true), el = dv.getUint16(off + 30, true), cl = dv.getUint16(off + 32, true), lho = dv.getUint32(off + 42, true);
+    const name = dec.decode(u8.subarray(off + 46, off + 46 + nl)), start = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true);
+    if (method !== 0) throw new Error('El modelo debe estar sin comprimir');
+    out.push({ name, data: u8.slice(start, start + cs) }); off += 46 + nl + el + cl;
+  }
+  return out;
+}
+const serialExcel = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) + 25569 : null; };
+function docDe(g, r){
+  const q = listaForm(g.meta).find(x => /dni|documento/i.test(x.etiqueta || '') && x.tipo !== 'seccion' && x.tipo !== 'texto');
+  return String((q && r[q.id]) || r.dni || r.pasaporte || '');
+}
+async function exportarAssistCard(){
+  const g = GRUPOS[GID_ABIERTO], cob = g.cobros || {};
   const lista = respuestasOrdenadas(g).filter(([rid]) => !(cob[rid] || {}).sinAssist);
-  const filas = lista.map(([rid, r]) => { const x = tipoPax(g, rid, r, ref);
-    return [r.apellido || '', r.nombre || '', fmtFecha(r.nacimiento), x.edad != null ? x.edad : '', x.t || '', r.nacionalidad || '', r.pasaporte || '', r.paisPasaporte || '', fmtFecha(r.vencimiento), r.email || '', telDe(g, r), r.emergencia || '', fmtFecha(g.meta.fechaInicioViaje), fmtFecha(g.meta.fechaViaje)]; });
-  const blob = armarXlsx([{ nombre:'Assist card', cabecera:['Apellido', 'Nombre', 'Fecha de nacimiento', 'Edad al inicio del viaje', 'ADT/CHD/INF', 'Nacionalidad', 'Pasaporte', 'País emisor', 'Vencimiento del pasaporte', 'Correo electrónico', 'Teléfono', 'Contacto de emergencia', 'Inicio del viaje', 'Regreso'], filas }]);
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'Assist_card_' + (g.meta.nombre || 'grupo').replace(/[^\w\-]+/g, '_') + '.xlsx';
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  const nombreArchivo = 'Assist_card_' + (g.meta.nombre || 'grupo').replace(/[^\w\-]+/g, '_') + '.xlsx';
+  const bajar = blob => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nombreArchivo; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
+  try {
+    const buf = await (await fetch('assist-card-modelo.xlsx', { cache:'no-cache' })).arrayBuffer();
+    const files = leerZipStore(buf), hoja = files.find(f => f.name === 'xl/worksheets/sheet1.xml');
+    if (!hoja) throw new Error('Falta la hoja del modelo');
+    let xml = new TextDecoder().decode(hoja.data);
+    const N = Math.max(69, lista.length), sal = serialExcel(g.meta.fechaInicioViaje), reg = serialExcel(g.meta.fechaViaje);
+    const txt = (ref, st, v) => String(v == null ? '' : v).trim() ? `<c r="${ref}" s="${st}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>` : `<c r="${ref}" s="${st}"/>`;
+    const fec = (ref, v) => v != null ? `<c r="${ref}" s="8"><v>${v}</v></c>` : `<c r="${ref}" s="8"/>`;
+    let filas = '', unidas = '';
+    for (let i = 0; i < N; i++){
+      const rn = 10 + i, p = lista[i], r = p ? p[1] : null;
+      filas += `<row r="${rn}" spans="1:10" ht="21" customHeight="1">${i === 0 ? '<c r="A10" s="9"/>' : ''}<c r="B${rn}" s="${i % 2 ? 6 : 5}"><v>${i + 1}</v></c>`
+        + (r ? txt('C' + rn, 7, r.apellido) + txt('D' + rn, 7, r.nombre) + txt('E' + rn, 7, docDe(g, r)) + fec('F' + rn, serialExcel(r.nacimiento)) + fec('G' + rn, sal) + fec('H' + rn, reg) + txt('I' + rn, 11, r.emergencia) + '<c r="J' + rn + '" s="11"/>'
+               : `<c r="C${rn}" s="7"/><c r="D${rn}" s="7"/><c r="E${rn}" s="7"/><c r="F${rn}" s="8"/><c r="G${rn}" s="8"/><c r="H${rn}" s="8"/><c r="I${rn}" s="11"/><c r="J${rn}" s="11"/>`) + '</row>';
+      if (r) unidas += `<mergeCell ref="I${rn}:J${rn}"/>`;
+    }
+    const ini = xml.indexOf('<row r="10"'), finIdx = xml.indexOf('</row>', xml.indexOf(`<row r="${9 + N}"`));
+    if (ini < 0 || finIdx < 0) throw new Error('El modelo no tiene el formato esperado');
+    xml = xml.slice(0, ini) + filas + xml.slice(finIdx + 6);
+    xml = xml.replace(/<mergeCells count="(\d+)">/, (m, c) => `<mergeCells count="${+c + lista.length}">`).replace('</mergeCells>', unidas + '</mergeCells>');
+    hoja.data = new TextEncoder().encode(xml);
+    bajar(zipStore(files));
+  } catch (err){
+    console.error(err);
+    const ref = refViaje(g);
+    const filas = lista.map(([rid, r]) => [r.apellido || '', r.nombre || '', docDe(g, r), fmtFecha(r.nacimiento), fmtFecha(g.meta.fechaInicioViaje), fmtFecha(g.meta.fechaViaje), r.emergencia || '']);
+    bajar(armarXlsx([{ nombre:'AC', cabecera:['Apellido', 'Nombre', 'DNI', 'Fecha de nac.', 'FECHA DE SALIDA', 'FECHA DE REGRESO', 'NOMBRE Y TEL. DE CONTACTO EN CASO DE EMERGENCIA'], filas }]));
+  }
 }
 function exportarPlanExcel(){
   const g = GRUPOS[GID_ABIERTO], P = calcPlan(g), asg = asignaciones(g), N = P.cuotas.length, mon = P.mon;
