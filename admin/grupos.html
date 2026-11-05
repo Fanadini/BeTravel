@@ -403,13 +403,46 @@ function pagosPorPasajero(gid){
     });
     return out;
   }
-  reservasDelGrupo(gid).forEach(([resId, r]) => aArr(r.pagos).forEach(p => {
-    const ks = Object.keys(p.grupoPasajeros || {}); if (!ks.length) return;
-    const mon = p.moneda || r.moneda || 'ARS', share = (Number(p.monto) || 0) / ks.length;
-    ks.forEach(k => { const o = out[k] = out[k] || { tot:{}, pagos:[] }; o.tot[mon] = (o.tot[mon] || 0) + share; o.pagos.push({ resId, pid:p.id, p, r, share, n:ks.length, mon }); });
-  }));
+  // Imputación de cada pago: se reparte en partes iguales entre los pasajeros marcados, pero ninguno recibe más de lo que debe.
+  // Lo que sobra pasa a los otros marcados que todavía deben y, si no alcanza, a los pasajeros de las mismas habitaciones.
+  // Lo que ni así tiene dónde ir queda como excedente a favor de quien lo pagó (y se avisa en Warnings).
+  const g = GRUPOS[gid], conTope = !!(g && tieneCobros(g)), pmon = conTope ? ((g.meta.precios || {}).moneda || 'USD') : '';
+  const resps = conTope ? (g.respuestas || {}) : {}, ref = conTope ? refViaje(g) : null, asg = conTope ? asignaciones(g) : {}, need = {};
+  PAGOS_EXC = [];
+  if (conTope) Object.keys(resps).forEach(id => { const a = aPagar(g, id, resps[id], ref, asg); need[id] = a.total > 0 && !a.falta.length ? a.total : Infinity; });
+  const lista = [];
+  reservasDelGrupo(gid).forEach(([resId, r]) => aArr(r.pagos).forEach(p => { if (Object.keys(p.grupoPasajeros || {}).length) lista.push({ resId, r, p }); }));
+  lista.sort((a, b) => String(a.p.fecha || '').localeCompare(String(b.p.fecha || '')));
+  const aPrecio = (monto, mon, tc) => mon === pmon ? monto : (Number(tc) > 0 && pmon === 'USD' && mon === 'ARS') ? monto / tc : (Number(tc) > 0 && pmon === 'ARS' && mon === 'USD') ? monto * tc : NaN;
+  lista.forEach(({ resId, r, p }) => {
+    const ks = Object.keys(p.grupoPasajeros || {}), mon = p.moneda || r.moneda || 'ARS', monto = Number(p.monto) || 0;
+    let alloc = null, ajust = false;
+    const total = conTope ? aPrecio(monto, mon, p.tipoCambio) : NaN;
+    if (conTope && !isNaN(total) && total > 0 && ks.every(k => resps[k])){
+      const a = {}; let resto = total, abiertos = ks.slice();
+      for (let it = 0; it < 50 && resto > 0.005 && abiertos.length; it++){   // reparto parejo con tope
+        const parte = resto / abiertos.length; let usado = 0; const sig = [];
+        abiertos.forEach(k => { const t = Math.min(parte, need[k]); a[k] = (a[k] || 0) + t; need[k] -= t; usado += t; if (need[k] > 0.005) sig.push(k); });
+        resto -= usado; if (usado < 0.005) break; abiertos = sig;
+      }
+      if (resto > 0.005){   // sobrante: pasajeros de las mismas habitaciones que todavía deben
+        const habs = new Set(ks.map(k => asg[k] && asg[k].hid).filter(Boolean));
+        Object.keys(resps).filter(id => !ks.includes(id) && asg[id] && habs.has(asg[id].hid) && need[id] > 0.005).sort((x, y) => asg[x].n - asg[y].n).forEach(id => {
+          if (resto <= 0.005) return; const t = Math.min(resto, need[id]); a[id] = (a[id] || 0) + t; need[id] -= t; resto -= t;
+        });
+      }
+      if (resto > 0.005){ a[ks[0]] = (a[ks[0]] || 0) + resto; need[ks[0]] -= resto; PAGOS_EXC.push({ resId, pid: p.id, p, rid: ks[0], exc: resto, mon: pmon }); }   // excedente a favor
+      const k = monto / total;   // de la moneda de los precios a la del pago
+      alloc = Object.fromEntries(Object.entries(a).map(([id, v]) => [id, v * k]));
+      ajust = Object.keys(alloc).length !== ks.length || ks.some(id => Math.abs((alloc[id] || 0) - monto / ks.length) > 0.01);
+    }
+    if (!alloc) alloc = Object.fromEntries(ks.map(k => [k, monto / ks.length]));
+    const ids = Object.keys(alloc).filter(id => alloc[id] > 0.0001), n = ids.length;
+    ids.forEach(id => { const o = out[id] = out[id] || { tot:{}, pagos:[] }; o.tot[mon] = (o.tot[mon] || 0) + alloc[id]; o.pagos.push({ resId, pid:p.id, p, r, share: alloc[id], n, mon, ajust, extra: !ks.includes(id) }); });
+  });
   return out;
 }
+let PAGOS_EXC = [];
 const totTxt = tot => Object.keys(tot).map(m => moneyG(tot[m], m)).join(' + ');
 
 // ── ACCIONES ───────────────────────────────────────────────────────────────
@@ -1005,6 +1038,10 @@ function listaWarnings(g){
   const nv = ids.filter(id => resps[id].comparte === 'Sí' && ['bad', 'warn'].includes(estadoVinculo(id, resps[id], resps).cls)).length;
   const idsV = ids.filter(id => resps[id].comparte === 'Sí' && ['bad', 'warn'].includes(estadoVinculo(id, resps[id], resps).cls));
   if (nv) W.push({ ver: `verSel('Vínculos sin resolver','${idsV.join(',')}')`, txt: `${nv} vínculo${nv === 1 ? '' : 's'} de habitación sin resolver (nombres que no coinciden o sin confirmar).`, acc: btn('Revisar y resolver', 'revisarVinculos()') });
+  if (puedeEditarReservas() && tieneCobros(g) && veSaldo()){
+    pagosPorPasajero(GID_ABIERTO);
+    PAGOS_EXC.forEach(e => W.push({ ver: `verRespuesta('${q(e.rid)}')`, txt: `El pago del ${esc(fmtFecha(e.p.fecha) || 's/f')} de ${moneyG(e.p.monto, e.p.moneda || 'USD')} deja un excedente de ${moneyG(e.exc, e.mon)} a favor de ${nm(e.rid)}: nadie más de su habitación debe ese monto. Revisá a quién corresponde en el pago de la reserva ("¿Quién pagó?").` }));
+  }
   if (!g.meta.fechaViaje) W.push({ txt: 'Falta la fecha de regreso para controlar los pasaportes.', acc: btn('Ir a Ajustes', "setTab('cfg')") });
   else ids.filter(id => venceProximo(resps[id], g.meta)).forEach(id => W.push({ sev:'bad', ver: `verRespuesta('${q(id)}')`, txt: `${nm(id)}: el pasaporte vence el ${esc(fmtFecha(resps[id].vencimiento))}, antes de 6 meses del viaje.`, acc: `<input type="date" id="wf-vencimiento-${esc(id)}" value="${esc(resps[id].vencimiento)}" style="width:auto">` + btn('Corregir vencimiento', `guardarFechaResp('${q(id)}','vencimiento')`) }));
   ids.filter(id => !resps[id].nacimiento).forEach(id => W.push({ ver: `verRespuesta('${q(id)}')`, txt: `${nm(id)} no tiene fecha de nacimiento (no se puede clasificar ADT/CHD/INF).`, acc: `<input type="date" id="wf-nacimiento-${esc(id)}" style="width:auto">` + btn('Guardar', `guardarFechaResp('${q(id)}','nacimiento')`) }));
@@ -1279,7 +1316,7 @@ function pagosFichaHtml(rid){
   let html = `<div class="card" style="margin:0 0 12px"><h3>Pagos${mios.pagos.length ? ' · ' + esc(totTxt(mios.tot)) : ''}</h3>`;
   html += mios.pagos.length ? mios.pagos.sort((a, b) => String(a.p.fecha || '').localeCompare(String(b.p.fecha || ''))).map(x => {
     const cod = reservas.length > 1 ? ` · ${esc(x.r.codigo || 'reserva')}` : '';
-    const parte = x.n > 1 ? ` · parte de ${moneyG(x.p.monto, x.mon)} entre ${x.n}` : '';
+    const parte = x.extra ? ` · excedente de un pago de ${moneyG(x.p.monto, x.mon)} cargado a otra persona` : x.n > 1 ? ` · parte de ${moneyG(x.p.monto, x.mon)} entre ${x.n}${x.ajust ? ' (ajustado a lo que debe cada uno)' : ''}` : (x.ajust ? ` · pago de ${moneyG(x.p.monto, x.mon)}: ${moneyG(x.share, x.mon)} a esta persona y el resto a otros` : '');
     const borrar = puedeEditarReservas() && x.p.origen === 'grupos' ? ` <button class="btn danger small" onclick="eliminarPago('${esc(x.resId)}','${esc(x.pid)}','${esc(rid)}')">Quitar</button>` : '';
     return `<div class="ocu"><div class="nom"><strong>${moneyG(x.share, x.mon)}</strong> · ${fmtFecha(x.p.fecha) || 's/f'}${esc(x.p.medio ? ' · ' + x.p.medio : '')}${cod}${parte}<div class="sub">${x.p.origen === 'grupos' ? 'Registrado desde Grupos' : 'Cargado en la reserva'}${x.p.comentario ? ' · ' + esc(x.p.comentario) : ''}</div></div>${borrar}</div>`;
   }).join('') : '<div class="hint" style="margin:0 0 6px">Sin pagos asignados a esta persona.</div>';
@@ -1292,10 +1329,21 @@ function pagosFichaHtml(rid){
         <input type="date" id="pg-fecha" value="${new Date().toISOString().slice(0, 10)}">
         <select id="pg-medio"><option value="">Medio</option><option value="transferencia">Transferencia</option><option value="efectivo">Efectivo</option><option value="tarjeta">Tarjeta</option><option value="cheque">Cheque</option><option value="otro">Otro</option></select>
         <input type="number" step="0.01" id="pg-tc" placeholder="T.C. (si otra moneda)" style="width:150px"></div>
-      ${otros.length ? `<details class="pax-pick" style="margin-top:8px"><summary>También cubre a otros pasajeros <span id="pg-cont" class="pill" style="display:none"></span><span class="hint" style="display:block;margin:2px 0 0">El monto se reparte en partes iguales entre quienes marques (incluida esta persona).</span></summary><input type="text" class="pax-filter" placeholder="Buscar pasajero…" oninput="filtrarPaxPick(this)"><div class="share-list">${otros.map(([id, o]) => `<label><input type="checkbox" class="pg-otro" value="${esc(id)}" onchange="contarPaxPick()"> <span style="overflow-wrap:anywhere">${esc(o.apellido)}, ${esc(o.nombre)}</span></label>`).join('')}</div></details>` : ''}
+      ${otros.length ? `<details class="pax-pick" style="margin-top:8px"><summary>También cubre a otros pasajeros <span id="pg-cont" class="pill" style="display:none"></span><span class="hint" style="display:block;margin:2px 0 0">El monto se reparte en partes iguales entre quienes marques (incluida esta persona).</span></summary><div style="display:flex;gap:6px;margin:8px 8px 0"><button type="button" class="btn small" data-modo="pax" onclick="modoPaxPick(this,'pax')">Por persona</button><button type="button" class="btn small outline" data-modo="hab" onclick="modoPaxPick(this,'hab')">Por habitación</button></div><input type="text" class="pax-filter" placeholder="Buscar…" oninput="filtrarPaxPick(this)"><div class="share-list share-rooms" style="display:none">${listaHab(g).filter(([, h]) => Object.keys(h.pasajeros || {}).some(x => resps[x] && x !== rid)).map(([, h], i) => { const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]); return `<label><input type="checkbox" class="pg-hab" data-pax="${esc(ids.filter(x => x !== rid).join(','))}" onchange="marcarHabPick(this)"> <span style="overflow-wrap:anywhere"><strong>${esc(h.tipo)}</strong> · ${ids.map(x => esc(resps[x].apellido + ', ' + resps[x].nombre)).join(' / ')}</span></label>`; }).join('')}</div><div class="share-list share-pax">${otros.map(([id, o]) => `<label><input type="checkbox" class="pg-otro" value="${esc(id)}" onchange="contarPaxPick()"> <span style="overflow-wrap:anywhere">${esc(o.apellido)}, ${esc(o.nombre)}</span></label>`).join('')}</div></details>` : ''}
       <button class="btn" style="margin-top:10px" onclick="registrarPago('${esc(rid)}')">Registrar pago</button></div>`;
   } else html += puedeEditarReservas() ? '<div class="hint" style="margin-top:8px">Vinculá una reserva a este grupo (pestaña Ajustes) para registrar pagos desde acá.</div>' : '<div class="hint" style="margin-top:8px">Tu cuenta ve los pagos en modo solo lectura.</div>';
   return html + '</div>';
+}
+function modoPaxPick(btn, modo){
+  const d = btn.closest('details');
+  d.querySelectorAll('[data-modo]').forEach(b => b.classList.toggle('outline', b.dataset.modo !== modo));
+  d.querySelector('.share-rooms').style.display = modo === 'hab' ? '' : 'none';
+  d.querySelector('.share-pax').style.display = modo === 'hab' ? 'none' : '';
+}
+function marcarHabPick(inp){
+  const d = inp.closest('details');
+  (inp.dataset.pax || '').split(',').filter(Boolean).forEach(id => { const c = d.querySelector(`.pg-otro[value="${id}"]`); if (c) c.checked = inp.checked; });
+  contarPaxPick();
 }
 function filtrarPaxPick(inp){
   const q = norm(inp.value).trim();
