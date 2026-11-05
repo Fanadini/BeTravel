@@ -196,6 +196,11 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .pax-pick .pax-filter{margin:8px;width:calc(100% - 16px);padding:6px 9px;font-size:12px}
 .pax-list{max-height:210px;overflow-y:auto;padding:2px 10px 8px;display:grid;gap:3px}
 .pax-list label{font-size:12px;display:flex;gap:7px;align-items:center;cursor:pointer}
+.pax-list input[type=checkbox],.pax-pick input[type=checkbox]{width:auto;flex:0 0 auto;padding:0;margin:0}
+.pax-modos{display:flex;gap:6px;flex-wrap:wrap;margin:8px 8px 0}
+.pax-modos button,.pax-acc button{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:4px 10px;border-radius:6px;border:1px solid var(--teal);background:var(--white);color:var(--teal);cursor:pointer}
+.pax-modos button.on{background:var(--teal);color:#fff}
+.pax-acc{display:flex;gap:6px;margin:0 8px 6px}
 .pax-nota{font-size:10.5px;color:rgba(43,43,43,.55);margin-top:4px}
 .share-btn{font-family:'Inter',sans-serif;font-size:11px;font-weight:500;padding:4px 10px;border-radius:6px;border:1px solid var(--beige-d);background:var(--white);color:var(--teal);cursor:pointer;white-space:nowrap}
 .share-btn:hover{background:var(--teal-l,rgba(15,61,62,.07))}
@@ -2886,7 +2891,7 @@ function recalcReparto(margenOverride, monedaOverride){
 // La reserva guarda grupoId; cada pago guarda grupoPasajeros {id de respuesta: true}. La página Grupos lee esos pagos
 // y también puede registrar pagos nuevos (origen:'grupos'); no hay una copia del dato, así que ambos lados ven lo mismo.
 let GRUPOS_IDX = {};   // gruposIndex: { gid: { nombre } }
-let GRUPO_PAX = { gid:null, list:[], habs:[], ref:null, refH:null };
+let GRUPO_PAX = { gid:null, list:[], habs:[], cub:{}, ref:null, refH:null, refC:null };
 function grupoOptionsHtml(sel){
   const ids = Object.keys(GRUPOS_IDX).sort((a, b) => String(GRUPOS_IDX[a].nombre).localeCompare(String(GRUPOS_IDX[b].nombre), 'es'));
   const faltaActual = sel && !GRUPOS_IDX[sel] ? `<option value="${escHtml(sel)}" selected>(grupo no disponible)</option>` : '';
@@ -2895,7 +2900,8 @@ function grupoOptionsHtml(sel){
 function loadGrupoPax(gid){
   if (GRUPO_PAX.ref) GRUPO_PAX.ref.off();
   if (GRUPO_PAX.refH) GRUPO_PAX.refH.off();
-  GRUPO_PAX = { gid: gid || null, list:[], habs:[], ref:null, refH:null };
+  if (GRUPO_PAX.refC) GRUPO_PAX.refC.off();
+  GRUPO_PAX = { gid: gid || null, list:[], habs:[], cub:{}, ref:null, refH:null, refC:null };
   if (!gid){ refreshPagoQuien(); return; }
   const ref = db.ref('grupos/' + gid + '/respuestas'); GRUPO_PAX.ref = ref;
   ref.on('value', snap => {
@@ -2909,6 +2915,13 @@ function loadGrupoPax(gid){
     const v = snap.val() || {};
     GRUPO_PAX.habs = Object.entries(v).map(([hid, h], i) => ({ hid, i, orden: h.orden != null ? Number(h.orden) : 1e9, tipo: h.tipo || '', pax: Object.keys(h.pasajeros || {}) }))
       .sort((a, b) => (a.orden - b.orden) || (a.i - b.i)).map((h, n) => ({ ...h, n: n + 1 }));
+    refreshPagoQuien();
+  }, () => {});
+  // Pasajeros que cubren los novios (marca de la ficha en Grupos)
+  const refC = db.ref('grupos/' + gid + '/cobros'); GRUPO_PAX.refC = refC;
+  refC.on('value', snap => {
+    const v = snap.val() || {};
+    GRUPO_PAX.cub = Object.fromEntries(Object.entries(v).filter(([, c]) => c && c.cubierto).map(([rid]) => [rid, true]));
     refreshPagoQuien();
   }, () => {});
 }
@@ -2930,15 +2943,29 @@ function renderPagoQuien(row){
     box.innerHTML = '<span class="item-field-label">¿Quién pagó?</span><div class="upload-hint">Elegí un grupo en Datos generales para asignar este pago a pasajeros.</div>'; return;
   }
   if (GRUPO_PAX.error){ box.innerHTML = '<span class="item-field-label">¿Quién pagó?</span><div class="upload-hint" style="color:var(--red)">No se pudo leer el grupo (permisos o conexión).</div>'; return; }
-  const abierto = box.querySelector('details') && box.querySelector('details').open, modo = box.dataset.modo === 'hab' && GRUPO_PAX.habs.length ? 'hab' : 'pax';
+  const abierto = box.querySelector('details') && box.querySelector('details').open;
+  const modo = box.dataset.modo === 'hab' && GRUPO_PAX.habs.length ? 'hab' : box.dataset.modo === 'nov' ? 'nov' : 'pax';
   const nombreHab = h => { const m = h.pax.map(id => (GRUPO_PAX.list.find(p => p.rid === id) || {}).n).filter(Boolean); return `Hab. ${h.n} · ${h.tipo}${m.length ? ' — ' + m.join(' / ') : ' (vacía)'}`; };
+  const nov = GRUPO_PAX.list.filter(p => GRUPO_PAX.cub[p.rid]);
+  const chk = p => `<label><input type="checkbox" value="${escHtml(p.rid)}" ${set.has(p.rid)?'checked':''} onchange="togglePagoPax(this)"> ${escHtml(p.n)}</label>`;
+  const mb = (m, t) => `<button type="button" class="${modo === m ? 'on' : ''}" onclick="setModoPagoQuien(this,'${m}')">${t}</button>`;
+  let lista;
+  if (modo === 'hab') lista = `<div class="pax-list">${GRUPO_PAX.habs.filter(h => h.pax.length).map(h => `<label data-n="${h.n}"><input type="checkbox" data-pax="${escHtml(h.pax.join(','))}" ${h.pax.every(id => set.has(id)) ? 'checked' : ''} onchange="togglePagoHab(this)"> ${escHtml(nombreHab(h))}</label>`).join('')}</div>`;
+  else if (modo === 'nov') lista = `<div class="pax-acc"><button type="button" onclick="marcarNovios(this,true)">Marcar a todos</button><button type="button" onclick="marcarNovios(this,false)">Desmarcar a todos</button></div><div class="pax-list">${nov.map(chk).join('') || '<div class="upload-hint">Nadie está marcado como cubierto por los novios. Se marca en la ficha del pasajero, en Grupos.</div>'}</div>`;
+  else lista = `<div class="pax-list">${GRUPO_PAX.list.map(chk).join('') || '<div class="upload-hint">El grupo todavía no tiene respuestas.</div>'}</div>`;
   box.innerHTML = `<span class="item-field-label">¿Quién pagó? (pasajeros del grupo)</span>
     <details class="pax-pick" ${abierto ? 'open' : ''}><summary>${escHtml(resumenPax(set))}</summary>
-      ${GRUPO_PAX.habs.length ? `<div style="display:flex;gap:6px;margin:8px 8px 0"><button type="button" class="btn small ${modo === 'pax' ? '' : 'outline'}" onclick="setModoPagoQuien(this,'pax')">Por persona</button><button type="button" class="btn small ${modo === 'hab' ? '' : 'outline'}" onclick="setModoPagoQuien(this,'hab')">Por habitación</button></div>` : ''}
+      <div class="pax-modos">${mb('pax', 'Por persona')}${GRUPO_PAX.habs.length ? mb('hab', 'Por habitación') : ''}${mb('nov', 'Pagan los novios' + (nov.length ? ' (' + nov.length + ')' : ''))}</div>
       <input class="fi pax-filter" placeholder="${modo === 'hab' ? 'Buscar por nombre o n° de habitación…' : 'Buscar pasajero…'}" oninput="filtrarPax(this)">
-      ${modo === 'hab' ? `<div class="pax-list">${GRUPO_PAX.habs.filter(h => h.pax.length).map(h => `<label data-n="${h.n}"><input type="checkbox" data-pax="${escHtml(h.pax.join(','))}" ${h.pax.every(id => set.has(id)) ? 'checked' : ''} onchange="togglePagoHab(this)"> ${escHtml(nombreHab(h))}</label>`).join('')}</div>` : `
-      <div class="pax-list">${GRUPO_PAX.list.map(p => `<label><input type="checkbox" value="${escHtml(p.rid)}" ${set.has(p.rid)?'checked':''} onchange="togglePagoPax(this)"> ${escHtml(p.n)}</label>`).join('') || '<div class="upload-hint">El grupo todavía no tiene respuestas.</div>'}</div>`}</details>
-    <div class="pax-nota">${modo === 'hab' ? 'Al marcar una habitación se marcan todos sus ocupantes. ' : ''}Si elegís más de uno, el monto se reparte entre ellos sin pasar de lo que debe cada uno; lo que sobra va a los demás marcados y a los de sus habitaciones.${box.dataset.origen === 'grupos' ? ' Pago registrado desde Grupos.' : ''}</div>`;
+      ${lista}</details>
+    <div class="pax-nota">${modo === 'hab' ? 'Al marcar una habitación se marcan todos sus ocupantes. ' : ''}${modo === 'nov' ? 'Se listan solo los pasajeros que cubren los novios. ' : ''}Si elegís más de uno, el monto se reparte entre ellos sin pasar de lo que debe cada uno; lo que sobra va a los demás marcados y a los de sus habitaciones.${box.dataset.origen === 'grupos' ? ' Pago registrado desde Grupos.' : ''}</div>`;
+}
+function marcarNovios(btn, v){
+  const box = btn.closest('.pago-quien'), set = new Set((box.dataset.pax || '').split(',').filter(Boolean));
+  Object.keys(GRUPO_PAX.cub).forEach(id => { v ? set.add(id) : set.delete(id); });
+  box.dataset.pax = [...set].join(',');
+  renderPagoQuien(box.closest('.pago-row')); const d = box.querySelector('details'); if (d) d.open = true;
+  saveReserva();
 }
 function setModoPagoQuien(btn, modo){ const box = btn.closest('.pago-quien'); box.dataset.modo = modo; renderPagoQuien(box.closest('.pago-row')); const d = box.querySelector('details'); if (d) d.open = true; }
 function togglePagoHab(inp){
