@@ -129,6 +129,7 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
 .pax-pick .share-list label{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;padding:5px 8px;border:1px solid var(--beige-d);border-radius:6px;min-width:0}
 .pax-pick .share-list label:hover{background:var(--teal-l)}
 .pax-pick .share-list input{flex:none}
+.filtros .pax-pick input[type=checkbox]{min-width:0;flex:none;width:auto}
 .opts-chk{display:flex;flex-wrap:wrap;gap:2px 16px;margin-top:4px}
 .btn:disabled{opacity:.4;cursor:default}
 
@@ -956,6 +957,22 @@ function pintarBotonFiltros(){
 }
 function setFiltro(k, v){ FILTRO[k] = v; const t = document.getElementById('resp-tabla'); if (t) t.innerHTML = tablaResp(GRUPOS[GID_ABIERTO]); pintarBotonFiltros(); }
 function limpiarFiltros(){ FILTRO = { ...FILTRO_VACIO }; render(); }
+// Filtro de habitaciones: se pueden elegir varias a la vez (FILTRO.hab = "1,9,10", o "sin" para los que no tienen habitación)
+function resumenHabFiltro(csv){
+  const hs = String(csv || '').split(',').filter(Boolean);
+  if (!hs.length) return 'Todas las habitaciones';
+  const nums = hs.filter(x => x !== 'sin').map(Number).sort((a, b) => a - b), t = [];
+  if (nums.length) t.push((nums.length === 1 ? 'Hab. ' : 'Habs. ') + nums.join(', '));
+  if (hs.includes('sin')) t.push('Sin habitación');
+  return t.join(' + ');
+}
+function setHabFiltro(inp){
+  const d = inp.closest('details');
+  const sel = [...d.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
+  d.querySelector('summary').textContent = resumenHabFiltro(sel.join(','));
+  setFiltro('hab', sel.join(','));
+}
+function limpiarHabFiltro(btn){ const d = btn.closest('details'); d.querySelectorAll('input[type=checkbox]').forEach(c => { c.checked = false; }); d.querySelector('summary').textContent = resumenHabFiltro(''); setFiltro('hab', ''); }
 function tablaResp(g){
   const resps = g.respuestas || {}, asg = asignaciones(g), qt = tokens(FILTRO.q);
   const conPagos = hayPagos(GID_ABIERTO), pp = conPagos ? pagosPorPasajero(GID_ABIERTO) : {};
@@ -972,8 +989,7 @@ function tablaResp(g){
     if (FILTRO.vinc === 'ok' && v.cls !== 'ok') return false;
     if (FILTRO.vinc === 'pend' && v.cls !== 'bad' && v.cls !== 'warn') return false;
     if (FILTRO.vinc === 'ind' && v.cls !== '') return false;
-    if (FILTRO.hab === 'sin' && asg[rid]) return false;
-    if (FILTRO.hab && FILTRO.hab !== 'sin' && !(asg[rid] && String(asg[rid].n) === FILTRO.hab)) return false;
+    if (FILTRO.hab){ const hs = FILTRO.hab.split(','); if (!(asg[rid] ? hs.includes(String(asg[rid].n)) : hs.includes('sin'))) return false; }
     if (FILTRO.ped && r.tipoHabitacion !== FILTRO.ped) return false;
     if (FILTRO.medio){
       const [src, val] = [FILTRO.medio.slice(0, 1), FILTRO.medio.slice(2)];
@@ -1285,7 +1301,10 @@ function htmlRespuestas(g){
   const opt = (v, t, sel) => `<option value="${esc(v)}" ${sel === v ? 'selected' : ''}>${esc(t)}</option>`;
   html += `<div class="filtros"><input type="text" placeholder="Buscar por nombre, pasaporte, correo…" value="${esc(FILTRO.q)}" oninput="setFiltro('q',this.value)">
     <select onchange="setFiltro('vinc',this.value)">${opt('', 'Todos los vínculos', FILTRO.vinc)}${opt('ok', 'Recíprocos', FILTRO.vinc)}${opt('pend', 'Con problemas o sin confirmar', FILTRO.vinc)}${opt('ind', 'Sin compañero (individual / no comparte)', FILTRO.vinc)}</select>
-    <select onchange="setFiltro('hab',this.value)">${opt('', 'Todas las habitaciones', FILTRO.hab)}${opt('sin', 'Sin asignar', FILTRO.hab)}${Array.from({ length: nHab }, (_, i) => opt(String(i + 1), 'Hab. ' + (i + 1), FILTRO.hab)).join('')}</select>
+    <details class="pax-pick hab-filtro" style="flex:0 0 auto;min-width:240px;max-width:100%"><summary>${esc(resumenHabFiltro(FILTRO.hab))}</summary>
+      <input type="text" class="pax-filter" placeholder="Buscar por n° de habitación o nombre…" oninput="filtrarPaxPick(this)">
+      <div class="share-list"><label data-n="sin"><input type="checkbox" value="sin" ${(FILTRO.hab || '').split(',').includes('sin') ? 'checked' : ''} onchange="setHabFiltro(this)"> <span>Sin habitación</span></label>${listaHab(g).map(([, h], i) => { const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]); return `<label data-n="${i + 1}"><input type="checkbox" value="${i + 1}" ${(FILTRO.hab || '').split(',').includes(String(i + 1)) ? 'checked' : ''} onchange="setHabFiltro(this)"> <span style="overflow-wrap:anywhere"><strong>Hab. ${i + 1} · ${esc(h.tipo)}</strong>${ids.length ? ' · ' + ids.map(x => esc(resps[x].apellido + ', ' + resps[x].nombre)).join(' / ') : ''}</span></label>`; }).join('')}</div>
+      <div style="margin:0 8px 8px"><button type="button" class="btn outline small" onclick="limpiarHabFiltro(this)">Quitar selección</button></div></details>
     ${hayPagos(GID_ABIERTO) ? `<select onchange="setFiltro('pago',this.value)">${opt('', 'Todos los pagos', FILTRO.pago)}${opt('con', 'Con pagos', FILTRO.pago)}${opt('sin', 'Sin pagos', FILTRO.pago)}</select>` : ''}
     <select onchange="setFiltro('tipo',this.value)" title="Tipo de pasajero">${opt('', 'ADT, CHD e INF', FILTRO.tipo)}${opt('ADT', 'Adultos (ADT)', FILTRO.tipo)}${opt('CHD', 'Niños (CHD)', FILTRO.tipo)}${opt('INF', 'Infantes (INF)', FILTRO.tipo)}${opt('-', 'Sin fecha de nacimiento', FILTRO.tipo)}</select>
     <select onchange="setFiltro('ast',this.value)" title="Assist card">${opt('', 'Con y sin assist card', FILTRO.ast)}${opt('con', 'Necesitan assist card', FILTRO.ast)}${opt('sin', 'No necesitan assist card', FILTRO.ast)}</select>
