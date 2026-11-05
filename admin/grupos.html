@@ -69,7 +69,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);di
 .hint{font-size:11px;line-height:1.5;color:rgba(43,43,43,.6);margin-bottom:8px}
 .linkbox{display:flex;gap:8px;flex-wrap:wrap}
 .linkbox input{flex:1;min-width:220px}
-input[type=text],input[type=date],select,textarea{font-family:'Inter',sans-serif;font-size:12px;padding:7px 9px;border-radius:7px;border:1.5px solid var(--beige-d);background:var(--white);outline:none;color:var(--dark)}
+input[type=text],input[type=date],input[type=number],select,textarea{font-family:'Inter',sans-serif;font-size:12px;padding:7px 9px;border-radius:7px;border:1.5px solid var(--beige-d);background:var(--white);outline:none;color:var(--dark)}
 input:focus,select:focus,textarea:focus{border-color:var(--teal)}
 textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
 .hab{background:var(--white);border:1px solid var(--beige-d);border-radius:10px;margin-bottom:10px;overflow:hidden}
@@ -99,6 +99,7 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
 
 .filtros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
 .filtros input{flex:1;min-width:220px}
+.filtros input[type=number],.filtros input[type=date]{flex:0 1 auto;min-width:0}
 .lnk{cursor:pointer}
 .lnk:hover{color:var(--teal);text-decoration:underline}
 .chev{display:inline-block;width:14px;color:rgba(15,61,62,.6)}
@@ -117,6 +118,17 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
 .fq-f textarea{min-height:70px}
 .fq-g{display:flex;gap:10px;flex-wrap:wrap}
 .chk{display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0}
+/* selector de pasajeros que cubre un pago: lista desplegable, con buscador y desplazamiento propio */
+.pax-pick{border:1.5px solid var(--beige-d);border-radius:8px;background:var(--white);padding:0;overflow:hidden}
+.pax-pick summary{cursor:pointer;padding:8px 10px;font-size:12px;color:var(--dark,#2B2B2B);list-style:none}
+.pax-pick summary::-webkit-details-marker{display:none}
+.pax-pick summary::after{content:'▾';float:right;color:rgba(43,43,43,.45)}
+.pax-pick[open] summary{border-bottom:1px solid var(--beige-d)}
+.pax-pick .pax-filter{margin:8px;width:calc(100% - 16px);padding:6px 9px;font-size:12px}
+.pax-pick .share-list{display:grid;grid-template-columns:1fr;gap:4px;margin:0 8px 8px;max-height:220px;overflow-y:auto}
+.pax-pick .share-list label{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;padding:5px 8px;border:1px solid var(--beige-d);border-radius:6px;min-width:0}
+.pax-pick .share-list label:hover{background:var(--teal-l)}
+.pax-pick .share-list input{flex:none}
 .opts-chk{display:flex;flex-wrap:wrap;gap:2px 16px;margin-top:4px}
 .btn:disabled{opacity:.4;cursor:default}
 
@@ -1262,10 +1274,18 @@ function pagosFichaHtml(rid){
         <input type="date" id="pg-fecha" value="${new Date().toISOString().slice(0, 10)}">
         <select id="pg-medio"><option value="">Medio</option><option value="transferencia">Transferencia</option><option value="efectivo">Efectivo</option><option value="tarjeta">Tarjeta</option><option value="cheque">Cheque</option><option value="otro">Otro</option></select>
         <input type="number" step="0.01" id="pg-tc" placeholder="T.C. (si otra moneda)" style="width:150px"></div>
-      ${otros.length ? `<details class="pax-pick" style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;padding:6px 8px">También cubre a otros pasajeros (el monto se reparte en partes iguales)</summary><div class="share-list" style="margin:6px 8px;max-height:180px">${otros.map(([id, o]) => `<label style="padding:3px 6px;border:0"><input type="checkbox" class="pg-otro" value="${esc(id)}"> ${esc(o.apellido)}, ${esc(o.nombre)}</label>`).join('')}</div></details>` : ''}
+      ${otros.length ? `<details class="pax-pick" style="margin-top:8px"><summary>También cubre a otros pasajeros <span id="pg-cont" class="pill" style="display:none"></span><span class="hint" style="display:block;margin:2px 0 0">El monto se reparte en partes iguales entre quienes marques (incluida esta persona).</span></summary><input type="text" class="pax-filter" placeholder="Buscar pasajero…" oninput="filtrarPaxPick(this)"><div class="share-list">${otros.map(([id, o]) => `<label><input type="checkbox" class="pg-otro" value="${esc(id)}" onchange="contarPaxPick()"> <span style="overflow-wrap:anywhere">${esc(o.apellido)}, ${esc(o.nombre)}</span></label>`).join('')}</div></details>` : ''}
       <button class="btn" style="margin-top:10px" onclick="registrarPago('${esc(rid)}')">Registrar pago</button></div>`;
   } else html += puedeEditarReservas() ? '<div class="hint" style="margin-top:8px">Vinculá una reserva a este grupo (pestaña Ajustes) para registrar pagos desde acá.</div>' : '<div class="hint" style="margin-top:8px">Tu cuenta ve los pagos en modo solo lectura.</div>';
   return html + '</div>';
+}
+function filtrarPaxPick(inp){
+  const q = norm(inp.value).trim();
+  inp.parentElement.querySelectorAll('.share-list label').forEach(l => { l.style.display = !q || norm(l.textContent).includes(q) ? '' : 'none'; });
+}
+function contarPaxPick(){
+  const n = document.querySelectorAll('.pg-otro:checked').length, c = document.getElementById('pg-cont');
+  if (c){ c.textContent = n + ' seleccionado' + (n === 1 ? '' : 's'); c.style.display = n ? '' : 'none'; }
 }
 function registrarPago(rid){
   const monto = parseFloat(document.getElementById('pg-monto').value);
