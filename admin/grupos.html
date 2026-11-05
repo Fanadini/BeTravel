@@ -1253,6 +1253,24 @@ function tipoFichaHtml(rid, r){
   return `<div class="card" style="margin:0 0 12px"><h3>Tipo de pasajero: ${x.t || 'sin dato'}</h3><div class="hint">${x.edad != null ? esc(x.edad + ' año' + (x.edad === 1 ? '' : 's') + ' al ' + fmtFecha(ref.fecha)) : 'Falta la fecha de nacimiento.'} Si la aerolínea lo clasifica distinto, corregilo acá.</div>
     <select style="width:100%" onchange="setTipoPax('${esc(rid)}', this.value)"><option value="">Automático (según la edad)</option><option value="ADT" ${man === 'ADT' ? 'selected' : ''}>ADT · adulto</option><option value="CHD" ${man === 'CHD' ? 'selected' : ''}>CHD · niño</option><option value="INF" ${man === 'INF' ? 'selected' : ''}>INF · infante</option></select></div>`;
 }
+// Cuotas que paga este pasajero (el plan del grupo aplicado a su total); con los pagos a la vista, indica cuánto va cubierto en cada una
+function cuotasFichaHtml(rid, r){
+  const g = GRUPOS[GID_ABIERTO]; if (!tieneCobros(g)) return '';
+  const ref = refViaje(g), asg = asignaciones(g), conSaldo = veSaldo(), pp = conSaldo ? pagosPorPasajero(GID_ABIERTO) : {};
+  const x = cobroDe(g, rid, r, ref, asg, pp), cuotas = planCuotas(g), cub = !!((g.cobros || {})[rid] || {}).cubierto, m = v => moneyG(v, x.mon);
+  const montos = repartirCuotas(x.total, cuotas);
+  let resto = conSaldo ? x.pagado : 0;
+  const filas = cuotas.map((c, i) => {
+    const cubierto = Math.min(montos[i], Math.max(0, resto)); resto -= montos[i];
+    const est = !conSaldo ? '' : cubierto >= montos[i] - 0.005 ? '<span class="pill ok">Pagada</span>' : cubierto > 0.005 ? `<span class="pill warn">Parcial · falta ${m(montos[i] - cubierto)}</span>` : '<span class="pill">Pendiente</span>';
+    return `<tr><td>${i + 1}</td><td>${c.fecha ? esc(fmtFecha(c.fecha)) : 'Sin fecha'}</td><td class="num">${esc(String(c.pct))}%</td><td class="num"><strong>${m(montos[i])}</strong></td>${conSaldo ? `<td>${est}</td>` : ''}</tr>`;
+  }).join('');
+  return `<div class="card" style="margin:0 0 12px"><h3>Cuotas a pagar</h3>
+    ${cub ? '<div class="hint" style="margin:0 0 6px">Esta persona está marcada como "Lo cubren los novios": las cuotas corresponden a lo que se imputa a los novios.</div>' : ''}
+    ${x.falta.length ? `<div class="alertas" style="padding:0 0 6px">Faltan datos para el cálculo: ${esc(x.falta.join('; '))}.</div>` : ''}
+    <div class="lista"><table><thead><tr><th>Cuota</th><th>Fecha</th><th class="num">%</th><th class="num">Monto</th>${conSaldo ? '<th>Estado</th>' : ''}</tr></thead><tbody>${filas}
+      <tr style="font-weight:600"><td colspan="3">Total a pagar</td><td class="num">${m(x.total)}</td>${conSaldo ? `<td>${x.saldo <= 0.005 && !x.falta.length ? '<span class="pill ok">Al día</span>' : 'Saldo ' + m(x.saldo)}</td>` : ''}</tr></tbody></table></div></div>`;
+}
 function pagosFichaHtml(rid){
   const gid = GID_ABIERTO, reservas = reservasDelGrupo(gid);
   if (!reservas.length && !resumenLeido(gid)) return puedeEditarReservas() ? `<div class="card" style="margin:0 0 12px"><h3>Pagos</h3><div class="hint" style="margin:0">Vinculá una reserva a este grupo (pestaña Ajustes) para llevar el control de pagos.</div></div>` : '';
@@ -1354,7 +1372,7 @@ function verRespuesta(rid){
   const r = GRUPOS[GID_ABIERTO].respuestas[rid]; if (!r) return;
   const rows = columnasForm(GRUPOS[GID_ABIERTO]).filter(c => r[c.id] != null && r[c.id] !== '').map(c => `<dt>${esc(c.etiqueta)}</dt><dd>${esc(valorTxt(r, c))}</dd>`).join('');
   const ts = r.ts ? new Date(r.ts).toLocaleString('de-DE') : '';
-  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl>${tipoFichaHtml(rid, r)}${notaFichaHtml(rid)}${assistFichaHtml(rid)}${medioFichaHtml(rid, r)}${cobroFichaHtml(rid, r)}${vincHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl>${tipoFichaHtml(rid, r)}${notaFichaHtml(rid)}${assistFichaHtml(rid)}${medioFichaHtml(rid, r)}${cobroFichaHtml(rid, r)}${vincHtml(rid, r)}${cuotasFichaHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
 function cerrarModal(){ document.getElementById('modal-root').innerHTML = ''; }
 
