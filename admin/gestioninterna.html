@@ -166,6 +166,8 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 #reserva-panel.open{right:0}
 #reserva-panel .panel-header,#reserva-panel .panel-last-edit{padding-left:max(24px,3vw);padding-right:max(24px,3vw)}
 #reserva-panel .panel-body{padding:22px max(24px,3vw) 32px;background:var(--beige)}
+.panel-pleg{flex-shrink:0;display:flex;gap:8px;align-items:center;font-size:12px;padding:8px max(24px,3vw);background:var(--beige);border-bottom:1px solid var(--beige-d);color:rgba(43,43,43,.65)}
+.panel-pleg a{color:var(--teal);cursor:pointer;text-decoration:underline}
 #reserva-panel .pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,430px),1fr));gap:22px;align-items:start;max-width:1900px;margin:0 auto}
 #reserva-panel .pcol{min-width:0}
 #reserva-panel .psec{background:var(--white);border:1px solid var(--beige-d);border-radius:12px;padding:16px 18px;margin-bottom:18px}
@@ -513,6 +515,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
     <button class="panel-close" onclick="closeReserva()">✕</button>
   </div>
   <div class="panel-last-edit" id="panel-last-edit"></div>
+  <div class="panel-pleg" id="reserva-pleg"><span>Tarjetas de la reserva:</span><a onclick="plegarTodoReserva(true)">Plegar todo</a> · <a onclick="plegarTodoReserva(false)">Desplegar todo</a></div>
   <div class="panel-body" id="reserva-panel-body"></div>
   <div class="panel-footer">
     <button class="save-btn" onclick="saveReserva()">Guardar</button>
@@ -2562,6 +2565,7 @@ function habRowHtml(h, pref){
     <button type="button" class="item-delete-btn" title="Quitar" onclick="const w=this.closest('.ppp-wrap');this.closest('.hab-line').remove();pppUpdate(w.querySelector('.${pref}-modo'))">✕</button>
   </div>`;
 }
+function plegarTodoReserva(v){ if (window.PlegarCards) PlegarCards.todos('#reserva-panel-body', v); }
 function togglePlegar(el){
   const card = el.closest('.item-card'); card.classList.toggle('plegado'); resumenItem(card);
 }
@@ -3048,7 +3052,6 @@ function renderReservaPanel(){
       <div class="upload-hint" style="margin-bottom:8px">Una línea por cada servicio cotizado al cliente (igual que Costos), para desglosar de qué se compone el total.</div>
       <div id="cotizado-list">${(d.cotizado||[]).map(c => cotizadoRowHtml(c, d.moneda)).join('')}</div>
       <button type="button" class="add-item-btn" onclick="addCotizado()">+ Agregar ítem cotizado</button>
-      <div style="margin-top:6px;font-size:12px"><a href="#" class="lnk" onclick="plegarLista('cotizado-list',true);return false">Plegar todos</a> · <a href="#" class="lnk" onclick="plegarLista('cotizado-list',false);return false">Desplegar todos</a></div>
       <div class="derived-box" style="margin-top:14px">
         <div class="derived-item">Margen<b id="derived-margen">${fmtMoney(reservaMargenLocal(d), d.moneda)}</b></div>
         <div class="derived-item">Saldo pendiente<b id="derived-saldo">${fmtMoney(objToArr(d.cotizado).reduce((s,c)=>s+(Number(c.monto)||0),0)-pagosEquivSum(d.pagos, d.moneda)-objToArr(d.reparto).reduce((s,rep)=>s+(Number(rep.montoCobradoDirecto)||0),0), d.moneda)}</b></div>
@@ -3061,7 +3064,6 @@ function renderReservaPanel(){
       <datalist id="dl-proveedores">${META.proveedores.map(p=>`<option value="${escHtml(p)}">`).join('')}</datalist>
       <div id="costos-list">${(d.costos||[]).map(c => costoRowHtml(c, d.moneda)).join('')}</div>
       <button type="button" class="add-item-btn" onclick="addCosto()">+ Agregar costo</button>
-      <div style="margin-top:6px;font-size:12px"><a href="#" class="lnk" onclick="plegarLista('costos-list',true);return false">Plegar todos</a> · <a href="#" class="lnk" onclick="plegarLista('costos-list',false);return false">Desplegar todos</a></div>
     </div>
     </div>
     <div class="pcol">
