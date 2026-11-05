@@ -114,12 +114,20 @@ details.card[open]>summary::after{content:'–'}
 .doc .firmas{display:flex;justify-content:space-between;gap:12mm;margin-top:16mm;break-inside:avoid;page-break-inside:avoid}
 .doc .firma{flex:1;font-size:9.5pt;line-height:1.55;text-align:left}
 .doc .firma .linea{border-top:1px solid #000;padding-top:2mm;margin-bottom:2mm;font-weight:600}
+/* edición en el propio documento (como un procesador de textos) */
+.doc[contenteditable=true]{outline:none;cursor:text}
+.doc[contenteditable=true]:focus-within{caret-color:#0F3D3E}
+.doc-bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 auto 10px;max-width:210mm;padding:6px 8px;background:var(--white);border:1px solid var(--beige-d);border-radius:8px;position:sticky;top:0;z-index:5}
+.doc-bar button{border:1px solid var(--beige-d);background:var(--white);border-radius:6px;min-width:30px;height:28px;cursor:pointer;font-size:13px;padding:0 8px}
+.doc-bar button:hover{background:var(--teal-l,#e8efee)}
+.doc-bar .sep{width:1px;height:20px;background:var(--beige-d);margin:0 4px}
+.doc-bar .doc-estado{font-size:11px;color:rgba(43,43,43,.6);flex:1;min-width:160px}
 .doc .cierre{break-inside:avoid;page-break-inside:avoid}
 
 @page{size:A4;margin:22mm 20mm 22mm;@bottom-center{content:"Página " counter(page) " de " counter(pages);font-family:'Inter',sans-serif;font-size:8pt;color:#555}}
 @media print{
   html,body{height:auto!important;overflow:visible!important;background:#fff!important;display:block!important}
-  .nav,.loading-overlay,.login-screen,#view-list,.toolbar,.tabs,.form,.banner{display:none!important}
+  .nav,.loading-overlay,.login-screen,#view-list,.toolbar,.tabs,.form,.banner,.doc-bar{display:none!important}
   .main,#view-edit,.split,.paper-wrap{display:block!important;overflow:visible!important;height:auto!important;padding:0!important;background:none!important}
   .paper{border:0!important;padding:0!important;margin:0!important;width:auto!important;max-width:none!important}
   .doc .blank{background:none!important}
@@ -218,7 +226,20 @@ details.card[open]>summary::after{content:'–'}
     </div>
     <div class="split">
       <div class="form" id="form"></div>
-      <div class="paper-wrap"><div class="paper"><div class="doc" id="doc"></div></div></div>
+      <div class="paper-wrap">
+        <div class="doc-bar" id="doc-bar">
+          <button onmousedown="event.preventDefault();cmd('bold')" title="Negrita (Ctrl+B)"><b>N</b></button>
+          <button onmousedown="event.preventDefault();cmd('italic')" title="Cursiva (Ctrl+I)"><i>K</i></button>
+          <button onmousedown="event.preventDefault();cmd('underline')" title="Subrayado (Ctrl+U)"><u>S</u></button>
+          <span class="sep"></span>
+          <button onmousedown="event.preventDefault();cmd('undo')" title="Deshacer (Ctrl+Z)">↶</button>
+          <button onmousedown="event.preventDefault();cmd('redo')" title="Rehacer (Ctrl+Y)">↷</button>
+          <button onmousedown="event.preventDefault();cmd('insertUnorderedList')" title="Lista">• Lista</button>
+          <span class="sep"></span>
+          <span class="doc-estado" id="doc-estado">Escribí directamente sobre el contrato.</span>
+          <button id="btn-regenerar" class="hidden solo-contrato" onclick="regenerarDoc()" title="Descarta las ediciones hechas sobre el texto y vuelve a armarlo con los datos del panel">Volver a generar desde los datos</button>
+        </div>
+        <div class="paper"><div class="doc" id="doc" contenteditable="true" spellcheck="true"></div></div></div>
     </div>
   </div>
 </div>
@@ -321,15 +342,15 @@ function fmtNum(n){ return Number.isInteger(n) ? n.toLocaleString('de-DE') : n.t
 function dinero(n, moneda){ return (moneda === 'ARS' ? '$ ' : 'US$ ') + fmtNum(n); }
 
 // ── DATOS POR DEFECTO ──────────────────────────────────────────────────────
-const AGENCIA_DEF = { ag_nombre:'Facundo Nahuel Berdini', ag_legajo:'20807', ag_cuit:'', ag_domicilio:'Ciudad Autónoma de Buenos Aires, Argentina', ag_banco:'' };
-const SERV_SUGERIDOS = ['Transporte aéreo / terrestre:', 'Alojamiento (categoría y régimen):', 'Traslados aeropuerto / hotel:', 'Asistencia al viajero:', 'Coordinador del grupo asignado:', 'Otros:'].join('\n');
-const NO_INCL_DEF = 'gastos personales de los pasajeros, consumiciones extras, propinas, visados individuales, y cualquier otro servicio no especificado en el presente contrato';
+const AGENCIA_DEF = { ag_nombre:'Facundo Nahuel Berdini', ag_legajo:'20807', ag_cuit:'20-38941066-8', ag_domicilio:'Campana 5152', ag_dom_const:'Urquiza 1101', ag_email:'', ag_banco:'' };
+const SERV_SUGERIDOS = ['Transporte aéreo (aerolínea, vuelo y consolidador):', 'Alojamiento (hotel y régimen):', 'Traslados aeropuerto / hotel / aeropuerto en destino', 'Asistencia al viajero (producto):'].join('\n');
+const NO_INCL_DEF = 'gastos personales, consumiciones extras, propinas, excursiones, documentación de viaje y visados, equipaje adicional y los cargos que los PRESTADORES cobren por fuera de la tarifa informada';
 let AGENCIA_GUARDADA = {};   // lo que el administrador dejó como datos de BeTravel
 function agenciaDef(){ return { ...AGENCIA_DEF, ...AGENCIA_GUARDADA }; }
 function valoresNuevos(){
-  return { ...agenciaDef(), lugar:'Buenos Aires', fecha: hoyISO(), ev_tipo:'Viaje de grupo para una boda', moneda:'USD',
+  return { ...agenciaDef(), lugar:'Ciudad Autónoma de Buenos Aires', fecha: hoyISO(), ev_tipo:'Viaje grupal con motivo de boda',
     pagos: [{ concepto:'Anticipo' }, { concepto:'Segundo pago' }, { concepto:'Saldo' }].map(x => ({ concepto:x.concepto, pct:'', monto:'', fecha:'', detalle:'' })),
-    mp_transf:true, mp_cheque:false, servicios: SERV_SUGERIDOS, no_incl: NO_INCL_DEF,
+    mp_efectivo:false, mp_transf:true, servicios: SERV_SUGERIDOS, no_incl: NO_INCL_DEF, coord_cant:'dos (2)', mora_pct:'8', const_horas:'48', nom_dias:'120',
     provs: [{ servicio:'Transporte aéreo', proveedor:'', politica:'', fecha:'' }, { servicio:'Alojamiento', proveedor:'', politica:'', fecha:'' }],
     can_d1:'60', can_p1:'80', can_d2:'30', can_p2:'50', can_d3:'15', can_p3:'25', can_p4:'0' };
 }
@@ -338,192 +359,177 @@ function valoresModelo(){ const v = valoresNuevos(); v.fecha = ''; v.servicios =
 
 // ── SECCIONES DEL FORMULARIO ───────────────────────────────────────────────
 // t: text (por defecto), date, select, textarea, check. full: ocupa las dos columnas.
-const FISCAL = ['', 'Consumidor final', 'Responsable inscripto', 'Monotributista', 'Exento'];
 const SECCIONES = [
   { id:'contrato', titulo:'Contrato', abierto:true, campos:[
-    { k:'lugar', l:'Ciudad de firma' }, { k:'fecha', l:'Fecha de firma', t:'date' } ] },
-  { id:'cliente', titulo:'El cliente', abierto:true, hint:'Quien contrata: los novios, un organizador o una empresa.', campos:[
-    { k:'cl_nombre', l:'Nombre completo o razón social', full:true }, { k:'cl_doc', l:'DNI o CUIT' }, { k:'cl_tel', l:'Teléfono' },
-    { k:'cl_domicilio', l:'Domicilio', full:true }, { k:'cl_email', l:'Correo electrónico de contacto', full:true },
-    { k:'cl_rep', l:'Representado por (si corresponde)', full:true }, { k:'cl_rep_car', l:'En carácter de' }, { k:'cl_rep_dni', l:'DNI del representante' },
-    { k:'cl_fiscal', l:'Condición fiscal', t:'select', opts:FISCAL, full:true },
-    { k:'fa_nombre', l:'Facturar a nombre de (si es distinto)', full:true }, { k:'fa_doc', l:'DNI o CUIT de facturación (si es distinto)', full:true } ] },
-  { id:'viaje', titulo:'Viaje y evento', abierto:true, campos:[
-    { k:'ev_tipo', l:'Tipo de evento o propósito', full:true }, { k:'ev_detalle', l:'Detalle del evento (novios, fecha y lugar de la ceremonia)', full:true },
+    { k:'lugar', l:'Lugar de firma' }, { k:'fecha', l:'Fecha de firma', t:'date' } ] },
+  { id:'cliente', titulo:'El cliente', abierto:true, hint:'Quien contrata. Si son dos personas (por ejemplo, los novios), completar también la segunda.', campos:[
+    { k:'cl_nombre', l:'Nombre completo o razón social', full:true }, { k:'cl_doc', l:'D.N.I. o CUIT' }, { k:'cl_tel', l:'Teléfono' },
+    { k:'cl2_nombre', l:'Segundo cliente (opcional)', full:true }, { k:'cl2_doc', l:'D.N.I. del segundo cliente', full:true },
+    { k:'cl_domicilio', l:'Domicilio constituido', full:true }, { k:'cl_email', l:'Correo electrónico de contacto', full:true },
+    { k:'cl_rep', l:'Representado por (si corresponde)', full:true }, { k:'cl_rep_car', l:'En carácter de' }, { k:'cl_rep_dni', l:'D.N.I. del representante' } ] },
+  { id:'viaje', titulo:'Viaje y servicios', abierto:true, campos:[
+    { k:'ev_tipo', l:'Propósito del viaje', full:true }, { k:'ev_detalle', l:'Detalle (novios, fecha y lugar de la ceremonia)', full:true },
     { k:'destino', l:'Destino', full:true }, { k:'salida', l:'Fecha de salida', t:'date' }, { k:'regreso', l:'Fecha de regreso', t:'date' },
-    { k:'duracion', l:'Duración (si queda vacía se calcula)', full:true }, { k:'pasajeros', l:'Cantidad de pasajeros' },
-    { k:'ref_cot', l:'Propuesta de referencia (código)' }, { k:'coord', l:'Responsable de coordinación por parte del cliente', full:true } ] },
-  { id:'precio', titulo:'Precio y forma de pago', abierto:true, campos:[
-    { k:'moneda', l:'Moneda', t:'select', opts:[['USD', 'Dólares estadounidenses'], ['ARS', 'Pesos argentinos']] },
-    { k:'total', l:'Precio total del programa' }, { k:'por_pax', l:'Valor por pasajero (opcional)', full:true } ], pagos:true,
-    campos2:[ { k:'mp_transf', l:'Transferencia bancaria', t:'check' }, { k:'mp_cheque', l:'Cheque', t:'check' }, { k:'mp_otro', l:'Otro medio de pago', full:true },
-      { k:'ag_banco', l:'Datos bancarios de BeTravel', t:'textarea', full:true } ] },
-  { id:'servicios', titulo:'Servicios incluidos', hint:'Una línea por servicio. Las líneas que terminan en ":" quedan con un espacio en blanco para completar.', campos:[
-    { k:'servicios', l:'Servicios incluidos', t:'textarea', full:true, filas:7 }, { k:'no_incl', l:'Servicios no incluidos', t:'textarea', full:true } ] },
+    { k:'duracion', l:'Duración (si queda vacía se calcula)', full:true }, { k:'pasajeros', l:'Cantidad estimada de pasajeros' },
+    { k:'ref_cot', l:'Propuesta N° (Anexo I)' }, { k:'excl_fecha', l:'Fecha límite para indicar pasajeros excluidos (2.3)', t:'date', full:true },
+    { k:'coord_cant', l:'Cantidad de coordinadores (en letras y número)', full:true },
+    { k:'servicios', l:'Servicios gestionados (una línea por servicio; las que terminan en ":" quedan para completar)', t:'textarea', full:true, filas:6 },
+    { k:'no_incl', l:'Servicios no incluidos', t:'textarea', full:true } ] },
+  { id:'precio', titulo:'Honorarios y forma de pago', abierto:true, hint:'Los honorarios se pactan y pagan solo en dólares (cláusula 4). El precio de los servicios se paga a los prestadores.', campos:[
+    { k:'total', l:'Honorarios totales (US$)' }, { k:'total_letras', l:'En letras (si queda vacío se completa solo)' } ], pagos:true,
+    campos2:[ { k:'mp_efectivo', l:'En efectivo, contra recibo', t:'check' }, { k:'mp_transf', l:'Transferencia a cuenta en USD', t:'check' }, { k:'mp_otro', l:'Otro medio de pago', full:true },
+      { k:'ag_banco', l:'Cuenta en USD de BeTravel (N°, banco, CBU / alias)', t:'textarea', full:true },
+      { k:'fuente_tc', l:'Fuente del tipo de cambio si se aceptan pesos (4.6)', full:true }, { k:'mora_pct', l:'Interés moratorio anual (%)' }, { k:'const_horas', l:'Horas para enviar constancias de pago' },
+      { k:'indem_dias', l:'Días para reintegrar sumas abonadas por la agencia (5.6)', full:true },
+      { k:'pagos_pax', l:'Incluir 5.8: pasajeros que paguen directamente sus servicios', t:'check', full:true } ] },
   { id:'nomina', titulo:'Nómina y reemplazos', campos:[
     { k:'nom_dias', l:'Días de anticipación para la nómina definitiva', full:true },
-    { k:'rep_no', l:'No hay posibilidad de cambios: no se admiten reemplazos de pasajeros', t:'check', full:true },
-    { k:'rep_pct', l:'% de pasajeros reemplazables sin costo', ocultaSi:'rep_no' }, { k:'rep_dias', l:'Días de anticipación para reemplazos', ocultaSi:'rep_no' } ] },
-  { id:'cancel', titulo:'Política de cancelación', hint:'Los tramos se calculan sobre el monto abonado. Deben respetar lo que cobran los proveedores.', campos:[
+    { k:'rep_no', l:'No se admiten reemplazos sin cargo sobre los honorarios', t:'check', full:true },
+    { k:'rep_pct', l:'% de pasajeros reemplazables sin cargo', ocultaSi:'rep_no' }, { k:'rep_dias', l:'Días de anticipación para reemplazos', ocultaSi:'rep_no' } ] },
+  { id:'cancel', titulo:'Cancelaciones', hint:'Reintegro de honorarios según la anticipación (7.2) y condiciones de cada prestador (7.1).', campos:[
     { k:'can_d1', l:'Más de (días)' }, { k:'can_p1', l:'Se reintegra (%)' }, { k:'can_d2', l:'Entre ese tramo y (días)' }, { k:'can_p2', l:'Se reintegra (%)' },
     { k:'can_d3', l:'Entre ese tramo y (días)' }, { k:'can_p3', l:'Se reintegra (%)' }, { k:'can_p4', l:'Menos que el último tramo: se reintegra (%)', full:true } ], provs:true },
   { id:'adic', titulo:'Cláusulas adicionales', hint:'Si se completa, se agrega una cláusula antes de la conformidad.', campos:[
     { k:'adicionales', l:'Texto de la cláusula adicional', t:'textarea', full:true, filas:5 } ] },
   { id:'agencia', titulo:'Datos de BeTravel', hint:'Se repiten en todos los contratos. "Guardar como datos de BeTravel" los deja como valores iniciales.', campos:[
-    { k:'ag_nombre', l:'Representante (firma)', full:true }, { k:'ag_legajo', l:'Legajo N°' }, { k:'ag_cuit', l:'CUIT' }, { k:'ag_domicilio', l:'Domicilio', full:true } ], agenciaBtns:true },
+    { k:'ag_nombre', l:'Titular (firma)', full:true }, { k:'ag_legajo', l:'Legajo N°' }, { k:'ag_cuit', l:'CUIT' }, { k:'ag_domicilio', l:'Domicilio comercial' }, { k:'ag_dom_const', l:'Domicilio constituido' },
+    { k:'ag_email', l:'Correo electrónico de la agencia', full:true } ], agenciaBtns:true },
 ];
+
+// Texto fijo del modelo (cláusulas sin datos variables)
+const FIJOS = {"1.1": "EL CLIENTE encomienda a LA AGENCIA, y esta acepta, la gestión, reserva y coordinación de los servicios turísticos detallados en la Cláusula 2, para el viaje grupal allí identificado (en adelante, “el VIAJE”).", "1.2": "LA AGENCIA actúa exclusivamente como intermediaria entre EL CLIENTE y los prestadores de esos servicios (transportistas aéreos y terrestres, establecimientos hoteleros, empresas de asistencia al viajero y demás, en adelante “los PRESTADORES”). LA AGENCIA no presta por sí ninguno de esos servicios ni los comercializa como paquete turístico propio.", "1.3": "A tal fin, EL CLIENTE confiere a LA AGENCIA mandato para efectuar en su nombre y por su cuenta las reservas y gestiones necesarias (arts. 362 y 1319 y ss. CCyCN). Los contratos con cada PRESTADOR se celebran entre este y EL CLIENTE o, en su caso, cada pasajero, y quedan sujetos a las condiciones generales y particulares del respectivo PRESTADOR.", "1.4": "La retribución de LA AGENCIA consiste exclusivamente en los honorarios previstos en la Cláusula 4. El precio de los servicios turísticos no integra esos honorarios y será pagado por EL CLIENTE directamente a los PRESTADORES, conforme la Cláusula 5.", "2.1": "Datos del VIAJE, cuyo detalle surge de la Propuesta N° Com 01, que como Anexo I integra el presente:", "2.2": "LA AGENCIA gestionará exclusivamente los siguientes servicios:", "2.3": "Quedan excluidos de los servicios de los incisos a), c) y d) los pasajeros que EL CLIENTE indique por escrito a LA AGENCIA, antes del [__________], por haber manifestado su voluntad de viajar por otros medios o de no contratar el servicio respectivo.", "2.4": "No están incluidos los servicios no enumerados en el punto 2.2 y, en particular: gastos personales, consumiciones extras, propinas, excursiones, documentación de viaje y visados, equipaje adicional y los cargos que los PRESTADORES cobren por fuera de la tarifa informada.", "2.5": "Las tarifas consignadas en el Anexo I son las informadas por los PRESTADORES a la fecha de la propuesta. Hasta su confirmación y pago por EL CLIENTE pueden ser modificadas por los PRESTADORES. LA AGENCIA no garantiza su mantenimiento ni la disponibilidad de los cupos.", "3.1": "LA AGENCIA designará [dos (2)] coordinadores, que serán el punto de contacto de EL CLIENTE durante la organización y ejecución del VIAJE y tendrán a su cargo: [a) el seguimiento de las reservas y la comunicación con los PRESTADORES; b) la recepción del GRUPO en destino y la asistencia en los traslados; c) la atención de los pasajeros durante la estadía].", "3.2": "La actuación de los coordinadores no altera el carácter de intermediaria de LA AGENCIA respecto de los servicios a cargo de los PRESTADORES, sin perjuicio de la responsabilidad de LA AGENCIA por la actuación de los propios coordinadores.", "4.1": "Por los servicios de intermediación, gestión y coordinación, EL CLIENTE abonará a LA AGENCIA honorarios por la suma total de US$ [__________] (dólares estadounidenses [__________]).", "4.2": "Los honorarios se abonarán conforme el siguiente plan de pago: [__________]. Los pagos se efectuarán [en efectivo, contra entrega del recibo correspondiente / por transferencia a la cuenta en USD N° ______ de LA AGENCIA].", "4.3": "Los honorarios se pactan y serán pagados exclusivamente en dólares estadounidenses billete (“USD”). Las partes declaran que la moneda de pago es condición esencial del contrato y determinante del consentimiento de LA AGENCIA. Conforme a los arts. 765 y 766 del CCyCN (texto según DNU 70/2023), la obligación es de dar dinero y EL CLIENTE solo se libera entregando la cantidad de USD comprometida. No puede liberarse entregando su equivalente en moneda de curso legal.", "4.4": "Para el supuesto de que, por cualquier causa (reforma normativa, pérdida de vigencia o declaración de invalidez del DNU 70/2023 u otra), recobrara aplicación un régimen que autorice al deudor a pagar en moneda de curso legal, EL CLIENTE renuncia en forma expresa e irrevocable a esa facultad. Renuncia asimismo a invocar la imprevisión (art. 1091 CCyCN), la frustración de la finalidad (art. 1090 CCyCN), la excesiva onerosidad sobreviniente o cualquier otro instituto con fundamento en la variación del tipo de cambio, y a pedir el reajuste equitativo de la prestación.", "4.5": "EL CLIENTE declara que dispone, o dispondrá en cada fecha de pago, de los USD necesarios o del acceso lícito a ellos, y asume a su exclusivo cargo el riesgo de su falta de disponibilidad. Ninguno de los siguientes hechos constituirá caso fortuito, fuerza mayor ni imposibilidad de cumplimiento (arts. 955, 956 y 1730 CCyCN): la carencia o insuficiencia de USD; la restricción, limitación o prohibición de acceso al mercado de cambios; ni cualquier otra medida cambiaria presente o futura. Tampoco lo eximirán de la mora ni de responsabilidad.", "4.6": "Si EL CLIENTE no entregara los USD, LA AGENCIA podrá, a su sola opción: (i) exigir el cumplimiento en la moneda pactada; o (ii) aceptar pesos en la cantidad necesaria para adquirir, en la fecha de efectivo pago, la totalidad de los USD adeudados, calculada al tipo de cambio vendedor más alto que resulte de un mecanismo lícito ([MEP / CCL – especificar fuente]), con más comisiones, impuestos y gastos. La aceptación de pesos no importará novación ni renuncia a la moneda pactada. El pago solo será liberatorio cuando, con lo recibido, LA AGENCIA haya podido adquirir la totalidad de los USD adeudados. Cualquier diferencia seguirá siendo exigible en USD.", "4.7": "La mora se producirá de pleno derecho por el solo vencimiento del plazo (art. 886 CCyCN) y devengará un interés moratorio del 8% anual en USD. Producida la mora, LA AGENCIA podrá suspender las gestiones a su cargo (art. 1031 CCyCN) y, previa intimación al cumplimiento por un plazo no menor de quince (15) días, resolver el contrato (arts. 1087 y 1088 CCyCN).", "4.8": "Los honorarios correspondientes a las gestiones efectivamente realizadas se devengan y son exigibles aunque el VIAJE no se realice por causas no imputables a LA AGENCIA, en los términos de la Cláusula 7.", "5.1": "Pagos directos: El precio de los pasajes, alojamientos y demás servicios gestionados será abonado por EL CLIENTE directamente a los PRESTADORES, por su cuenta y bajo su exclusiva responsabilidad. LA AGENCIA no recibe ni administra fondos destinados a los PRESTADORES, ni asume la obligación de anticipar, garantizar o financiar esos pagos.", "5.2": "Información de plazos: LA AGENCIA informará a EL CLIENTE, por escrito y con la antelación necesaria, los montos, plazos, medios y condiciones de pago fijados por cada PRESTADOR, así como las penalidades y cargos por cancelación aplicables.", "5.3": "Constancias: EL CLIENTE remitirá a LA AGENCIA la constancia de cada pago dentro de las [cuarenta y ocho (48)] horas de efectuado. LA AGENCIA no será responsable por pagos que no le hayan sido informados ni por errores en los datos consignados por EL CLIENTE al efectuarlos.", "5.4": "Falta de pago: Si EL CLIENTE no efectúa los pagos en los plazos informados, LA AGENCIA no estará obligada a continuar las gestiones ni a mantener las reservas correspondientes, que podrán ser canceladas por los PRESTADORES conforme sus propias condiciones.", "5.5": "Exención: LA AGENCIA no será responsable por los daños que sufra EL CLIENTE ni por los cargos, penalidades, gastos o diferencias tarifarias que se devenguen como consecuencia de la falta de pago, del pago parcial o del pago tardío a cargo de EL CLIENTE, incluida la pérdida de reservas o la cancelación del VIAJE. Todos esos conceptos serán a exclusivo cargo de EL CLIENTE.", "5.6": "Indemnidad: Si LA AGENCIA debiera abonar a un PRESTADOR o a un tercero cualquier suma por las causas indicadas en el punto anterior, EL CLIENTE deberá reintegrarla dentro de los [__] días de requerida, con más sus gastos. EL CLIENTE mantendrá indemne a LA AGENCIA frente a los reclamos que los pasajeros o terceros formulen con fundamento en esas mismas causas.", "5.7": "Alcance: La exención no comprende los daños derivados del incumplimiento por LA AGENCIA de sus propias obligaciones, en particular del deber de información previsto en el punto 5.2.", "6.1": "EL CLIENTE deberá entregar a LA AGENCIA la nómina definitiva de pasajeros (nombre completo, DNI o pasaporte y datos de contacto) con un mínimo de ciento veinte (120) días de anticipación a la fecha de salida, o con la anticipación mayor que exija algún PRESTADOR y LA AGENCIA le informe.", "6.2": "Los reemplazos de pasajeros y cambios de nombre quedan sujetos a las condiciones de cada PRESTADOR, y los costos que estos cobren por ellos serán a cargo de EL CLIENTE. [Respecto de los honorarios de LA AGENCIA, se admitirá sin cargo el reemplazo de hasta el [__]% de los pasajeros, notificado con al menos [__] días de anticipación.]", "6.3": "Las reducciones en la cantidad de pasajeros se rigen por la Cláusula 7.", "7.1": "Servicios de los PRESTADORES. La cancelación, reducción o modificación de cualquiera de los servicios gestionados se rige exclusivamente por las condiciones del respectivo PRESTADOR, que EL CLIENTE declara conocer y aceptar, y que se agregan como Anexo II. Los cargos, penalidades y pérdidas que de ello resulten son a exclusivo cargo de EL CLIENTE. En particular:", "7.2": "Honorarios en caso de cancelación total por EL CLIENTE. De los honorarios abonados, LA AGENCIA reintegrará, según la anticipación de la comunicación respecto de la fecha de salida:", "7.3": "Cancelación parcial. Por cada pasajero dado de baja se aplicará la escala del punto 7.2 sobre la porción de los honorarios que le corresponda, resultante de dividir los honorarios totales por la cantidad de pasajeros de la nómina.", "7.4": "Cancelación por LA AGENCIA. Si LA AGENCIA cancelara sus servicios por causas que le sean imputables, reintegrará el 100% de los honorarios abonados, sin perjuicio de las demás acciones que correspondan.", "7.5": "Toda cancelación deberá comunicarse por escrito, conforme la Cláusula 11.", "8.1": "LA AGENCIA responde por el cumplimiento diligente de sus propias obligaciones de gestión, información y coordinación. No responde por incumplimientos, demoras, cancelaciones, modificaciones, sobreventa, pérdida de equipaje ni otros hechos imputables a los PRESTADORES, quienes responden frente a EL CLIENTE y a los pasajeros conforme sus propias condiciones y la normativa aplicable.", "8.2": "LA AGENCIA informará a EL CLIENTE los requisitos generales de documentación y de ingreso a la República Dominicana. EL CLIENTE es responsable de que todos los pasajeros cuenten con la documentación requerida (DNI, pasaporte, visados) vigente y en regla. LA AGENCIA no asume responsabilidad por el rechazo de embarque o de ingreso de pasajeros por irregularidades documentales.", "8.3": "EL CLIENTE será responsable del comportamiento de los pasajeros durante el VIAJE, y deberá hacerse cargo de cualquier daño material o sanción que estos ocasionen a terceros o a los PRESTADORES.", "8.4": "EL CLIENTE se obliga a poner en conocimiento de cada pasajero las condiciones de este contrato y de los PRESTADORES que le resulten aplicables.", "8.5": "Las personas que integran EL CLIENTE responden en forma solidaria por todas las obligaciones asumidas en este contrato (arts. 827 y 828 CCyCN).", "9.1": "Ninguna de las partes será responsable por el incumplimiento de sus obligaciones cuando sea consecuencia de caso fortuito o fuerza mayor, tales como desastres naturales, pandemias, actos de terrorismo, guerras, huelgas generales, restricciones gubernamentales u otros hechos imprevisibles e inevitables, salvo lo dispuesto en el punto 4.5. En tales casos, las partes negociarán de buena fe una solución alternativa, que podrá incluir la reprogramación del VIAJE.", "9.2": "Los cargos que los PRESTADORES apliquen en esos supuestos y la procedencia de reprogramaciones o reintegros se rigen por las condiciones de cada PRESTADOR. Los honorarios correspondientes a las gestiones ya realizadas no serán reintegrables.", "10.1": "Ambas partes mantendrán estricta confidencialidad respecto de la información comercial, financiera y operativa que intercambien en el marco del presente contrato, durante su ejecución y por dos (2) años posteriores a su finalización. LA AGENCIA no divulgará la nómina de pasajeros ni los detalles del VIAJE a terceros sin autorización expresa de EL CLIENTE, salvo a los PRESTADORES en la medida necesaria para la prestación de los servicios.", "10.2": "Los datos personales de los pasajeros serán tratados exclusivamente para gestionar los servicios contratados, conforme la Ley N° 25.326. LA AGENCIA no los cederá ni comercializará a terceros distintos de los PRESTADORES, y los conservará únicamente por el plazo que establezca la normativa vigente.", "10.3": "EL CLIENTE garantiza contar con el consentimiento de cada pasajero para entregar sus datos a LA AGENCIA y, por su intermedio, a los PRESTADORES, incluso aquellos radicados en el exterior.", "12.1": "El presente contrato se rige por las leyes de la República Argentina, en particular la Ley N° 18.829 y su Decreto reglamentario N° 2182/72, el Código Civil y Comercial de la Nación y, en lo que resulte aplicable, la Ley N° 24.240.", "12.2": "Para todas las cuestiones derivadas del presente contrato, las partes se someten a la jurisdicción de los Tribunales Nacionales de Primera Instancia en lo Comercial de la Ciudad Autónoma de Buenos Aires, sin perjuicio de los derechos que la normativa de defensa del consumidor reconoce a EL CLIENTE.", "12.3": "La eventual invalidez de alguna de las cláusulas o previsiones del presente no afectará la validez de las restantes.", "5.8": "Si por indicación de EL CLIENTE algún pasajero abonara directamente sus servicios, lo previsto en esta cláusula se aplicará también a ese pago, y EL CLIENTE responderá frente a LA AGENCIA por su falta de pago."};
+function enLetras(n){
+  n = Math.floor(n); if (!n) return 'cero';
+  const U = ['','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve','veinte','veintiuno','veintidós','veintitrés','veinticuatro','veinticinco','veintiséis','veintisiete','veintiocho','veintinueve'];
+  const D = ['','','','treinta','cuarenta','cincuenta','sesenta','setenta','ochenta','noventa'], C = ['','ciento','doscientos','trescientos','cuatrocientos','quinientos','seiscientos','setecientos','ochocientos','novecientos'];
+  const m1000 = x => { if (x === 100) return 'cien'; const c = Math.floor(x / 100), r = x % 100; let s = C[c]; if (r){ s += s ? ' ' : ''; s += r < 30 ? U[r] : D[Math.floor(r / 10)] + (r % 10 ? ' y ' + U[r % 10] : ''); } return s; };
+  const ap = x => x.replace(/veintiuno$/, 'veintiún').replace(/uno$/, 'un');
+  const mill = Math.floor(n / 1000000), miles = Math.floor(n / 1000) % 1000, res = n % 1000; let s = '';
+  if (mill) s += (mill === 1 ? 'un millón' : ap(m1000(mill)) + ' millones') + ' ';
+  if (miles) s += (miles === 1 ? 'mil' : ap(m1000(miles)) + ' mil') + ' ';
+  if (res) s += m1000(res);
+  return s.trim();
+}
 
 // ── DOCUMENTO ──────────────────────────────────────────────────────────────
 let BLANK = false;
 function cuerpoContrato(V){
-  const blank = (w) => `<span class="blank" style="min-width:${w || 26}mm"></span>`;
+  const blank = (w) => `<span class="blank" style="min-width:${w || 26}mm">&#8203;</span>`;
   const t = k => String(V[k] == null ? '' : V[k]).trim();
   const val = (k, w) => t(k) ? esc(t(k)) : blank(w);
-  const opt = (k, pre = '', post = '') => t(k) ? pre + esc(t(k)) + post : '';
-  const moneda = V.moneda === 'ARS' ? 'ARS' : 'USD';
-  const monedaNombre = moneda === 'ARS' ? 'pesos argentinos' : 'dólares estadounidenses';
   const f = (iso, w) => iso ? esc(fechaLarga(iso)) : blank(w || 34);
-  const x = on => on ? '[X]' : '[ ]';
+  const fj = id => esc(FIJOS[id] || '');
+  const fjE = id => { const m = /^([^:]+): ([\s\S]*)$/.exec(FIJOS[id] || ''); return m ? `<strong>${esc(m[1])}:</strong> ${esc(m[2])}` : esc(FIJOS[id] || ''); };
+  const P = (id, html) => `<p>${id}. ${html}</p>`;
 
-  // Encabezado y fecha
-  const pf = parteFecha(V.fecha);
-  const encabezadoFecha = pf
-    ? `En la ciudad de ${esc(t('lugar') || 'Buenos Aires')}, a los ${pf.d} días del mes de ${MESES[pf.m - 1]} de ${pf.a}`
-    : `En la ciudad de ${esc(t('lugar') || 'Buenos Aires')}, a los ${blank(10)} días del mes de ${blank(26)} de ${blank(14)}`;
+  // Encabezado
+  const pf = parteFecha(V.fecha), lugar = t('lugar') || 'Ciudad Autónoma de Buenos Aires';
+  const enLugar = /^ciudad aut/i.test(lugar) ? `En la ${esc(lugar)}` : `En la ciudad de ${esc(lugar)}`;
+  const fechaTxt = pf ? `a los ${pf.d} días del mes de ${MESES[pf.m - 1]} de ${pf.a}` : `a los ${blank(10)} días del mes de ${blank(26)} de ${blank(14)}`;
+  const ag = { ...AGENCIA_DEF, ...Object.fromEntries(Object.entries(V).filter(([k]) => k.startsWith('ag_') && String(V[k] || '').trim())) };
+  const persona = (n, d, w1, w2) => `${val(n, w1 || 50)}, D.N.I. N° ${val(d, w2 || 28)}`;
+  const rep = t('cl_rep') || BLANK;
+  const clientes = persona('cl_nombre', 'cl_doc') + (t('cl2_nombre') || BLANK ? ', y ' + persona('cl2_nombre', 'cl2_doc') : '');
+  const encabezado = `<p>${enLugar}, ${fechaTxt}, entre <strong>${esc((ag.ag_nombre || '').toUpperCase())}</strong>, CUIT N° ${esc(ag.ag_cuit)}, quien gira bajo el nombre de fantasía “BeTravel”, agente de viajes inscripto bajo el Legajo N° ${esc(ag.ag_legajo)} conforme la Ley N° 18.829, con domicilio comercial en ${esc(ag.ag_domicilio)} y domicilio constituido en ${esc(ag.ag_dom_const)}, ambos de esta ciudad, en adelante “LA AGENCIA”, por una parte; y ${clientes}, con domicilio constituido en ${val('cl_domicilio', 60)}${rep ? `, representado/a en este acto por ${val('cl_rep', 45)}, en carácter de ${val('cl_rep_car', 36)}, D.N.I. N° ${val('cl_rep_dni', 28)}` : ''}, en adelante${t('cl2_nombre') || BLANK ? ', en conjunto,' : ''} “EL CLIENTE”, por la otra, se celebra el presente contrato, que se regirá por las siguientes cláusulas:</p>`;
 
-  // Duración
+  // Cláusula 2: datos del viaje y servicios
   const dd = diasEntre(V.salida, V.regreso);
-  const duracion = t('duracion') ? esc(t('duracion')) : dd != null && dd >= 0 ? `${dd + 1} días (${dd} noches)` : `${blank(18)} días`;
+  const dur = t('duracion') ? esc(t('duracion')) : dd != null && dd >= 0 ? `${dd + 1} días (${dd} noches)` : `${blank(10)} días (${blank(10)} noches)`;
+  const lineasServ = String(V.servicios || '').split('\n').map(x => x.trim()).filter(Boolean);
+  const letras = 'abcdefghij';
+  const servItems = lineasServ.map(l => /:$/.test(l) ? `${esc(l)} ${blank(50)}` : esc(l)).concat(['Coordinación del GRUPO, conforme la Cláusula 3.']);
+  const serviciosHTML = servItems.map((x, i) => `<p class="ind">${letras[i]}) ${x}</p>`).join('');
 
-  // Pagos
+  // Cláusula 4: honorarios
   const total = numero(V.total);
+  const letrasTot = t('total_letras') ? esc(t('total_letras')) : !isNaN(total) ? esc(enLetras(total)) : blank(40);
   const filasPago = (Array.isArray(V.pagos) ? V.pagos : Object.values(V.pagos || {})).filter(Boolean);
   const pagosHTML = filasPago.map(p => {
     const vacia = !String(p.pct || '').trim() && !String(p.monto || '').trim() && !String(p.fecha || '').trim() && !String(p.detalle || '').trim();
     if (vacia && !BLANK) return '';
-    const pct = numero(p.pct);
-    let monto = numero(p.monto);
+    const pct = numero(p.pct); let monto = numero(p.monto);
     if (isNaN(monto) && !isNaN(pct) && !isNaN(total)) monto = Math.round(total * pct) / 100;
     const concepto = esc(String(p.concepto || 'Pago').trim() || 'Pago');
     const pctTxt = !isNaN(pct) ? `${fmtNum(pct)}%` : `${blank(10)}%`;
-    const montoTxt = !isNaN(monto) ? dinero(monto, moneda) : `${moneda === 'ARS' ? '$' : 'US$'} ${blank(24)}`;
+    const montoTxt = !isNaN(monto) ? dinero(monto, 'USD') : `US$ ${blank(24)}`;
     const cuando = [String(p.detalle || '').trim() ? esc(String(p.detalle).trim()) : '', p.fecha ? `con fecha límite: ${esc(fechaLarga(p.fecha))}` : ''].filter(Boolean).join(', ');
     return `<li>${concepto} del ${pctTxt} (${montoTxt})${cuando ? ', ' + cuando : `, a abonar: ${blank(30)}`}.</li>`;
   }).join('');
+  const cuenta = t('ag_banco') ? `<span class="multi">${esc(t('ag_banco'))}</span>` : `N° ${blank(34)}`;
+  const mediosL = BLANK
+    ? `en efectivo, contra entrega del recibo correspondiente [ ] / por transferencia a la cuenta en USD N° ${blank(30)} de LA AGENCIA [ ]`
+    : [V.mp_efectivo ? 'en efectivo, contra entrega del recibo correspondiente' : '', V.mp_transf ? `por transferencia a la cuenta en USD ${cuenta} de LA AGENCIA` : '', t('mp_otro') ? esc(t('mp_otro')) : ''].filter(Boolean).join(' / ') || blank(50);
+  const fuente = t('fuente_tc') ? esc(t('fuente_tc')) : `MEP / CCL – ${blank(30)}`;
+  const f46 = fj('4.6').replace(/\[MEP \/ CCL – especificar fuente\]/, fuente.replace(/\$/g, '$$$$'));
 
-  // Servicios (una línea por servicio; las que terminan en ":" quedan para completar)
-  const lineasServ = String(V.servicios || '').split('\n').map(s => s.trim()).filter(Boolean);
-  const serviciosHTML = (lineasServ.length ? lineasServ : ['']).map(l => !l ? `<li>${blank(60)}</li>` : /:$/.test(l) ? `<li>${esc(l)} ${blank(50)}</li>` : `<li>${esc(l)}</li>`).join('');
+  // Cláusula 6.2: reemplazos
+  const reemp = V.rep_no ? '' : ` Respecto de los honorarios de LA AGENCIA, se admitirá sin cargo el reemplazo de hasta el ${val('rep_pct', 12)}% de los pasajeros, notificado con al menos ${val('rep_dias', 12)} días de anticipación.`;
 
-  // Cancelación
-  const reint = p => { const n = numero(p); return !isNaN(n) && n > 0 ? `se reintegra el ${fmtNum(n)}% del monto abonado` : 'no se realizará reintegro alguno'; };
+  // Cláusula 7: prestadores y escala de honorarios
+  const provsFilas = (Array.isArray(V.provs) ? V.provs : Object.values(V.provs || {})).filter(p => p && (BLANK || String(p.proveedor || '').trim() || String(p.politica || '').trim() || p.fecha));
+  const provsHTML = provsFilas.map((p, i) => `<p class="ind">${letras[i]}) ${String(p.servicio || '').trim() ? esc(String(p.servicio).trim()) : blank(30)}${String(p.proveedor || '').trim() ? ' (' + esc(String(p.proveedor).trim()) + ')' : ''}: ${String(p.politica || '').trim() ? esc(String(p.politica).trim()) : 'según las condiciones del PRESTADOR'}${p.fecha ? `; sin cargo de cancelación hasta el ${esc(fechaLarga(p.fecha))}` : ''}.</p>`).join('');
+  const rp = k => { const n = numero(V[k]); return !isNaN(n) && n > 0 ? `el ${fmtNum(n)}%` : 'no habrá reintegro'; };
   const d1 = val('can_d1', 10), d2 = val('can_d2', 10), d3 = val('can_d3', 10);
 
-  // Políticas de cancelación de los proveedores: se omiten las filas vacías (en el modelo en blanco se muestran para completar)
-  const provsFilas = (Array.isArray(V.provs) ? V.provs : Object.values(V.provs || {})).filter(p => p && (BLANK || String(p.proveedor || '').trim() || String(p.politica || '').trim() || p.fecha));
-  // Condición fiscal y medios de pago
-  const fiscal = t('cl_fiscal');
-  // Contrato completado: solo figura lo elegido. Modelo en blanco: casillas sin tildar para marcar a mano.
-  const fiscalHTML = BLANK
-    ? `Responsable inscripto en IVA [ ] / Monotributista [ ] / Exento [ ] / Consumidor final [ ]`
-    : fiscal ? esc(fiscal === 'Responsable inscripto' ? 'Responsable inscripto en IVA' : fiscal) : blank(40);
-  const mediosElegidos = [V.mp_transf ? 'transferencia bancaria' : '', V.mp_cheque ? 'cheque' : '', t('mp_otro') ? esc(t('mp_otro')) : ''].filter(Boolean);
-  const medios = BLANK
-    ? `transferencia bancaria [ ] / cheque [ ] / otro: ${blank(30)}`
-    : mediosElegidos.length ? mediosElegidos.join(' / ') : blank(40);
-  const muestraBanco = BLANK || t('ag_banco') || V.mp_transf;
-  const factNombre = t('fa_nombre') || t('cl_nombre'), factDoc = t('fa_doc') || t('cl_doc');
-
-  const rep = t('cl_rep') || BLANK;
-  const clienteHTML = `${val('cl_nombre', 50)}, DNI / CUIT N° ${val('cl_doc', 30)}, con domicilio en ${val('cl_domicilio', 60)}, teléfono: ${val('cl_tel', 28)}, correo electrónico de contacto: ${val('cl_email', 50)}`
-    + (rep ? `, representado/a en este acto por ${val('cl_rep', 45)}, en carácter de ${val('cl_rep_car', 36)}, DNI N° ${val('cl_rep_dni', 28)}` : '')
-    + `, en adelante denominado/a “EL CLIENTE”.`;
-
-  const lineaOpc = (rotulo, k, w) => t(k) || BLANK ? `<p class="ind">${rotulo}: ${val(k, w)}</p>` : '';
-
   const cl = [];
-  cl.push(['CLÁUSULA 1 – OBJETO DEL CONTRATO', `
-    <p>LA AGENCIA se compromete a organizar y coordinar el siguiente programa de viaje de grupo para EL CLIENTE:</p>
-    <p class="ind">Tipo de evento / propósito: ${val('ev_tipo', 60)}</p>
-    ${lineaOpc('Detalle del evento', 'ev_detalle', 70)}
-    <p class="ind">Destino: ${val('destino', 70)}</p>
-    <p class="ind">Fecha de salida: ${f(V.salida)}</p>
-    <p class="ind">Fecha de regreso: ${f(V.regreso)}</p>
-    <p class="ind">Duración: ${duracion}</p>
-    <p class="ind">Cantidad de pasajeros: ${val('pasajeros', 20)}</p>
-    <p class="ind">Responsable de coordinación por parte de EL CLIENTE: ${val('coord', 50)}</p>`]);
-  cl.push(['CLÁUSULA 2 – PRECIO, FACTURACIÓN Y FORMA DE PAGO', `
-    <p>2.1. El precio total del programa asciende a la suma de ${!isNaN(total) ? dinero(total, moneda) : `${moneda === 'ARS' ? '$' : 'US$'} ${blank(30)}`} (${monedaNombre})${!isNaN(numero(V.por_pax)) ? `, con un valor por pasajero de ${dinero(numero(V.por_pax), moneda)}` : (BLANK ? `, con un valor por pasajero de ${blank(24)}` : '')}.${t('ref_cot') ? ` El detalle se corresponde con la propuesta N° ${esc(t('ref_cot'))}.` : ''}</p>
-    <p>2.2. Condición fiscal: EL CLIENTE es ${fiscalHTML}. La facturación se realizará a nombre de ${factNombre ? esc(factNombre) : blank(50)}, CUIT / DNI: ${factDoc ? esc(factDoc) : blank(30)}, en la categoría impositiva que corresponda.</p>
-    <p>2.3. La forma de pago acordada es la siguiente:</p>
-    <ul class="ind">${pagosHTML || `<li>${blank(80)}</li>`}</ul>
-    <p>2.4. Los pagos deberán realizarse mediante: ${medios}.</p>
-    ${muestraBanco ? `<p class="ind">Datos bancarios de LA AGENCIA: ${t('ag_banco') ? `<span class="multi">${esc(t('ag_banco'))}</span>` : blank(90)}</p>` : ''}`]);
-  cl.push(['CLÁUSULA 3 – SERVICIOS INCLUIDOS', `
-    <p>El programa incluye los siguientes servicios:</p>
-    <ul class="ind">${serviciosHTML}</ul>
-    <p>Servicios NO incluidos: ${esc(t('no_incl') || NO_INCL_DEF)}.</p>`]);
-  cl.push(['CLÁUSULA 4 – NÓMINA DE PASAJEROS Y MODIFICACIONES', `
-    <p>4.1. EL CLIENTE deberá entregar a LA AGENCIA la nómina definitiva de pasajeros (con nombre completo, DNI / Pasaporte y datos de contacto) con un mínimo de ${val('nom_dias', 12)} días de anticipación a la fecha de salida.</p>
-    <p>${V.rep_no ? '4.2. Reemplazos de pasajeros: una vez entregada la nómina definitiva no se admitirán reemplazos ni cambios de pasajeros.' : `4.2. Reemplazos de pasajeros: se admitirá el reemplazo de hasta el ${val('rep_pct', 12)}% de los pasajeros sin costo adicional, siempre que se notifique con al menos ${val('rep_dias', 12)} días de anticipación. Los reemplazos fuera de plazo podrán incurrir en costos adicionales a cargo de EL CLIENTE.`}</p>
-    <p>4.3. Reducciones en la cantidad de pasajeros: toda reducción de pasajeros confirmados será tratada conforme a la política de cancelación parcial establecida en la Cláusula 5.</p>`]);
-  cl.push(['CLÁUSULA 5 – POLÍTICA DE CANCELACIÓN', `
-    <p>5.1. Cancelación total por parte de EL CLIENTE${provsFilas.length ? ', sin perjuicio de lo dispuesto en el punto 5.5' : ''}:</p>
-    <ul class="ind">
-      <li>Con más de ${d1} días de anticipación: ${reint(V.can_p1)}.</li>
-      <li>Entre ${d2} y ${d1} días de anticipación: ${reint(V.can_p2)}.</li>
-      <li>Entre ${d3} y ${d2} días de anticipación: ${reint(V.can_p3)}.</li>
-      <li>Con menos de ${d3} días de anticipación: ${reint(V.can_p4)}.</li>
-    </ul>
-    <p>5.2. Cancelación parcial (reducción de pasajeros): el costo no reintegrable por cada pasajero dado de baja seguirá el mismo escalado de porcentajes indicado en el punto 5.1, calculado sobre el valor individual de cada pasajero.</p>
-    <p>5.3. Cancelación por parte de LA AGENCIA: en caso de que LA AGENCIA cancele el programa por causas imputables a la misma, se reintegrará el 100% de los montos abonados por EL CLIENTE, sin perjuicio de otras acciones que correspondan.</p>
-    <p>5.4. Toda comunicación de cancelación deberá realizarse por escrito (correo electrónico o carta documento) dirigida al representante de LA AGENCIA.</p>${provsFilas.length ? `
-    <p>5.5. Políticas de cancelación de los proveedores: la cancelación o modificación de los servicios que se detallan a continuación se rige por las condiciones del respectivo proveedor, que prevalecen sobre la escala del punto 5.1 y que EL CLIENTE declara conocer y aceptar:</p>
-    <ul class="ind">${provsFilas.map(p => `<li>${String(p.servicio || '').trim() ? esc(String(p.servicio).trim()) : blank(30)}${String(p.proveedor || '').trim() ? ' (' + esc(String(p.proveedor).trim()) + ')' : ''}: ${String(p.politica || '').trim() ? esc(String(p.politica).trim()) : 'según las condiciones del proveedor'}${p.fecha ? `; sin cargo de cancelación hasta el ${esc(fechaLarga(p.fecha))}` : ''}.</li>`).join('')}</ul>` : ''}`]);
-  cl.push(['CLÁUSULA 6 – RESPONSABILIDADES', `
-    <p>6.1. LA AGENCIA actuará como coordinadora e intermediaria entre EL CLIENTE y los proveedores de servicios (aerolíneas, hoteles, transportistas, etc.), y no será responsable por demoras, cancelaciones o modificaciones imputables a dichos terceros.</p>
-    <p>6.2. EL CLIENTE es responsable de garantizar que todos los pasajeros cuenten con la documentación requerida (DNI, pasaporte, visados) vigente y en regla. LA AGENCIA no asume responsabilidad por el rechazo de ingreso de pasajeros por irregularidades documentales.</p>
-    <p>6.3. EL CLIENTE será responsable del comportamiento de los pasajeros durante el programa, y deberá hacerse cargo de cualquier daño material o sanción que estos ocasionen a terceros o a los proveedores de servicio.</p>
-    <p>6.4. LA AGENCIA designará un coordinador para el programa, quien será el punto de contacto durante toda la organización y ejecución del viaje.</p>`]);
-  cl.push(['CLÁUSULA 7 – CONFIDENCIALIDAD', `
-    <p>Ambas partes se comprometen a mantener la más estricta confidencialidad respecto de la información comercial, financiera y operativa que se intercambie en el marco del presente contrato. LA AGENCIA no divulgará la nómina de pasajeros ni los detalles del programa a terceros sin autorización expresa de EL CLIENTE. Esta obligación de confidencialidad se mantendrá vigente durante la ejecución del contrato y por un plazo de dos (2) años posterior a su finalización.</p>`]);
-  cl.push(['CLÁUSULA 8 – PROTECCIÓN DE DATOS PERSONALES', `
-    <p>Los datos personales de los pasajeros proporcionados por EL CLIENTE serán tratados exclusivamente con el fin de gestionar y ejecutar los servicios contratados, en cumplimiento de la Ley N° 25.326 de Protección de los Datos Personales de la República Argentina. LA AGENCIA no cederá ni comercializará dichos datos a terceros. Concluido el programa, los datos serán conservados únicamente por el período que establezca la normativa vigente.</p>`]);
-  cl.push(['CLÁUSULA 9 – FUERZA MAYOR', `
-    <p>Ninguna de las partes será responsable por el incumplimiento de sus obligaciones cuando dicho incumplimiento sea consecuencia de eventos de fuerza mayor o caso fortuito, incluyendo pero no limitado a: desastres naturales, pandemias, actos de terrorismo, guerras, huelgas generales, restricciones gubernamentales u otros eventos imprevisibles e inevitables. Ante tales circunstancias, las partes se comprometen a negociar de buena fe una solución alternativa, que podrá incluir la reprogramación del programa para una fecha acordada.</p>`]);
-  cl.push(['CLÁUSULA 10 – JURISDICCIÓN Y LEY APLICABLE', `
-    <p>Para todos los efectos legales derivados del presente contrato, las partes se someten a la jurisdicción de los Tribunales Ordinarios en lo Comercial de la Ciudad Autónoma de Buenos Aires, renunciando a cualquier otro fuero que pudiera corresponder. El presente contrato se rige por las leyes de la República Argentina, en particular, la Ley N° 18.829 de Agentes de Viajes, el Código Civil y Comercial de la Nación y la demás normativa aplicable.</p>`]);
-  if (t('adicionales')) cl.push(['CLÁUSULA ADICIONAL – CONDICIONES ADICIONALES', String(V.adicionales).split(/\n+/).map(s => s.trim()).filter(Boolean).map(s => `<p>${esc(s)}</p>`).join('')]);
-  cl.push(['CONFORMIDAD', `
-    <p>En prueba de conformidad, las partes firman el presente contrato en dos (2) ejemplares de igual tenor y a un solo efecto, en el lugar y fecha indicados al comienzo del mismo.</p>
-    <div class="firmas">
-      <div class="firma"><div class="linea">FIRMA EL CLIENTE</div>
-        Nombre / razón social: ${t('cl_nombre') ? esc(t('cl_nombre')) : blank(32)}<br>
-        ${(t('cl_rep') || BLANK) ? `Representante: ${t('cl_rep') ? esc(t('cl_rep')) : blank(32)}<br>Cargo: ${t('cl_rep_car') ? esc(t('cl_rep_car')) : blank(32)}<br>` : ''}
-        DNI / CUIT: ${t('cl_doc') ? esc(t('cl_doc')) : blank(32)}<br>
-        Fecha: ${blank(32)}</div>
-      <div class="firma"><div class="linea">FIRMA LA AGENCIA</div>
-        BeTravel – ${esc(t('ag_nombre') || AGENCIA_DEF.ag_nombre)}<br>
-        Legajo N° ${esc(t('ag_legajo') || AGENCIA_DEF.ag_legajo)}<br>
-        CUIT: ${t('ag_cuit') ? esc(t('ag_cuit')) : blank(32)}<br>
-        Fecha: ${blank(32)}</div>
-    </div>`]);
+  cl.push(['CLÁUSULA 1 – OBJETO Y NATURALEZA DEL SERVICIO', ['1.1', '1.2', '1.3', '1.4'].map(i => P(i, fj(i))).join('')]);
+  cl.push(['CLÁUSULA 2 – EL VIAJE Y LOS SERVICIOS GESTIONADOS', `
+    ${P('2.1', `Datos del VIAJE, cuyo detalle surge de la Propuesta N° ${val('ref_cot', 22)}, que como Anexo I integra el presente:`)}
+    <p class="ind">Propósito: ${val('ev_tipo', 60)}${t('ev_detalle') ? ' (' + esc(t('ev_detalle')) + ')' : ''}.</p>
+    <p class="ind">Destino: ${val('destino', 60)}.</p>
+    <p class="ind">Fecha de salida: ${f(V.salida)}. Fecha de regreso: ${f(V.regreso)}.</p>
+    <p class="ind">Duración: ${dur}.</p>
+    <p class="ind">Cantidad estimada de pasajeros: ${val('pasajeros', 16)} (en adelante, “el GRUPO”).</p>
+    ${P('2.2', 'LA AGENCIA gestionará exclusivamente los siguientes servicios:')}${serviciosHTML}
+    ${P('2.3', `Quedan excluidos de los servicios de los incisos a), c) y d) los pasajeros que EL CLIENTE indique por escrito a LA AGENCIA, antes del ${t('excl_fecha') ? esc(fechaLarga(t('excl_fecha'))) : blank(30)}, por haber manifestado su voluntad de viajar por otros medios o de no contratar el servicio respectivo.`)}
+    ${P('2.4', `No están incluidos los servicios no enumerados en el punto 2.2 y, en particular: ${esc(t('no_incl') || NO_INCL_DEF)}.`)}
+    ${P('2.5', fj('2.5'))}`]);
+  cl.push(['CLÁUSULA 3 – COORDINACIÓN', `
+    ${P('3.1', `LA AGENCIA designará ${val('coord_cant', 18)} coordinadores, que serán el punto de contacto de EL CLIENTE durante la organización y ejecución del VIAJE y tendrán a su cargo: a) el seguimiento de las reservas y la comunicación con los PRESTADORES; b) la recepción del GRUPO en destino y la asistencia en los traslados; c) la atención de los pasajeros durante la estadía.`)}
+    ${P('3.2', fj('3.2'))}`]);
+  cl.push(['CLÁUSULA 4 – HONORARIOS DE LA AGENCIA. MONEDA DE PAGO', `
+    ${P('4.1', `Por los servicios de intermediación, gestión y coordinación, EL CLIENTE abonará a LA AGENCIA honorarios por la suma total de US$ ${!isNaN(total) ? fmtNum(total) : blank(26)} (dólares estadounidenses ${letrasTot}).`)}
+    ${P('4.2', `Los honorarios se abonarán conforme el siguiente plan de pago:`)}<ul class="ind">${pagosHTML || `<li>${blank(80)}</li>`}</ul>
+    <p class="ind">Los pagos se efectuarán ${mediosL}.</p>
+    ${['4.3', '4.4', '4.5'].map(i => P(i, fj(i))).join('')}
+    ${P('4.6', f46)}
+    ${P('4.7', fj('4.7').replace('8% anual', esc(t('mora_pct') || '8') + '% anual'))}
+    ${P('4.8', fj('4.8'))}`]);
+  cl.push(['CLÁUSULA 5 – PAGO DE LOS SERVICIOS A LOS PRESTADORES. FALTA DE PAGO', `
+    ${P('5.1', fjE('5.1'))}${P('5.2', fjE('5.2'))}
+    ${P('5.3', `<strong>Constancias:</strong> EL CLIENTE remitirá a LA AGENCIA la constancia de cada pago dentro de las ${esc(t('const_horas') || '48')} horas de efectuado. LA AGENCIA no será responsable por pagos que no le hayan sido informados ni por errores en los datos consignados por EL CLIENTE al efectuarlos.`)}
+    ${P('5.4', fjE('5.4'))}${P('5.5', fjE('5.5'))}
+    ${P('5.6', `<strong>Indemnidad:</strong> Si LA AGENCIA debiera abonar a un PRESTADOR o a un tercero cualquier suma por las causas indicadas en el punto anterior, EL CLIENTE deberá reintegrarla dentro de los ${val('indem_dias', 10)} días de requerida, con más sus gastos. EL CLIENTE mantendrá indemne a LA AGENCIA frente a los reclamos que los pasajeros o terceros formulen con fundamento en esas mismas causas.`)}
+    ${P('5.7', fjE('5.7'))}
+    ${V.pagos_pax || BLANK ? P('5.8', `<strong>Pagos de los pasajeros.</strong> ${fj('5.8')}`) : ''}`]);
+  cl.push(['CLÁUSULA 6 – NÓMINA DE PASAJEROS Y MODIFICACIONES', `
+    ${P('6.1', `EL CLIENTE deberá entregar a LA AGENCIA la nómina definitiva de pasajeros (nombre completo, DNI o pasaporte y datos de contacto) con un mínimo de ${val('nom_dias', 12)} días de anticipación a la fecha de salida, o con la anticipación mayor que exija algún PRESTADOR y LA AGENCIA le informe.`)}
+    ${P('6.2', `Los reemplazos de pasajeros y cambios de nombre quedan sujetos a las condiciones de cada PRESTADOR, y los costos que estos cobren por ellos serán a cargo de EL CLIENTE.${reemp}`)}
+    ${P('6.3', fj('6.3'))}`]);
+  cl.push(['CLÁUSULA 7 – CANCELACIONES', `
+    ${P('7.1', `<strong>Servicios de los PRESTADORES.</strong> La cancelación, reducción o modificación de cualquiera de los servicios gestionados se rige exclusivamente por las condiciones del respectivo PRESTADOR, que EL CLIENTE declara conocer y aceptar, y que se agregan como Anexo II. Los cargos, penalidades y pérdidas que de ello resulten son a exclusivo cargo de EL CLIENTE.${provsHTML ? ' En particular:' : ''}`)}${provsHTML}
+    ${P('7.2', `<strong>Honorarios en caso de cancelación total por EL CLIENTE.</strong> De los honorarios abonados, LA AGENCIA reintegrará, según la anticipación de la comunicación respecto de la fecha de salida:`)}
+    <ul class="ind"><li>Más de ${d1} días: ${rp('can_p1')}.</li><li>Entre ${d2} y ${d1} días: ${rp('can_p2')}.</li><li>Entre ${d3} y ${d2} días: ${rp('can_p3')}.</li><li>Menos de ${d3} días: ${rp('can_p4')}.</li></ul>
+    <p class="ind">Los honorarios retenidos retribuyen las gestiones realizadas hasta la cancelación.</p>
+    ${['7.3', '7.4', '7.5'].map(i => P(i, `<strong>${i === '7.3' ? 'Cancelación parcial.' : i === '7.4' ? 'Cancelación por LA AGENCIA.' : ''}</strong> ${fj(i).replace(/^(Cancelación parcial|Cancelación por LA AGENCIA)\. /, '')}`.replace('<strong></strong> ', ''))).join('')}`]);
+  cl.push(['CLÁUSULA 8 – RESPONSABILIDADES', `
+    ${P('8.1', fj('8.1'))}
+    ${P('8.2', fj('8.2').replace('la República Dominicana', t('destino') ? esc(t('destino')) : 'el país de destino'))}
+    ${['8.3', '8.4', '8.5'].map(i => P(i, fj(i))).join('')}`]);
+  cl.push(['CLÁUSULA 9 – CASO FORTUITO Y FUERZA MAYOR', `${P('9.1', fj('9.1'))}${P('9.2', fj('9.2'))}`]);
+  cl.push(['CLÁUSULA 10 – CONFIDENCIALIDAD Y DATOS PERSONALES', ['10.1', '10.2', '10.3'].map(i => P(i, fj(i))).join('')]);
+  cl.push(['CLÁUSULA 11 – DOMICILIOS Y NOTIFICACIONES', `<p>Las partes constituyen domicilio en los indicados en el encabezamiento, donde serán válidas todas las notificaciones. Son igualmente válidas las comunicaciones cursadas a los siguientes correos electrónicos: LA AGENCIA: ${t('ag_email') ? esc(t('ag_email')) : blank(40)}; EL CLIENTE: ${val('cl_email', 40)}. Todo cambio deberá notificarse por escrito a la otra parte.</p>`]);
+  cl.push(['CLÁUSULA 12 – LEY APLICABLE. JURISDICCIÓN. DIVISIBILIDAD', ['12.1', '12.2', '12.3'].map(i => P(i, fj(i))).join('')]);
+  if (t('adicionales')) cl.push(['CLÁUSULA 13 – CONDICIONES ADICIONALES', String(V.adicionales).split(/\n+/).map(x => x.trim()).filter(Boolean).map(x => `<p>${esc(x)}</p>`).join('')]);
 
-  // Numeración: las cláusulas "CLÁUSULA N" se numeran en orden.
-  let n = 0;
-  const cuerpo = cl.map(([titulo, html]) => {
-    if (/^CLÁUSULA \d+/.test(titulo)) titulo = titulo.replace(/^CLÁUSULA \d+/, 'CLÁUSULA ' + (++n));
-    else if (titulo.startsWith('CLÁUSULA ADICIONAL')) titulo = titulo.replace('CLÁUSULA ADICIONAL', 'CLÁUSULA ' + (++n));
-    else if (titulo === 'CONFORMIDAD') titulo = 'CLÁUSULA ' + (++n) + ' – CONFORMIDAD';
-    return `<h2>${esc(titulo)}</h2>${html}`;
-  }).join('');
-
-  return `<h1>CONTRATO DE PRESTACIÓN DE SERVICIOS DE VIAJE DE GRUPO</h1>
-    <p>${encabezadoFecha}, se celebra el presente contrato entre las siguientes partes:</p>
-    <h2>PARTES CONTRATANTES</h2>
-    <p>PRESTADOR DEL SERVICIO: BeTravel, con domicilio en ${esc(t('ag_domicilio') || AGENCIA_DEF.ag_domicilio)}, CUIT N° ${t('ag_cuit') ? esc(t('ag_cuit')) : blank(28)}, representada por ${esc(t('ag_nombre') || AGENCIA_DEF.ag_nombre)}, Legajo N° ${esc(t('ag_legajo') || AGENCIA_DEF.ag_legajo)}, en adelante denominada “LA AGENCIA”.</p>
-    <p>CONTRATANTE: ${clienteHTML}</p>
-    ${cuerpo}`;
+  const firmaCliente = (n, d) => `<div class="firma"><div class="linea">Firma</div>Aclaración: ${val(n, 30)}<br>D.N.I.: ${val(d, 30)}</div>`;
+  const cuerpo = cl.map(([titulo, html]) => `<h2>${esc(titulo)}</h2>${html}`).join('');
+  return `<h1>CONTRATO DE SERVICIOS DE INTERMEDIACIÓN Y GESTIÓN DE VIAJE GRUPAL</h1>
+    ${encabezado}${cuerpo}
+    <p class="cierre">En prueba de conformidad, las partes firman ${V.firmas_n ? esc(V.firmas_n) : 'tres (3)'} ejemplares de igual tenor y a un solo efecto, en el lugar y fecha indicados al comienzo.</p>
+    <div class="firmas">${firmaCliente('cl_nombre', 'cl_doc')}${t('cl2_nombre') || BLANK ? firmaCliente('cl2_nombre', 'cl2_doc') : ''}
+      <div class="firma"><div class="linea">Firma</div>LA AGENCIA – ${esc(ag.ag_nombre)} (BeTravel)<br>CUIT: ${esc(ag.ag_cuit)} – Legajo N° ${esc(ag.ag_legajo)}</div></div>
+    <p>Anexos: I – Propuesta N° ${val('ref_cot', 22)}. II – Condiciones de los PRESTADORES.</p>`;
 }
 
 // ── ESTADO ─────────────────────────────────────────────────────────────────
@@ -683,7 +689,37 @@ function quitarProv(i){ editing.valores.provs.splice(i, 1); document.getElementB
 function agregarPago(){ editing.valores.pagos.push({ concepto:'Pago', pct:'', monto:'', fecha:'', detalle:'' }); document.getElementById('pagos-box').innerHTML = pagosHTML(); programarRender(); programarGuardado(); }
 function quitarPago(i){ editing.valores.pagos.splice(i, 1); document.getElementById('pagos-box').innerHTML = pagosHTML(); programarRender(); programarGuardado(); }
 function programarRender(){ clearTimeout(renderTimer); renderTimer = setTimeout(pintarDoc, 120); }
-function pintarDoc(){ if (editing) document.getElementById('doc').innerHTML = cuerpoContrato(editing.valores); }
+function pintarDoc(){
+  if (!editing) return;
+  const manual = !BLANK && editing.valores.docHtml;
+  document.getElementById('doc').innerHTML = manual ? editing.valores.docHtml : cuerpoContrato(editing.valores);
+  marcarEdicionManual();
+}
+// Edición en el propio documento: el texto editado se guarda tal cual (valores.docHtml). Mientras exista,
+// los datos del panel ya no reescriben el texto; "Volver a generar" lo descarta.
+function cmd(c){ document.getElementById('doc').focus(); document.execCommand(c, false, null); }
+function marcarEdicionManual(){
+  const manual = !!(editing && !BLANK && editing.valores.docHtml);
+  const b = document.getElementById('btn-regenerar'); if (b) b.classList.toggle('hidden', !manual || BLANK);
+  const e = document.getElementById('doc-estado');
+  if (e) e.textContent = manual ? 'Texto editado a mano: los datos del panel ya no lo modifican.' : (BLANK ? 'Modelo en blanco: se puede editar para imprimir (no se guarda).' : 'Escribí directamente sobre el contrato; los datos del panel completan los espacios hasta que edites.');
+}
+function htmlDocLimpio(){ const c = document.getElementById('doc').cloneNode(true); c.removeAttribute('contenteditable'); c.removeAttribute('spellcheck'); return c.innerHTML; }
+let docTimer = null;
+function onDocInput(){
+  if (!editing || BLANK) return;
+  clearTimeout(docTimer); setEstadoGuardado('Guardando…');
+  docTimer = setTimeout(() => { editing.valores.docHtml = htmlDocLimpio(); marcarEdicionManual(); programarGuardado(); }, 600);
+}
+function regenerarDoc(){
+  if (!editing || !confirm('Se descartan las ediciones hechas directamente sobre el texto y se vuelve a armar el contrato con los datos del panel. ¿Continuar?')) return;
+  delete editing.valores.docHtml; editing.valores.docHtml = null; pintarDoc(); programarGuardado();
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const d = document.getElementById('doc'); if (!d) return;
+  d.addEventListener('input', onDocInput);
+  d.addEventListener('paste', e => { e.preventDefault(); const tx = (e.clipboardData || window.clipboardData).getData('text/plain'); document.execCommand('insertText', false, tx); });
+});
 
 // Datos opcionales de otras partes del panel
 function usarDatosCobro(){
@@ -697,7 +733,7 @@ function usarDatosCobro(){
 }
 function guardarAgencia(){
   const v = editing.valores, d = {};
-  ['ag_nombre', 'ag_legajo', 'ag_cuit', 'ag_domicilio', 'ag_banco'].forEach(k => { d[k] = String(v[k] || '').trim(); });
+  ['ag_nombre', 'ag_legajo', 'ag_cuit', 'ag_domicilio', 'ag_dom_const', 'ag_email', 'ag_banco'].forEach(k => { d[k] = String(v[k] || '').trim(); });
   META_AGENCIA_REF.set(d).then(() => { showBanner(''); setEstadoGuardado('Datos de BeTravel guardados'); }, handleWriteError);
 }
 let COTS_CARGADAS = false;

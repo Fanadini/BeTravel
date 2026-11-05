@@ -63,7 +63,7 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
     ├── plegar.js              ← Tarjetas plegables: toda `.item-card` con `.item-card-header` se pliega/despliega sola (resumen en una línea, "Plegar todos / Desplegar todos" bajo cada lista). Convención del sistema: toda tarjeta repetible nueva usa `.item-card` + `.item-card-header` y carga este script
     ├── recibos.js             ← Creador de recibos de la pestaña "Recibos" de Gestión interna (formato BETRAVEL, PDF por impresión; Firebase `finanzas/recibos`, contador `finanzas/meta/reciboCounter`)
     ├── compartidas.html       ← Reservas compartidas en solo lectura para cuentas cotizador (las elige un admin desde la lista de reservas; Firebase `finanzas/reservasCompartidas`)
-    ├── contratos.html         ← Contratos de servicios de viaje de grupo (solo admin): formulario → vista previa A4 → PDF, y modelo en blanco (Firebase `finanzas/contratos`)
+    ├── contratos.html         ← Contratos de intermediación y gestión de viaje grupal (solo admin): datos → documento A4 editable en el propio texto (tipo Word) → PDF, y modelo en blanco (Firebase `finanzas/contratos`)
     └── SEGURIDAD_FIREBASE.md  ← Pasos manuales: sembrar admin, publicar reglas, backups
 ```
 
