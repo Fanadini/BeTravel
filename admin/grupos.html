@@ -1358,6 +1358,13 @@ function tipoFichaHtml(rid, r){
     <select style="width:100%" onchange="setTipoPax('${esc(rid)}', this.value)"><option value="">Automático (según la edad)</option><option value="ADT" ${man === 'ADT' ? 'selected' : ''}>ADT · adulto</option><option value="CHD" ${man === 'CHD' ? 'selected' : ''}>CHD · niño</option><option value="INF" ${man === 'INF' ? 'selected' : ''}>INF · infante</option></select></div>`;
 }
 // Cuotas que paga este pasajero (el plan del grupo aplicado a su total); con los pagos a la vista, indica cuánto va cubierto en cada una
+// De qué pago viene lo imputado a un pasajero y a nombre de quién se cargó (para pagos registrados por otra persona)
+function origenPagoTxt(x, rid, resps){
+  const nom = id => { const r = resps[id]; return r ? `${r.apellido || ''}, ${r.nombre || ''}` : ''; };
+  const ks = Object.keys(x.p.grupoPasajeros || {}), otros = ks.filter(id => id !== rid).map(nom).filter(Boolean);
+  if (!otros.length) return '';
+  return x.extra ? `cargado a nombre de ${otros.join(' · ')}` : `cargado junto con ${otros.join(' · ')}`;
+}
 function cuotasFichaHtml(rid, r){
   const g = GRUPOS[GID_ABIERTO]; if (!tieneCobros(g)) return '';
   const ref = refViaje(g), asg = asignaciones(g), conSaldo = veSaldo(), pp = conSaldo ? pagosPorPasajero(GID_ABIERTO) : {};
@@ -1366,14 +1373,15 @@ function cuotasFichaHtml(rid, r){
   let resto = conSaldo ? x.pagado : 0;
   const filas = cuotas.map((c, i) => {
     const cubierto = Math.min(montos[i], Math.max(0, resto)); resto -= montos[i];
-    const est = !conSaldo ? '' : cubierto >= montos[i] - 0.005 ? '<span class="pill ok">Pagada</span>' : cubierto > 0.005 ? `<span class="pill warn">Parcial · falta ${m(montos[i] - cubierto)}</span>` : '<span class="pill">Pendiente</span>';
+    const est = !conSaldo ? '' : x.total <= 0.005 && !x.falta.length ? '<span class="pill">Sin importe</span>' : cubierto >= montos[i] - 0.005 ? '<span class="pill ok">Pagada</span>' : cubierto > 0.005 ? `<span class="pill warn">Parcial · falta ${m(montos[i] - cubierto)}</span>` : '<span class="pill">Pendiente</span>';
     return `<tr><td>${i + 1}</td><td>${c.fecha ? esc(fmtFecha(c.fecha)) : 'Sin fecha'}</td><td class="num">${esc(String(c.pct))}%</td><td class="num"><strong>${m(montos[i])}</strong></td>${conSaldo ? `<td>${est}</td>` : ''}</tr>`;
   }).join('');
   return `<div class="card" style="margin:0 0 12px"><h3>Cuotas a pagar</h3>
     ${cub ? '<div class="hint" style="margin:0 0 6px">Esta persona está marcada como "Lo cubren los novios": las cuotas corresponden a lo que se imputa a los novios.</div>' : ''}
     ${x.falta.length ? `<div class="alertas" style="padding:0 0 6px">Faltan datos para el cálculo: ${esc(x.falta.join('; '))}.</div>` : ''}
+    ${(() => { const mis = (pp[rid] || { pagos:[] }).pagos; if (!conSaldo || !mis.length) return ''; const resps = g.respuestas || {}; return `<div class="hint" style="margin:0 0 6px">Se cubre con: ${mis.slice().sort((a, b) => String(a.p.fecha || '').localeCompare(String(b.p.fecha || ''))).map(y => `${esc(fmtFecha(y.p.fecha) || 's/f')} · ${moneyG(y.share, y.mon)}${origenPagoTxt(y, rid, resps) ? ' (' + esc(origenPagoTxt(y, rid, resps)) + ')' : ''}`).join(' — ')}.</div>`; })()}
     <div class="lista"><table><thead><tr><th>Cuota</th><th>Fecha</th><th class="num">%</th><th class="num">Monto</th>${conSaldo ? '<th>Estado</th>' : ''}</tr></thead><tbody>${filas}
-      <tr style="font-weight:600"><td colspan="3">Total a pagar</td><td class="num">${m(x.total)}</td>${conSaldo ? `<td>${x.saldo <= 0.005 && !x.falta.length ? '<span class="pill ok">Al día</span>' : 'Saldo ' + m(x.saldo)}</td>` : ''}</tr></tbody></table></div></div>`;
+      <tr style="font-weight:600"><td colspan="3">Total a pagar</td><td class="num">${m(x.total)}</td>${conSaldo ? `<td>${x.saldo <= 0.005 && !x.falta.length ? (x.total <= 0.005 ? '<span class="pill">Sin importe a pagar</span>' : '<span class="pill ok">Al día</span>') : 'Saldo ' + m(x.saldo)}</td>` : ''}</tr></tbody></table></div></div>`;
 }
 function pagosFichaHtml(rid){
   const gid = GID_ABIERTO, reservas = reservasDelGrupo(gid);
@@ -1385,7 +1393,7 @@ function pagosFichaHtml(rid){
     const cod = reservas.length > 1 ? ` · ${esc(x.r.codigo || 'reserva')}` : '';
     const parte = x.extra ? ` · excedente de un pago de ${moneyG(x.p.monto, x.mon)} cargado a otra persona` : x.n > 1 ? ` · parte de ${moneyG(x.p.monto, x.mon)} entre ${x.n}${x.ajust ? ' (ajustado a lo que debe cada uno)' : ''}` : (x.ajust ? ` · pago de ${moneyG(x.p.monto, x.mon)}: ${moneyG(x.share, x.mon)} a esta persona y el resto a otros` : '');
     const borrar = puedeEditarReservas() && x.p.origen === 'grupos' ? ` <button class="btn danger small" onclick="eliminarPago('${esc(x.resId)}','${esc(x.pid)}','${esc(rid)}')">Quitar</button>` : '';
-    return `<div class="ocu"><div class="nom"><strong>${moneyG(x.share, x.mon)}</strong> · ${fmtFecha(x.p.fecha) || 's/f'}${esc(x.p.medio ? ' · ' + x.p.medio : '')}${cod}${parte}<div class="sub">${x.p.origen === 'grupos' ? 'Registrado desde Grupos' : 'Cargado en la reserva'}${x.p.comentario ? ' · ' + esc(x.p.comentario) : ''}</div></div>${borrar}</div>`;
+    return `<div class="ocu"><div class="nom"><strong>${moneyG(x.share, x.mon)}</strong> · ${fmtFecha(x.p.fecha) || 's/f'}${esc(x.p.medio ? ' · ' + x.p.medio : '')}${cod}${parte}<div class="sub">${origenPagoTxt(x, rid, resps) ? esc(origenPagoTxt(x, rid, resps)) + ' · ' : ''}${x.p.origen === 'grupos' ? 'Registrado desde Grupos' : 'Cargado en la reserva'}${x.p.comentario ? ' · ' + esc(x.p.comentario) : ''}</div></div>${borrar}</div>`;
   }).join('') : '<div class="hint" style="margin:0 0 6px">Sin pagos asignados a esta persona.</div>';
   if (puedeEditarReservas() && reservas.length){
     const otros = respuestasOrdenadas(g).filter(([id]) => id !== rid);
