@@ -1534,13 +1534,53 @@ function vincHtml(rid, r){
   return `<div class="card" style="margin:0 0 12px"><h3>Compañero de habitación</h3><div class="hint">Escribió: "${esc(r.compartiCon || '—')}". Se interpreta como: ${como}.</div>
     <select style="width:100%" onchange="setVinculo('${esc(rid)}', this.value)"><option value="">Automático (según lo que escribió)</option>${respuestasOrdenadas(g).filter(([id]) => id !== rid).map(([id, o]) => `<option value="${esc(id)}" ${V[rid] === id ? 'selected' : ''}>${esc(o.apellido)}, ${esc(o.nombre)}</option>`).join('')}</select></div>`;
 }
-function verRespuesta(rid){
-  const r = GRUPOS[GID_ABIERTO].respuestas[rid]; if (!r) return;
-  const rows = columnasForm(GRUPOS[GID_ABIERTO]).filter(c => r[c.id] != null && r[c.id] !== '').map(c => `<dt>${esc(c.etiqueta)}</dt><dd>${esc(valorTxt(r, c))}</dd>`).join('');
-  const ts = r.ts ? new Date(r.ts).toLocaleString('de-DE') : '';
-  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3><dl class="det">${rows}<dt>Enviado</dt><dd>${esc(ts)}</dd></dl>${tipoFichaHtml(rid, r)}${notaFichaHtml(rid)}${assistFichaHtml(rid)}${medioFichaHtml(rid, r)}${cobroFichaHtml(rid, r)}${vincHtml(rid, r)}${cuotasFichaHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+// Edición de cualquier dato que completó el pasajero (se guarda en grupos/{gid}/respuestas/{rid})
+let EDIT_FICHA = null;
+function editarFicha(rid, on){ EDIT_FICHA = on ? rid : null; verRespuesta(rid); }
+function camposFichaEditables(g){
+  const cols = columnasForm(g), ids = new Set(cols.map(c => c.id));
+  [['nombre', 'Nombre'], ['apellido', 'Apellido']].forEach(([k, l]) => { if (!ids.has(k)) cols.unshift({ id:k, etiqueta:l, tipo:'corto' }); });
+  return cols;
 }
-function cerrarModal(){ document.getElementById('modal-root').innerHTML = ''; }
+function campoEditHtml(g, r, c){
+  const q = listaForm(g.meta).find(x => x.id === c.id) || {}, v = r[c.id], tipo = q.tipo || c.tipo, id = esc(c.id), val = v == null || v === true ? '' : String(v);
+  const base = `data-q="${id}" data-t="${esc(tipo)}"`;
+  if (tipo === 'casilla') return `<input type="checkbox" ${base} ${v === true ? 'checked' : ''}>`;
+  if (tipo === 'fecha' || FECHAS.has(c.id)) return `<input type="date" ${base} value="${esc(val)}">`;
+  if (tipo === 'largo') return `<textarea rows="2" ${base} style="width:100%">${esc(val)}</textarea>`;
+  if (tipo === 'radio' || tipo === 'lista'){
+    const ops = [...(q.opciones || [])]; if (val && !ops.includes(val)) ops.push(val);
+    return `<select ${base}><option value="">—</option>${ops.map(o => `<option value="${esc(o)}" ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+  }
+  if (tipo === 'multiple'){
+    const act = val ? val.split(', ') : [], ops = [...(q.opciones || [])]; act.forEach(a => { if (!ops.includes(a)) ops.push(a); });
+    return `<div ${base} class="ed-mult">${ops.map(o => `<label class="chk"><input type="checkbox" value="${esc(o)}" ${act.includes(o) ? 'checked' : ''}> ${esc(o)}</label>`).join('')}</div>`;
+  }
+  return `<input type="${tipo === 'numero' ? 'number' : 'text'}" ${base} value="${esc(val)}" style="width:100%">`;
+}
+function guardarFicha(rid){
+  const g = GRUPOS[GID_ABIERTO], r = g.respuestas[rid], upd = {};
+  for (const el of document.querySelectorAll('#ficha-edit [data-q]')){
+    const id = el.dataset.q, t = el.dataset.t; let nv;
+    if (t === 'casilla') nv = el.checked ? true : null;
+    else if (t === 'multiple') nv = [...el.querySelectorAll('input:checked')].map(i => i.value).join(', ') || null;
+    else { nv = String(el.value || '').trim(); nv = nv === '' ? null : nv; }
+    if ((id === 'nombre' || id === 'apellido') && !nv){ alert('El nombre y el apellido no pueden quedar vacíos.'); return; }
+    const antes = r[id] == null || r[id] === '' ? null : r[id];
+    if (nv !== antes) upd[id] = nv;
+  }
+  if (!Object.keys(upd).length){ editarFicha(rid, false); return; }
+  GRUPOS_REF.child(`${GID_ABIERTO}/respuestas/${rid}`).update(upd).then(() => editarFicha(rid, false), handleWriteError);
+}
+function verRespuesta(rid){
+  const g = GRUPOS[GID_ABIERTO], r = g.respuestas[rid]; if (!r) return;
+  const edit = EDIT_FICHA === rid;
+  const rows = edit
+    ? `<div id="ficha-edit" style="display:grid;gap:8px">${camposFichaEditables(g).map(c => `<label style="display:grid;gap:3px;font-size:12px"><span class="hint" style="margin:0">${esc(c.etiqueta)}</span>${campoEditHtml(g, r, c)}</label>`).join('')}</div><div class="row-btns" style="margin:10px 0"><button class="btn small" onclick="guardarFicha('${esc(rid)}')">Guardar cambios</button><button class="btn outline small" onclick="editarFicha('${esc(rid)}', false)">Cancelar</button></div>`
+    : `<dl class="det">${columnasForm(g).filter(c => r[c.id] != null && r[c.id] !== '').map(c => `<dt>${esc(c.etiqueta)}</dt><dd>${esc(valorTxt(r, c))}</dd>`).join('')}<dt>Enviado</dt><dd>${esc(r.ts ? new Date(r.ts).toLocaleString('de-DE') : '')}</dd></dl><div class="row-btns" style="margin:0 0 10px"><button class="btn outline small" onclick="editarFicha('${esc(rid)}', true)">Editar datos</button></div>`;
+  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3>${rows}${tipoFichaHtml(rid, r)}${notaFichaHtml(rid)}${assistFichaHtml(rid)}${medioFichaHtml(rid, r)}${cobroFichaHtml(rid, r)}${vincHtml(rid, r)}${cuotasFichaHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+}
+function cerrarModal(){ EDIT_FICHA = null; document.getElementById('modal-root').innerHTML = ''; }
 
 const COLAPSADAS = new Set();
 let HAB_TIPO = '', HAB_Q = '';
