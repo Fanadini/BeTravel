@@ -150,4 +150,4 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
 - Para contenido: checkpoints cortos de confirmación antes de versión final
 - Idioma de trabajo: **español**
 
-- Si un despliegue de Pages queda trabado en cola o falla, no se puede cancelar ni relanzar desde la API: un commit nuevo a `main` genera un build distinto que lo reemplaza
+- Si un despliegue de Pages queda trabado en cola o falla, no se puede cancelar ni relanzar desde la API: un commit nuevo a `main` genera un build distinto que lo reemplaza Se vio dos veces (builds que quedan en cola o fallan a los ~11 min sin cambios de código): conviene verificar en la pestaña Actions que el último run de `main` esté en verde.
