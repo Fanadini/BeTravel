@@ -457,7 +457,7 @@ function nuevoGrupo(){
   GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email, form: limpiarForm(window.FORM_DEFAULT) })
     .then(() => { IDX_REF.child(gid).set({ nombre }).catch(() => {}); abrirGrupo(gid); }, handleWriteError);
 }
-function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'', ast:'' }; SEL_LABEL = ''; HAB_TIPO = ''; HAB_Q = ''; PLAN_MEDIO = ''; PLAN_VISTA = 'pax'; PLAN_CUB = ''; COLAPSADAS.clear(); render(); }
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'', ast:'' }; SEL_LABEL = ''; HAB_TIPO = ''; HAB_Q = ''; PLAN_MEDIO = ''; PLAN_VISTA = 'pax'; PLAN_CUB = ''; PLAN_SEL = { modo:'pax', pax:new Set(), hab:new Set() }; COLAPSADAS.clear(); render(); }
 function volverLista(){ GID_ABIERTO = null; render(); }
 function setTab(t){ if (TAB === 'form' && t !== 'form' && DIRTY && !confirm('Hay cambios sin guardar en el formulario. ¿Salir igualmente?')) return; TAB = t; FORM_RENDER = true; render(); }
 function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
@@ -753,6 +753,34 @@ function repartirCuotas(total, cuotas){   // redondea a centavos; la última cuo
   return cuotas.map((c, i) => { const v = i === cuotas.length - 1 ? Math.round((total - acum) * 100) / 100 : Math.round(total * c.pct) / 100; acum += v; return v; });
 }
 let PLAN_MEDIO = '', PLAN_VISTA = 'pax', PLAN_CUB = '';
+// Selección de personas y/o habitaciones para ver los montos de ese grupo (vacía = todos)
+let PLAN_SEL = { modo:'pax', pax:new Set(), hab:new Set() };
+function planSelRids(g){
+  if (!PLAN_SEL.pax.size && !PLAN_SEL.hab.size) return null;
+  const out = new Set(PLAN_SEL.pax);
+  listaHab(g).forEach(([, h], i) => { if (PLAN_SEL.hab.has(String(i + 1))) Object.keys(h.pasajeros || {}).forEach(x => out.add(x)); });
+  return out;
+}
+const planSelTxt = () => { const a = PLAN_SEL.pax.size, b = PLAN_SEL.hab.size; return !a && !b ? 'Todos los pasajeros' : [a ? a + ' persona' + (a === 1 ? '' : 's') : '', b ? b + (b === 1 ? ' habitación' : ' habitaciones') : ''].filter(Boolean).join(' + '); };
+function planSelPopHtml(g){
+  const resps = g.respuestas || {}, md = PLAN_SEL.modo;
+  const lista = md === 'hab'
+    ? listaHab(g).map(([, h], i) => { const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]); return `<label data-n="${i + 1}"><input type="checkbox" value="${i + 1}" ${PLAN_SEL.hab.has(String(i + 1)) ? 'checked' : ''} onchange="planSelToggle(this,'hab')"> <span style="overflow-wrap:anywhere"><strong>Hab. ${i + 1} · ${esc(h.tipo)}</strong>${ids.length ? ' · ' + ids.map(x => esc(resps[x].apellido + ', ' + resps[x].nombre)).join(' / ') : ''}</span></label>`; }).join('')
+    : respuestasOrdenadas(g).map(([rid, r]) => `<label><input type="checkbox" value="${esc(rid)}" ${PLAN_SEL.pax.has(rid) ? 'checked' : ''} onchange="planSelToggle(this,'pax')"> <span>${esc(r.apellido)}, ${esc(r.nombre)}</span></label>`).join('');
+  return `<div style="display:flex;gap:6px;margin:8px 8px 0"><button type="button" class="btn small ${md === 'pax' ? '' : 'outline'}" onclick="planSelModo('pax')">Por persona</button><button type="button" class="btn small ${md === 'hab' ? '' : 'outline'}" onclick="planSelModo('hab')">Por habitación</button></div>
+    <input type="text" class="pax-filter" placeholder="${md === 'hab' ? 'Buscar por n° de habitación o nombre…' : 'Buscar pasajero…'}" oninput="filtrarPaxPick(this)">
+    <div class="share-list">${lista}</div>
+    <div style="margin:0 8px 8px"><button type="button" class="btn outline small" onclick="planSelLimpiar()">Quitar selección</button></div>`;
+}
+function planSelRefrescar(){
+  const g = GRUPOS[GID_ABIERTO], d = document.getElementById('plan-sel'); if (!d) return;
+  d.querySelector('summary').textContent = planSelTxt();
+  const l = document.getElementById('plan-lista'); if (l) l.innerHTML = htmlPlanTabla(g);
+  const h = document.getElementById('plan-sel-hint'); if (h) h.style.display = planSelRids(g) ? '' : 'none';
+}
+function planSelToggle(inp, k){ const st = PLAN_SEL[k]; inp.checked ? st.add(inp.value) : st.delete(inp.value); planSelRefrescar(); }
+function planSelModo(m){ PLAN_SEL.modo = m; const d = document.getElementById('plan-sel'); d.querySelector('.hab-pop').innerHTML = planSelPopHtml(GRUPOS[GID_ABIERTO]); planSelRefrescar(); }
+function planSelLimpiar(){ PLAN_SEL.pax.clear(); PLAN_SEL.hab.clear(); const d = document.getElementById('plan-sel'); d.querySelector('.hab-pop').innerHTML = planSelPopHtml(GRUPOS[GID_ABIERTO]); planSelRefrescar(); }
 function setPlanCub(v){ PLAN_CUB = v; verPlanPagos(); }
 function setPlanVista(v){ PLAN_VISTA = v; verPlanPagos(); }
 function setPlanMedio(v){ PLAN_MEDIO = v; verPlanPagos(); }
@@ -760,8 +788,8 @@ function calcPlan(g){
   const resps = g.respuestas || {}, ref = refViaje(g), asg = asignaciones(g), cuotas = planCuotas(g), mon = (g.meta.precios || {}).moneda || 'USD';
   const qPago = preguntasPago(g), pp = PLAN_MEDIO && PLAN_MEDIO[0] === 'p' ? pagosPorPasajero(GID_ABIERTO) : {};
   const pasa = (rid, r) => !PLAN_MEDIO || (PLAN_MEDIO[0] === 'f' ? eleccionPago(r, qPago).includes(PLAN_MEDIO.slice(2)) : mediosRegistrados(pp, rid).includes(PLAN_MEDIO.slice(2)));
-  const cubDe = rid => !!((g.cobros || {})[rid] || {}).cubierto;
-  const filas = respuestasOrdenadas(g).filter(([rid, r]) => pasa(rid, r) && (!PLAN_CUB || (PLAN_CUB === 'si') === cubDe(rid))).map(([rid, r]) => { const c = cobroDe(g, rid, r, ref, asg, {}), cub = !!((g.cobros || {})[rid] || {}).cubierto; return { rid, r, cub, total: c.total, falta: c.falta.length > 0, cuotas: repartirCuotas(c.total, cuotas), t: tipoPax(g, rid, r, ref).t }; });
+  const cubDe = rid => !!((g.cobros || {})[rid] || {}).cubierto, sel = planSelRids(g);
+  const filas = respuestasOrdenadas(g).filter(([rid, r]) => (!sel || sel.has(rid)) && pasa(rid, r) && (!PLAN_CUB || (PLAN_CUB === 'si') === cubDe(rid))).map(([rid, r]) => { const c = cobroDe(g, rid, r, ref, asg, {}), cub = !!((g.cobros || {})[rid] || {}).cubierto; return { rid, r, cub, total: c.total, falta: c.falta.length > 0, cuotas: repartirCuotas(c.total, cuotas), t: tipoPax(g, rid, r, ref).t }; });
   const suma = fs => ({ total: fs.reduce((a, f) => a + f.total, 0), cuotas: cuotas.map((_, i) => fs.reduce((a, f) => a + f.cuotas[i], 0)) });
   return { cuotas, mon, filas, propios: suma(filas.filter(f => !f.cub)), novios: suma(filas.filter(f => f.cub)), todos: suma(filas) };
 }
@@ -832,7 +860,7 @@ function exportarPlanExcel(){
   const r2 = x => Math.round(x * 100) / 100, suma = fs => ({ total: fs.reduce((a, f) => a + f.total, 0), cuotas: P.cuotas.map((_, i) => fs.reduce((a, f) => a + f.cuotas[i], 0)) });
   const fila = f => [f.r.apellido, f.r.nombre, telDe(g, f.r), f.t || '', asg[f.rid] ? asg[f.rid].n : '', asg[f.rid] ? asg[f.rid].h.tipo : '', f.cub ? 'Sí' : 'No', r2(f.total), ...f.cuotas.map(r2)];
   const tot = (et, fs) => { const o = suma(fs); return [et, `${fs.length} personas`, '', '', '', '', '', r2(o.total), ...o.cuotas.map(r2)]; };
-  const filtros = [PLAN_MEDIO ? 'medio de pago: ' + PLAN_MEDIO.slice(2) : '', PLAN_CUB ? (PLAN_CUB === 'si' ? 'solo cubiertos por los novios' : 'solo no cubiertos por los novios') : ''].filter(Boolean).join(' · ');
+  const filtros = [PLAN_MEDIO ? 'medio de pago: ' + PLAN_MEDIO.slice(2) : '', PLAN_CUB ? (PLAN_CUB === 'si' ? 'solo cubiertos por los novios' : 'solo no cubiertos por los novios') : '', planSelRids(g) ? 'selección: ' + planSelTxt() : ''].filter(Boolean).join(' · ');
   const pax = P.filas.map(fila).concat([[], tot('Pagan por su cuenta', P.filas.filter(f => !f.cub)), tot('Cubren los novios', P.filas.filter(f => f.cub)), tot('TOTAL', P.filas)]);
   const porRid = Object.fromEntries(P.filas.map(f => [f.rid, f]));
   const habs = listaHab(g).map(([, h], i) => ({ n: i + 1, h, fs: Object.keys(h.pasajeros || {}).map(x => porRid[x]).filter(Boolean) })).filter(x => x.fs.length);
@@ -850,7 +878,7 @@ function exportarPlanExcel(){
 }
 function htmlPlanTabla(g){
   const P = calcPlan(g), m = x => moneyG(x, P.mon), N = P.cuotas.length;
-  if ((PLAN_MEDIO || PLAN_CUB) && !P.filas.length) return `<div class="vacio">Ningún pasajero coincide con los filtros.</div>`;
+  if ((PLAN_MEDIO || PLAN_CUB || planSelRids(g)) && !P.filas.length) return `<div class="vacio">Ningún pasajero coincide con los filtros.</div>`;
   const head = `<thead><tr>${PLAN_VISTA === 'hab' ? '<th>Habitación</th><th>Pasajeros</th>' : '<th>Pasajero</th><th>Tipo</th>'}<th class="num">Total</th>${P.cuotas.map(c => `<th class="num">${c.pct}%${c.fecha ? ' · ' + esc(fmtFecha(c.fecha)) : ''}</th>`).join('')}</tr></thead>`;
   const fila = f => `<tr><td>${esc(f.r.apellido)}, ${esc(f.r.nombre)}</td><td>${esc(f.t || '—')}</td><td class="num">${m(f.total)}${f.falta ? ' *' : ''}</td>${f.cuotas.map(v => `<td class="num">${m(v)}</td>`).join('')}</tr>`;
   const tot = (et, o, fs) => `<tr style="font-weight:600"><td colspan="2">${et}${fs ? `<div style="font-weight:400;font-size:11px;color:rgba(43,43,43,.7)">${cuentaPax(fs)}</div>` : ''}</td><td class="num">${m(o.total)}</td>${o.cuotas.map(v => `<td class="num">${m(v)}</td>`).join('')}</tr>`;
@@ -883,9 +911,10 @@ function verPlanPagos(){
     <div class="filtros" style="align-items:center"><span>Ver por:</span><select onchange="setPlanVista(this.value)"><option value="pax" ${PLAN_VISTA === 'pax' ? 'selected' : ''}>Pasajero</option><option value="hab" ${PLAN_VISTA === 'hab' ? 'selected' : ''}>Habitación</option></select>
       <select onchange="setPlanCub(this.value)" title="Quién paga"><option value="">Todos (cubran o no los novios)</option><option value="si" ${PLAN_CUB === 'si' ? 'selected' : ''}>Los cubren los novios</option><option value="no" ${PLAN_CUB === 'no' ? 'selected' : ''}>No los cubren los novios</option></select>${PLAN_CUB ? '<span class="hint" style="margin:0">Los totales corresponden solo a los pasajeros filtrados.</span>' : ''}</div>
     ${selectorMedio(g, 'setPlanMedio(this.value)', PLAN_MEDIO) ? `<div class="filtros" style="align-items:center"><span>Medio de pago:</span>${selectorMedio(g, 'setPlanMedio(this.value)', PLAN_MEDIO)}${PLAN_MEDIO ? '<span class="hint" style="margin:0">Los totales corresponden solo a los pasajeros filtrados.</span>' : ''}</div>` : ''}
+    <div class="filtros" style="align-items:center"><span>Selección:</span><details class="pax-pick hab-filtro" id="plan-sel" style="flex:0 0 auto;min-width:260px;max-width:100%"><summary>${esc(planSelTxt())}</summary><div class="hab-pop">${planSelPopHtml(g)}</div></details><span class="hint" id="plan-sel-hint" style="margin:0;${planSelRids(g) ? '' : 'display:none'}">Los totales corresponden solo a la selección.</span></div>
     <div class="filtros" style="align-items:center">${cuotas.map((c, i) => `<span>Cuota ${i + 1}: <input type="number" step="0.01" id="pl-pct-${i}" value="${c.pct}" style="width:70px"> % el <input type="date" id="pl-fec-${i}" value="${esc(c.fecha)}" style="width:auto"></span>`).join('')}
       <button class="btn small" onclick="guardarCuotas(${cuotas.length})">Guardar plan</button>${Math.abs(suma - 100) > 0.05 ? `<span class="pill bad">Suman ${suma}%, deberían sumar 100%</span>` : ''}</div>
-    <div class="lista" style="margin-top:8px">${htmlPlanTabla(g)}</div>
+    <div class="lista" id="plan-lista" style="margin-top:8px">${htmlPlanTabla(g)}</div>
     <div class="row-btns" style="justify-content:flex-end;margin-top:10px"><button class="btn outline small" onclick="exportarPlanExcel()">Descargar Excel</button><button class="btn outline small" onclick="imprimir('plan')">Imprimir / PDF</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
 function guardarCuotas(n){
@@ -975,7 +1004,7 @@ function setHabFiltro(inp){
   d.querySelector('summary').textContent = resumenHabFiltro(sel.join(','));
   setFiltro('hab', sel.join(','));
 }
-document.addEventListener('click', e => { document.querySelectorAll('details.hab-filtro[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }); });
+document.addEventListener('click', e => { document.querySelectorAll('details.hab-filtro[open]').forEach(d => { if (!e.composedPath().includes(d)) d.open = false; }); });
 function limpiarHabFiltro(btn){ const d = btn.closest('details'); d.querySelectorAll('input[type=checkbox]').forEach(c => { c.checked = false; }); d.querySelector('summary').textContent = resumenHabFiltro(''); setFiltro('hab', ''); }
 function tablaResp(g){
   const resps = g.respuestas || {}, asg = asignaciones(g), qt = tokens(FILTRO.q);
@@ -1905,7 +1934,7 @@ const conPagos = hayPagos(GID_ABIERTO), pp = conPagos ? pagosPorPasajero(GID_ABI
 function imprimir(tipo){
   const g = GRUPOS[GID_ABIERTO], resps = g.respuestas || {};
   let html = `<h1>${esc(g.meta.nombre)}</h1><div class="sub">${tipo === 'plan' ? 'Plan de pagos' : tipo === 'rooming' ? 'Rooming list' : 'Listado de pasajeros'} · ${new Date().toLocaleDateString('es-AR')}</div>`;
-  if (tipo === 'plan'){ document.getElementById('print-area').innerHTML = html.replace('Plan de pagos', 'Plan de pagos' + (PLAN_VISTA === 'hab' ? ' por habitación' : '')) + (PLAN_CUB ? `<div class="sub">${PLAN_CUB === 'si' ? 'Solo pasajeros cubiertos por los novios' : 'Solo pasajeros que no cubren los novios'}</div>` : '') + (PLAN_MEDIO ? `<div class="sub">Filtrado por medio de pago: ${esc(PLAN_MEDIO.slice(2))}</div>` : '') + htmlPlanTabla(g); window.print(); return; }
+  if (tipo === 'plan'){ document.getElementById('print-area').innerHTML = html.replace('Plan de pagos', 'Plan de pagos' + (PLAN_VISTA === 'hab' ? ' por habitación' : '')) + (PLAN_CUB ? `<div class="sub">${PLAN_CUB === 'si' ? 'Solo pasajeros cubiertos por los novios' : 'Solo pasajeros que no cubren los novios'}</div>` : '') + (PLAN_MEDIO ? `<div class="sub">Filtrado por medio de pago: ${esc(PLAN_MEDIO.slice(2))}</div>` : '') + (planSelRids(g) ? `<div class="sub">Selección: ${esc(planSelTxt())}</div>` : '') + htmlPlanTabla(g); window.print(); return; }
   if (tipo === 'rooming'){
     const refR2 = refViaje(g);
     html += '<table><thead><tr><th>Hab.</th><th>Tipo</th><th>Cama</th><th>Pasajero</th><th>Pasaporte</th><th>Vence</th><th>Observaciones</th></tr></thead><tbody>';
