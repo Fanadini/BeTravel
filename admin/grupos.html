@@ -1267,6 +1267,7 @@ function htmlResumen(g){
   let incompletas = 0, sobran = 0, vacias = 0;
   lista.forEach(([, h]) => { const o = ocupacion(h, Object.keys(h.pasajeros || {}).filter(x => resps[x])); if (o.faltan) incompletas++; if (o.sobran) sobran++; if (o.vacia) vacias++; });
   const vencen = ids.filter(id => venceProximo(resps[id], g.meta)), sinNac = ids.filter(id => !resps[id].nacimiento);
+  const sinPas = ids.filter(id => !String(resps[id].pasaporte || '').trim());
   const idsNo = k => ids.filter(id => { const v = String(resps[id][k] || '').trim(); return v && !/^(ninguna?|no|-+|n\/a|no tengo|ninguno\.?)\.?$/i.test(v); });
   const noNinguna = k => idsNo(k).length;
   const qPago = preguntasPago(g), eleccion = {};
@@ -1322,6 +1323,7 @@ function htmlResumen(g){
   html += `<div class="card"><h3>Para revisar</h3>`
     + fila('Vínculos de habitación con problemas', vinc.pend, vinc.pend ? "irA('resp',{vinc:'pend'})" : '') + (vinc.pend ? '<div style="margin:2px 0 8px"><button class="btn small" onclick="revisarVinculos()">Revisar y resolver vínculos</button></div>' : '') + fila('Vínculos confirmados', vinc.ok, vinc.ok ? "irA('resp',{vinc:'ok'})" : '')
     + fila('Pasaportes que vencen antes de 6 meses del viaje', g.meta.fechaViaje ? vencen.length : '—', vs('Pasaporte vence antes de 6 meses', vencen)) + (vencen.length ? `<div class="hint" style="margin:2px 0 6px">${vencen.slice(0, 6).map(id => esc(`${resps[id].apellido}, ${resps[id].nombre}`)).join(' · ')}${vencen.length > 6 ? ' · +' + (vencen.length - 6) : ''}</div>` : '')
+    + fila('Pasajeros sin pasaporte', sinPas.length, vs('Sin pasaporte', sinPas)) + (sinPas.length ? `<div class="hint" style="margin:2px 0 6px">${sinPas.map(id => esc(`${resps[id].apellido}, ${resps[id].nombre}`)).join(' · ')}</div>` : '')
     + aviso(!g.meta.fechaViaje, 'Cargá la fecha de regreso en Ajustes para controlar los pasaportes.', 'warn', "setTab('cfg')") + aviso(sinNac.length && false, '', '') + `</div>`;
 
   html += `<div class="card"><h3>Preferencias y salud</h3>`
