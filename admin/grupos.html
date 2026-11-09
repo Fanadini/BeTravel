@@ -457,7 +457,7 @@ function nuevoGrupo(){
   GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email, form: limpiarForm(window.FORM_DEFAULT) })
     .then(() => { IDX_REF.child(gid).set({ nombre }).catch(() => {}); abrirGrupo(gid); }, handleWriteError);
 }
-function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'', ast:'' }; SEL_LABEL = ''; HAB_TIPO = ''; HAB_Q = ''; PLAN_MEDIO = ''; PLAN_VISTA = 'pax'; PLAN_CUB = ''; PLAN_SEL = { modo:'pax', pax:new Set(), hab:new Set() }; PLAN_SALDO = 'con'; COLAPSADAS.clear(); render(); }
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'', ast:'' }; SEL_LABEL = ''; HAB_TIPO = ''; HAB_Q = ''; HAB_CAMA = ''; PLAN_MEDIO = ''; PLAN_VISTA = 'pax'; PLAN_CUB = ''; PLAN_SEL = { modo:'pax', pax:new Set(), hab:new Set() }; PLAN_SALDO = 'con'; COLAPSADAS.clear(); render(); }
 function volverLista(){ GID_ABIERTO = null; render(); }
 function setTab(t){ if (TAB === 'form' && t !== 'form' && DIRTY && !confirm('Hay cambios sin guardar en el formulario. ¿Salir igualmente?')) return; TAB = t; FORM_RENDER = true; render(); }
 function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
@@ -1583,12 +1583,13 @@ function verRespuesta(rid){
 function cerrarModal(){ EDIT_FICHA = null; document.getElementById('modal-root').innerHTML = ''; }
 
 const COLAPSADAS = new Set();
-let HAB_TIPO = '', HAB_Q = '';
+let HAB_TIPO = '', HAB_Q = '', HAB_CAMA = '';
 function setHabQ(v){
   HAB_Q = v; render();
   const el = document.getElementById('hab-q'); if (el){ el.focus(); const n = el.value.length; el.setSelectionRange(n, n); }
 }
 function setHabTipo(v){ HAB_TIPO = v; render(); }
+function setHabCama(v){ HAB_CAMA = v; render(); }
 function toggleHab(hid){ COLAPSADAS.has(hid) ? COLAPSADAS.delete(hid) : COLAPSADAS.add(hid); render(); }
 function plegarTodas(v){ listaHab(GRUPOS[GID_ABIERTO]).forEach(([hid]) => v ? COLAPSADAS.add(hid) : COLAPSADAS.delete(hid)); render(); }
 function cambiarCama(hid, v){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}/cama`).set(v || null).catch(handleWriteError); }
@@ -1621,6 +1622,7 @@ function htmlHabitaciones(g){
   let html = `<div class="section-head"><h2>${hay ? 'Habitaciones' : 'Habitaciones sugeridas'}</h2><div class="row-btns">`
     + `<input type="text" id="hab-q" placeholder="Buscar pasajero…" value="${esc(HAB_Q)}" oninput="setHabQ(this.value)" style="width:190px" title="Escribí el nombre de un pasajero para ver su habitación">`
     + `<select title="Filtrar por tipo de habitación" onchange="setHabTipo(this.value)"><option value="">Todos los tipos (${lista.length})</option>${TIPOS.filter(t => lista.some(([, h]) => h.tipo === t)).map(t => `<option value="${t}" ${HAB_TIPO === t ? 'selected' : ''}>${t} (${lista.filter(([, h]) => h.tipo === t).length})</option>`).join('')}</select>`
+    + (() => { const cm = h => camaHab(h, resps) || '-', n = c => lista.filter(([, h]) => cm(h) === c).length; return `<select title="Filtrar por tipo de cama" onchange="setHabCama(this.value)"><option value="">Twin y matrimonial</option>${CAMAS.slice().reverse().map(c => `<option value="${c}" ${HAB_CAMA === c ? 'selected' : ''}>${c} (${n(c)})</option>`).join('')}<option value="-" ${HAB_CAMA === '-' ? 'selected' : ''}>Sin cama definida (${n('-')})</option></select>`; })()
     + `<button class="btn outline small" onclick="plegarTodas(true)">Plegar todas</button><button class="btn outline small" onclick="plegarTodas(false)">Desplegar todas</button>`
     + (hay ? `<button class="btn outline small" onclick="ordenarHabAZ()" title="Renumerar por el apellido del primer ocupante">Ordenar A–Z</button><button class="btn outline small" onclick="agregarHabitacion()">+ Habitación vacía</button><button class="btn outline small" onclick="regenerarHabitaciones()">Volver a sugerir</button>`
            : `<button class="btn" onclick="guardarSugeridas()">Guardar habitaciones sugeridas</button>`) + '</div></div>';
@@ -1637,6 +1639,7 @@ function htmlHabitaciones(g){
   lista.forEach(([hid, h], i) => {
     const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]); ids.forEach(x => asignados.add(x));
     if (HAB_TIPO && h.tipo !== HAB_TIPO) return;
+    if (HAB_CAMA && (camaHab(h, resps) || '-') !== HAB_CAMA) return;
     if (qtH.length && !ids.some(x => coincideNombre(qtH, resps[x]))) return;
     const al = alertasHabitacion(h, resps, idx), col = COLAPSADAS.has(hid) && !qtH.length, cap = CAPACIDAD[h.tipo] || 0, cama = camaHab(h, resps);
     const nombres = ids.map(x => `${resps[x].apellido}, ${resps[x].nombre}${tp(x) ? ' (' + tp(x) + ')' : ''}`).join(' · ');
