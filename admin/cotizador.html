@@ -156,8 +156,8 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .hab-ed{margin-bottom:8px}
 .hab-hint{font-size:11px;color:rgba(43,43,43,.55);align-self:end;padding-bottom:8px}
 .hab-scroll{overflow-x:auto;margin-bottom:8px}
-.hab-tabla{min-width:980px}
-.hab-fila{display:grid;grid-template-columns:104px minmax(130px,1fr) 58px 58px 88px 70px 88px 82px 82px 96px 24px;gap:6px;align-items:center;margin-bottom:6px}
+.hab-tabla{min-width:1008px}
+.hab-fila{display:grid;grid-template-columns:20px 104px minmax(130px,1fr) 58px 58px 88px 70px 88px 82px 82px 96px 24px;gap:6px;align-items:center;margin-bottom:6px}
 .hab-fila .fi,.hab-fila .fsel{min-width:0}
 .reparto{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;font-size:11px;color:rgba(43,43,43,.6);margin:2px 0 8px}
 .reparto label{display:inline-flex;align-items:center;gap:4px;cursor:pointer;color:var(--dark);font-weight:500}
@@ -1758,7 +1758,8 @@ function agregarDia(){ editing.data.dias.push({ titulo:'', descripcion:'' }); re
 
 // ── Arrastrar y soltar para ordenar (días, servicios, anexos y archivos de cada anexo) ──
 // Se toma desde el asa ⋮⋮ (así no molesta al seleccionar texto en los campos). Las flechas ▲▼ siguen funcionando.
-const DND_CFG = [   // el archivo de un anexo va primero: está dentro de la tarjeta del anexo
+const DND_CFG = [   // lo más anidado va primero: la línea de habitación está dentro de la tarjeta del servicio y el archivo de un anexo dentro de la del anexo
+  { sel:'.hab-fila[data-hab]', lista: it => editing.data.servicios[Number(it.closest('[data-srv]').dataset.srv)].habitaciones, despues: () => { renderServicios(); renderTotales(); } },
   { sel:'#anexos-list .anexo-file', lista: it => editing.data.anexos[Number(it.closest('[data-anexo]').dataset.anexo)].archivos, despues: () => renderAnexos() },
   { sel:'#dias-list > .item-card', lista: () => editing.data.dias, despues: () => renderDias() },
   { sel:'#servicios-list > .item-card', lista: () => editing.data.servicios, despues: () => { renderServicios(); renderTotales(); } },
@@ -2461,8 +2462,9 @@ function habEditor(s, i){
       <div class="hab-hint" style="grid-column:1/-1">El precio total del hotel es la suma de las líneas${habPorNoche(s) ? ' (cantidad × noches × precio)' : ''}. "El costo se carga" define si lo que escribís es el valor por habitación, por persona (÷ ocupantes de la línea) o el total de la línea; el hotel suma lo mismo en los tres casos. Para mostrar cada precio en la propuesta, activá "Mostrar desglose por servicio". "Menor" es la tarifa por menor y por noche cuando comparte la habitación con adultos: no suma al total del hotel, la usa el flyer. Se aplica el mismo corte de edades que en el aéreo: menor (CHD) de ${EDAD_CHD}, infante (INF) de ${EDAD_INF} sin cargo de habitación.</div>
     </div>
     <div class="hab-scroll"><div class="hab-tabla">
-      <div class="hab-fila hab-cab"><span>Tipo</span><span>Categoría (visible en la propuesta)</span><span>Cant.</span><span>Ocup.</span><span>${habEtiqueta(s, 'Costo')}</span><span>Markup %</span><span>${habEtiqueta(s, 'Venta')}</span><span>Menor: costo</span><span>Menor: venta</span><span>Total venta</span><span></span></div>
+      <div class="hab-fila hab-cab"><span></span><span>Tipo</span><span>Categoría (visible en la propuesta)</span><span>Cant.</span><span>Ocup.</span><span>${habEtiqueta(s, 'Costo')}</span><span>Markup %</span><span>${habEtiqueta(s, 'Venta')}</span><span>Menor: costo</span><span>Menor: venta</span><span>Total venta</span><span></span></div>
       ${s.habitaciones.map((h, k) => `<div class="hab-fila" data-hab="${k}">
+        <span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span>
         <select class="fsel" onchange="setHabTipo(${i},${k},this.value)">${selOpts(HAB_TIPOS.map(x=>x[0]),HAB_TIPOS.map(x=>x[0]),h.tipo)}</select>
         <input class="fi" value="${escHtml(h.categoria)}" placeholder="Ej: Junior Suite Pool Access" oninput="setHab(${i},${k},'categoria',this.value)">
         <input class="fi h-cantidad" type="number" min="0" step="1" value="${escHtml(h.cantidad)}" oninput="setHab(${i},${k},'cantidad',this.value)">
