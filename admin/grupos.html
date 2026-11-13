@@ -331,7 +331,7 @@ function attachListeners(){
     document.getElementById('lo').classList.add('hidden');
     showBanner('');
     abrirGrupoDesdeUrl();
-    render(); sincronizarIndice(); programarSyncResumen();
+    render(); refrescarModal(); sincronizarIndice(); programarSyncResumen();
   }, err => { document.getElementById('lo').classList.add('hidden'); handleWriteError(err); });
   IDX_REF.on('value', snap => { IDX = snap.val() || {}; sincronizarIndice(); }, () => {});
   escucharReservas();
@@ -374,6 +374,22 @@ function refrescarPagos(){
   const t = document.getElementById('resp-tabla');
   if (TAB === 'resp' && t) t.innerHTML = tablaResp(GRUPOS[GID_ABIERTO]);
   else if (TAB === 'cfg' || TAB === 'res') render();
+  refrescarModal();
+}
+// Ventanas abiertas (reporte de cuenta, plan de pagos, ficha del pasajero): se redibujan solas cuando otra persona cambia
+// los datos, salvo que se esté escribiendo en un campo o haya un desplegable abierto, para no pisar lo que se está haciendo.
+let MODAL_VIVO = null, MODAL_EL = null;
+function modalVivo(fn){ MODAL_VIVO = fn; MODAL_EL = null; setTimeout(() => { MODAL_EL = document.getElementById('modal-root').firstElementChild; }, 0); }
+function refrescarModal(){
+  const root = document.getElementById('modal-root');
+  if (!MODAL_VIVO || !root || !root.innerHTML || (MODAL_EL && root.firstElementChild !== MODAL_EL)) { MODAL_VIVO = null; return; }
+  if (!MODAL_EL) return;
+  if (!GID_ABIERTO || !GRUPOS[GID_ABIERTO]) return;
+  const act = document.activeElement;
+  if ((act && root.contains(act) && /^(INPUT|TEXTAREA|SELECT)$/.test(act.tagName)) || root.querySelector('details[open]') || EDIT_FICHA) return;
+  const m = root.querySelector('.modal'), top = m ? m.scrollTop : 0;
+  try { MODAL_VIVO(); } catch (e) { console.error(e); return; }
+  const m2 = root.querySelector('.modal'); if (m2) m2.scrollTop = top;
 }
 const reservasDelGrupo = gid => Object.entries(RESERVAS).filter(([, r]) => r && r.grupoId === gid);
 const moneyG = (n, m) => (m === 'USD' ? 'US$ ' : '$ ') + (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits:2, maximumFractionDigits:2 });
@@ -926,6 +942,7 @@ function htmlPlanTabla0(g){
     + (!novios.length && !PLAN_MEDIO ? '<div class="hint" style="margin-top:6px">Todavía no marcó a nadie como cubierto por los novios: se marca en la ficha de cada pasajero.</div>' : '');
 }
 function verPlanPagos(){
+  modalVivo(verPlanPagos);
   const g = GRUPOS[GID_ABIERTO], cuotas = planCuotas(g), suma = cuotas.reduce((a, c) => a + c.pct, 0);
   document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal" style="max-width:980px"><h3>Plan de pagos</h3>
     <div class="hint">Cuotas sobre el total de cada pasajero (aéreo + hotel + ajustes). Los pasajeros marcados "Lo cubren los novios" se suman aparte.</div>
@@ -1071,6 +1088,7 @@ function reporteCuentaHtml(g){
   return h;
 }
 function verReporteCuenta(){
+  modalVivo(verReporteCuenta);
   const g = GRUPOS[GID_ABIERTO];
   document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal" style="max-width:980px"><h3>Reporte de cuenta · ${esc(g.meta.nombre || 'Grupo')}</h3>
     <div class="hint">Uso interno de la agencia. Al ${esc(fmtFecha(hoyISO()))}.</div>${reporteCuentaHtml(g)}
@@ -1726,6 +1744,7 @@ function guardarFicha(rid){
   GRUPOS_REF.child(`${GID_ABIERTO}/respuestas/${rid}`).update(upd).then(() => editarFicha(rid, false), handleWriteError);
 }
 function verRespuesta(rid){
+  modalVivo(() => verRespuesta(rid));
   const g = GRUPOS[GID_ABIERTO], r = g.respuestas[rid]; if (!r) return;
   const edit = EDIT_FICHA === rid;
   const rows = edit
@@ -1733,7 +1752,7 @@ function verRespuesta(rid){
     : `<dl class="det">${columnasForm(g).filter(c => r[c.id] != null && r[c.id] !== '').map(c => `<dt>${esc(c.etiqueta)}</dt><dd>${esc(valorTxt(r, c))}</dd>`).join('')}<dt>Enviado</dt><dd>${esc(r.ts ? new Date(r.ts).toLocaleString('de-DE') : '')}</dd></dl><div class="row-btns" style="margin:0 0 10px"><button class="btn outline small" onclick="editarFicha('${esc(rid)}', true)">Editar datos</button></div>`;
   document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal"><h3>${esc(r.nombre)} ${esc(r.apellido)}</h3>${rows}${tipoFichaHtml(rid, r)}${notaFichaHtml(rid)}${assistFichaHtml(rid)}${medioFichaHtml(rid, r)}${cobroFichaHtml(rid, r)}${vincHtml(rid, r)}${cuotasFichaHtml(rid, r)}${pagosFichaHtml(rid)}<div class="row-btns" style="justify-content:space-between"><button class="btn danger small" onclick="borrarRespuesta('${esc(rid)}')">Eliminar respuesta</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
-function cerrarModal(){ EDIT_FICHA = null; document.getElementById('modal-root').innerHTML = ''; }
+function cerrarModal(){ EDIT_FICHA = null; MODAL_VIVO = null; document.getElementById('modal-root').innerHTML = ''; }
 
 const COLAPSADAS = new Set();
 let HAB_TIPO = '', HAB_Q = '', HAB_CAMA = '';
