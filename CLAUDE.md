@@ -58,10 +58,11 @@ Contexto operativo para Claude Code. Leer antes de cualquier intervención en es
     ├── gestioninterna.html    ← Finanzas / Reservas / Facturas de proveedores (Firebase)
     ├── cotizador.html         ← Cotizaciones con itinerario (hoteles por tipo de habitación) → propuesta PDF (A4 vertical) y "Convertir en reserva" (Firebase)
     ├── grupos.html            ← Grupos de pasajeros (admin/agente): link del formulario, respuestas, habitaciones compartidas vinculadas, export Excel/PDF (Firebase `grupos`)
-    ├── nav.js                 ← Encabezado compartido de las páginas de gestión: botones en escritorio y menú hamburguesa en celular; muestra qué página es y los accesos según el rol (`AdminNav.mount` / `AdminNav.setUser`)
+    ├── nav.js                 ← Encabezado compartido de las páginas de gestión: botones en escritorio y menú hamburguesa en celular; muestra qué página es y los accesos según el rol (`AdminNav.mount` / `AdminNav.setUser`). "Ver como" (solo admin, desde el inicio): `AdminNav.acceso` hace que cada página use el perfil de otra cuenta para ver lo que ve; los datos se leen y guardan con la sesión del admin
     ├── ordenar.js             ← Ordena cualquier tabla de listado al hacer clic en los encabezados (clic: ascendente, otra vez: descendente, otra vez: orden original). Se carga después de nav.js y se aplica solo a las tablas sin orden propio
     ├── plegar.js              ← Tarjetas plegables: toda `.item-card` con `.item-card-header` se pliega/despliega sola (resumen en una línea, "Plegar todos / Desplegar todos" bajo cada lista). Convención del sistema: toda tarjeta repetible nueva usa `.item-card` + `.item-card-header` y carga este script
     ├── recibos.js             ← Creador de recibos de la pestaña "Recibos" de Gestión interna (formato BETRAVEL, PDF por impresión; Firebase `finanzas/recibos`, contador `finanzas/meta/reciboCounter`)
+    ├── mis-reservas.html      ← Gestión interna del rol cotizador: resumen, reservas propias (`creadoPor`, crea y edita) y compartidas, pasajeros y recibos
     ├── compartidas.html       ← Reservas compartidas en solo lectura para cuentas cotizador (las elige un admin desde la lista de reservas; Firebase `finanzas/reservasCompartidas`)
     ├── contratos.html         ← Contratos de intermediación y gestión de viaje grupal (solo admin): datos → documento A4 editable en el propio texto (tipo Word) → PDF, y modelo en blanco (Firebase `finanzas/contratos`)
     └── SEGURIDAD_FIREBASE.md  ← Pasos manuales: sembrar admin, publicar reglas, backups

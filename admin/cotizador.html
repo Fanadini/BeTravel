@@ -789,7 +789,7 @@ auth.onAuthStateChanged(user => {
   const nombreGoogle = user.displayName ? user.displayName.split(' ')[0] : user.email;
   document.getElementById('nav-user-name').textContent = nombreGoogle;
   CURRENT_USER = { email:user.email, nombre: user.displayName || nombreGoogle, emailContacto:'', rol:'agente' };
-  verificarAcceso(user.email).then(acc => {
+  AdminNav.acceso(verificarAcceso, user.email).then(acc => { if (AdminNav.emailEfectivo && CURRENT_USER) CURRENT_USER.email = AdminNav.emailEfectivo;
     if (!acc){ mostrarSinAcceso(user.email); return; }
     if (acc.perfil.nombre) CURRENT_USER.nombre = acc.perfil.nombre;
     // Opcional: mail que se muestra al cliente si la persona entra con una cuenta de Google que no es la de la empresa.
