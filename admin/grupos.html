@@ -323,6 +323,7 @@ function abrirGrupoDesdeUrl(){
   if (!gid){ ABIERTO_DESDE_URL = true; return; }
   if (!GRUPOS[gid]) return;
   ABIERTO_DESDE_URL = true; abrirGrupo(gid);
+  const q = new URLSearchParams(location.search).get('q'); if (q){ FILTRO.q = q; TAB = 'resp'; }
 }
 function attachListeners(){
   GRUPOS_REF.on('value', snap => {

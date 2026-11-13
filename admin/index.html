@@ -43,6 +43,15 @@ body{font-family:'Inter',sans-serif;background:var(--beige);color:var(--dark);-w
 .rc ul{list-style:none;display:grid;gap:6px}
 .rc li{font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;line-height:1.35}
 .rc li small{color:rgba(43,43,43,.55);white-space:nowrap;font-size:12px}
+.bus{position:relative;margin:0 0 18px}
+.bus input{width:100%;font-family:'Inter',sans-serif;font-size:15px;color:var(--dark);background:var(--white);border:1px solid var(--beige-d);border-radius:12px;padding:12px 14px;outline:none}
+.bus input:focus{border-color:var(--teal)}
+.bus-r{margin-top:8px;background:var(--white);border:1px solid var(--beige-d);border-radius:14px;padding:8px 6px;display:grid;gap:2px;max-height:60vh;overflow-y:auto}
+.bus-r h4{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(43,43,43,.5);margin:8px 8px 2px}
+.bus-r a{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px;border-radius:8px;color:var(--dark);text-decoration:none;font-size:14px;line-height:1.3}
+.bus-r a:active,.bus-r a:hover{background:var(--beige)}
+.bus-r a small{color:rgba(43,43,43,.55);font-size:12px;text-align:right}
+.bus-r .nada{font-size:13px;color:rgba(43,43,43,.55);padding:8px}
 .rc li a.it{display:flex;justify-content:space-between;gap:10px;width:100%;color:inherit;text-decoration:none;padding:4px 6px;margin:0 -6px;border-radius:8px;line-height:1.35}
 .rc li a.it:active,.rc li a.it:hover{background:var(--beige)}
 .rc li a.it span{min-width:0;overflow-wrap:anywhere}
@@ -101,6 +110,7 @@ body{font-family:'Inter',sans-serif;background:var(--beige);color:var(--dark);-w
   </header>
   <main class="wrap">
     <div class="aviso hidden" id="aviso"></div>
+    <div class="bus hidden" id="bus"><input id="bus-q" type="search" placeholder="Buscar reservas, grupos, pasajeros, cotizaciones…" autocomplete="off" oninput="buscar(this.value)" onfocus="cargarBusqueda()"><div id="bus-r" class="bus-r hidden"></div></div>
     <div class="sec-t">Herramientas</div>
     <div class="grid" id="botones" style="margin-bottom:24px"></div>
     <section id="resumen" class="hidden">
@@ -217,6 +227,30 @@ function escucharResumen(){
   db.ref('gruposIndex').on('value', s => { IDXG = s.val() || {}; pintarResumen(); }, () => {});
 }
 
+
+// ── Buscador global: reservas, grupos, pasajeros de grupos y cotizaciones ──────
+const normB = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+let BUS_COT = {}, BUS_GRP = {}, BUS_CARGADO = false;
+function cargarBusqueda(){
+  if (BUS_CARGADO || ROL === 'cotizador') return; BUS_CARGADO = true;
+  db.ref('finanzas/cotizaciones').once('value').then(s => { BUS_COT = s.val() || {}; buscar($('bus-q').value); }, () => {});
+  db.ref('grupos').once('value').then(s => { BUS_GRP = s.val() || {}; buscar($('bus-q').value); }, () => {});
+}
+function buscar(q){
+  const box = $('bus-r'), toks = normB(q).split(' ').filter(Boolean);
+  if (!toks.length){ box.classList.add('hidden'); box.innerHTML = ''; return; }
+  const ok = txt => { const n = normB(txt); return toks.every(t => n.includes(t)); };
+  const sec = (t, items) => items.length ? `<h4>${t}</h4>` + items.slice(0, 5).map(x => `<a href="${x.href}"><span>${x.t}</span><small>${x.s || ''}</small></a>`).join('') : '';
+  const reservas = Object.keys(RES).map(id => ({ id, ...RES[id] })).filter(r => ok([r.codigo, r.cliente, r.destino, r.titulo].join(' '))).map(r => ({ href: `gestioninterna.html?reserva=${encodeURIComponent(r.id)}`, t: esc(`${r.codigo || ''} ${r.cliente || ''}`.trim() || 'Reserva'), s: esc(r.estado || '') }));
+  const grupos = Object.keys(IDXG).filter(id => ok((IDXG[id] || {}).nombre)).map(id => ({ href: `grupos.html?g=${encodeURIComponent(id)}`, t: esc(IDXG[id].nombre || id), s: 'Grupo' }));
+  const pax = [];
+  Object.keys(BUS_GRP).forEach(gid => { const g = BUS_GRP[gid] || {}, rs = g.respuestas || {};
+    Object.keys(rs).forEach(rid => { const r = rs[rid] || {}; if (ok([r.nombre, r.apellido, r.pasaporte, r.email].join(' '))) pax.push({ href: `grupos.html?g=${encodeURIComponent(gid)}&q=${encodeURIComponent(`${r.apellido || ''} ${r.nombre || ''}`.trim())}`, t: esc(`${r.apellido || ''}, ${r.nombre || ''}`), s: esc((g.meta || {}).nombre || '') }); }); });
+  const cots = Object.keys(BUS_COT).map(id => ({ id, ...BUS_COT[id] })).filter(c => ok([c.codigo, c.cliente, c.titulo, c.destino].join(' '))).map(c => ({ href: `cotizador.html?c=${encodeURIComponent(c.id)}`, t: esc(`${c.codigo || ''} ${c.cliente || c.titulo || ''}`.trim() || 'Cotización'), s: 'Cotización' }));
+  const h = sec('Reservas', reservas) + sec('Grupos', grupos) + sec('Pasajeros', pax) + sec('Cotizaciones', cots);
+  box.innerHTML = h || '<div class="nada">Sin resultados.</div>'; box.classList.remove('hidden');
+}
+
 // ── Sesión ─────────────────────────────────────────────────────────────────
 let escuchando = false;
 auth.onAuthStateChanged(user => {
@@ -233,6 +267,7 @@ auth.onAuthStateChanged(user => {
     const perfil = s.val() || {};
     ROL = perfil.rol || 'agente'; GRUPOS_OK = perfil.grupos === true;
     botones();
+    if (ROL !== 'cotizador') $('bus').classList.remove('hidden');
     if (ROL !== 'cotizador' && !escuchando){ escuchando = true; escucharResumen(); }
   }, () => {
     $('app').classList.remove('hidden');
