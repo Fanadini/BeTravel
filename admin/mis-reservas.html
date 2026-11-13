@@ -395,27 +395,27 @@ function vistaResumen(){
   const hoy = new Date().toISOString().slice(0, 10), dias = f => Math.round((new Date(f + 'T00:00:00') - new Date(hoy + 'T00:00:00')) / 864e5);
   const activas = Object.keys(RES).map(id => ({ id, r: RES[id] })).filter(x => x.r && x.r.estado !== 'cancelado' && x.r.estado !== 'perdida');
   const sum = {}, add = (k, m, v) => { const o = sum[k] = sum[k] || {}; o[m] = (o[m] || 0) + v; };
-  activas.forEach(({ r }) => { const t = totales(r), m = r.moneda || 'ARS'; add('cot', m, t.cot); add('pag', m, t.pag); if (r.estado === 'aceptado' && t.saldo > 0.005) add('saldo', m, t.saldo); });
+  activas.forEach(({ r }) => { const t = totales(r), m = r.moneda || 'ARS'; add('cot', m, t.cot); add('pag', m, t.pag); if (r.estado !== 'pagado' && t.saldo > 0.005) add('saldo', m, t.saldo); });
   const costos = [];
-  activas.forEach(({ id, r }) => arr(r.costos).forEach(c => { if (c.pagado || !(parseFloat(c.monto) > 0)) return; costos.push({ id, r, c, m: c.moneda || r.moneda || 'ARS', v: parseFloat(c.monto) || 0 }); add('costo', c.moneda || r.moneda || 'ARS', parseFloat(c.monto) || 0); }));
+  activas.forEach(({ id, r }) => arr(r.costos).forEach(c => { if (c.medio !== 'tarjeta' || c.pagado || !(parseFloat(c.monto) > 0)) return; costos.push({ id, r, c, m: c.moneda || r.moneda || 'ARS', v: parseFloat(c.monto) || 0 }); add('costo', c.moneda || r.moneda || 'ARS', parseFloat(c.monto) || 0); }));
   costos.sort((a, b) => String(a.c.fechaVencimiento || '9999').localeCompare(String(b.c.fechaVencimiento || '9999')));
   const txt = k => Object.entries(sum[k] || {}).filter(([, v]) => Math.abs(v) > 0.005).map(([m, v]) => money(v, m)).join(' + ') || money(0, 'USD');
   const nRecibos = Object.keys(REC).reduce((n, rid) => n + Object.values(REC[rid] || {}).filter(x => x && x.reservaId === rid && RES[rid]).length, 0);
   const card = (t, v, sub) => `<div class="sec" style="margin:0"><div class="hint" style="margin:0 0 4px;text-transform:uppercase;letter-spacing:.6px;font-size:10px;font-weight:600">${t}</div><div style="font-size:18px;font-weight:600;color:var(--teal)">${v}</div>${sub ? `<div class="hint" style="margin:2px 0 0">${sub}</div>` : ''}</div>`;
   const abrir = id => PROPIAS.has(id) ? `editarReserva('${esc(id)}')` : `verReserva('${esc(id)}')`;
   const salidas = activas.filter(x => x.r.fechaInicio && dias(x.r.fechaInicio) >= 0 && dias(x.r.fechaInicio) <= 30).sort((a, b) => a.r.fechaInicio.localeCompare(b.r.fechaInicio));
-  const conSaldo = activas.filter(x => x.r.estado === 'aceptado').map(x => ({ ...x, t: totales(x.r) })).filter(x => x.t.saldo > 0.005).sort((a, b) => b.t.saldo - a.t.saldo);
+  const conSaldo = activas.filter(x => x.r.estado !== 'pagado').map(x => ({ ...x, t: totales(x.r) })).filter(x => x.t.saldo > 0.005).sort((a, b) => b.t.saldo - a.t.saldo);
   const fila = (onclick, a, b) => `<tr class="fila" onclick="${onclick}"><td>${a}</td><td class="num">${b}</td></tr>`;
   const bloque = (t, filas, vacio) => `<div class="sec"><h3>${t}</h3>${filas.length ? '<div class="lista"><table><tbody>' + filas.join('') + '</tbody></table></div>' : `<div class="hint" style="margin:0">${vacio}</div>`}</div>`;
   return `<div class="section-head"><h2>Resumen</h2>${CURRENT_USER.rol === 'cotizador' ? '<button class="btn" onclick="editarReserva()">+ Nueva reserva</button>' : ''}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-bottom:12px">
       ${card('Reservas activas', activas.length, `${activas.filter(x => PROPIAS.has(x.id)).length} propias · ${activas.filter(x => !PROPIAS.has(x.id)).length} compartidas`)}
-      ${card('Valor cotizado', txt('cot'))}${card('Cobrado', txt('pag'))}${card('Saldo a cobrar', txt('saldo'), `${conSaldo.length} reserva${conSaldo.length === 1 ? '' : 's'} aceptada${conSaldo.length === 1 ? '' : 's'} con saldo`)}
-      ${card('Por pagar a proveedores', txt('costo'), `${costos.length} costo${costos.length === 1 ? '' : 's'} sin pagar`)}${card('Pasajeros', paxIds().size)}${card('Recibos', nRecibos)}
+      ${card('Valor cotizado', txt('cot'))}${card('Cobrado', txt('pag'))}${card('Saldo a cobrar', txt('saldo'), `${conSaldo.length} reserva${conSaldo.length === 1 ? '' : 's'} con saldo`)}
+      ${card('Por pagar con tarjeta', txt('costo'), `${costos.length} costo${costos.length === 1 ? '' : 's'} con tarjeta sin pagar`)}${card('Pasajeros', paxIds().size)}${card('Recibos', nRecibos)}
     </div>
     ${bloque('Próximas salidas (30 días)', salidas.map(x => fila(abrir(x.id), `<strong>${esc(x.r.codigo || '')}</strong> ${esc(x.r.cliente || '')}`, (d => d === 0 ? 'hoy' : d === 1 ? 'mañana' : `en ${d} días`)(dias(x.r.fechaInicio)) + ' · ' + fecha(x.r.fechaInicio))), 'Sin salidas en los próximos 30 días.')}
     ${bloque('Saldos a cobrar', conSaldo.slice(0, 10).map(x => fila(abrir(x.id), `<strong>${esc(x.r.codigo || '')}</strong> ${esc(x.r.cliente || '')}`, money(x.t.saldo, x.r.moneda))), 'Sin saldos pendientes.')}
-    ${bloque('Por pagar a proveedores', costos.slice(0, 10).map(x => fila(abrir(x.id), `${esc(x.c.proveedor || 'Proveedor')} · ${esc(x.r.codigo || '')}${x.c.fechaVencimiento ? ` <span class="pill ${x.c.fechaVencimiento < hoy ? 'bad' : ''}">${x.c.fechaVencimiento < hoy ? 'vencido' : 'vence ' + fecha(x.c.fechaVencimiento)}</span>` : ''}`, money(x.v, x.m))), 'No hay costos pendientes de pago.')}`;
+    ${bloque('Por pagar con tarjeta', costos.slice(0, 10).map(x => fila(abrir(x.id), `${esc(x.c.proveedor || 'Proveedor')} · ${esc(x.r.codigo || '')}${x.c.fechaVencimiento ? ` <span class="pill ${x.c.fechaVencimiento < hoy ? 'bad' : ''}">${x.c.fechaVencimiento < hoy ? 'vencido' : 'vence ' + fecha(x.c.fechaVencimiento)}</span>` : ''}`, money(x.v, x.m))), 'No hay costos con tarjeta pendientes de pago.')}`;
 }
 // ── PASAJEROS de las reservas propias y compartidas (las reglas dejan leer los propios y los de reservas compartidas) ──
 const PAX = {}, PAX_REFS = {}, REC = {}, REC_REFS = {};
