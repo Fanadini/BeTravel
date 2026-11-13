@@ -41,8 +41,14 @@ body{font-family:'Inter',sans-serif;background:var(--beige);color:var(--dark);-w
 .rc h3 em{font-style:normal;font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--white);background:var(--teal);border-radius:99px;padding:2px 9px}
 .rc h3 em.alerta{background:var(--red)}
 .rc ul{list-style:none;display:grid;gap:6px}
-.rc li{font-size:13px;display:flex;justify-content:space-between;gap:10px;line-height:1.35}
+.rc li{font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;line-height:1.35}
 .rc li small{color:rgba(43,43,43,.55);white-space:nowrap;font-size:12px}
+.rc li a.it{display:flex;justify-content:space-between;gap:10px;width:100%;color:inherit;text-decoration:none;padding:4px 6px;margin:0 -6px;border-radius:8px;line-height:1.35}
+.rc li a.it:active,.rc li a.it:hover{background:var(--beige)}
+.rc li a.it span{min-width:0;overflow-wrap:anywhere}
+.rc h3 a.vt{font-size:11px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--teal);text-decoration:underline;margin-left:auto;margin-right:6px}
+.rc .mas{display:block;margin-top:8px;font-size:12px;color:var(--teal)}
+.rc .grp{font-size:11px;color:var(--teal);text-decoration:underline;margin-left:6px;white-space:nowrap}
 .rc .nada{font-size:13px;color:rgba(43,43,43,.55)}
 .rc .monto{font-size:20px;font-weight:600;color:var(--teal);letter-spacing:-.3px}
 .rc .monto + .monto{margin-top:2px}
@@ -160,7 +166,7 @@ function botones(){
 }
 
 // ── Resumen (solo admin y agente: leen las reservas y los recordatorios) ────
-let RES = {}, REC = {};
+let RES = {}, REC = {}, PROVS = {}, IDXG = {};
 const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const dias = f => f ? Math.round((new Date(f + 'T00:00:00') - new Date(hoyISO() + 'T00:00:00')) / 86400000) : null;
 const arr = o => !o ? [] : Array.isArray(o) ? o.filter(Boolean) : Object.keys(o).map(id => ({ id, ...o[id] }));
@@ -182,19 +188,33 @@ function pintarResumen(){
   const rs = Object.keys(RES).map(id => ({ id, ...RES[id] })), rc = Object.keys(REC).map(id => ({ id, ...REC[id] }));
   const venc = rc.filter(x => !x.resuelto && x.tipo !== 'Tarjeta' && x.fecha && dias(x.fecha) <= 0).sort((a, b) => a.fecha.localeCompare(b.fecha));
   const salidas = rs.filter(r => ['aceptado', 'pagado'].includes(r.estado) && r.fechaInicio && dias(r.fechaInicio) >= 0 && dias(r.fechaInicio) <= 30).sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio));
-  const tot = { ARS:0, USD:0 }; let n = 0;
-  rs.filter(r => r.estado === 'aceptado').forEach(r => { const s = saldo(r); if (s > 0.5){ tot[r.moneda === 'USD' ? 'USD' : 'ARS'] += s; n++; } });
+  const tot = { ARS:0, USD:0 }, conSaldo = []; let n = 0;
+  rs.filter(r => r.estado === 'aceptado').forEach(r => { const s = saldo(r); if (s > 0.5){ tot[r.moneda === 'USD' ? 'USD' : 'ARS'] += s; n++; conSaldo.push({ r, s }); } });
+  conSaldo.sort((a, b) => b.s - a.s);
   const cuando = d => d === 0 ? 'hoy' : d === 1 ? 'mañana' : `en ${d} días`;
-  const lista = (items, vacio, f) => items.length ? `<ul>${items.slice(0, 3).map(f).join('')}</ul>` : `<div class="nada">${vacio}</div>`;
+  const hrefRes = r => `gestioninterna.html?reserva=${encodeURIComponent(r.id)}`, hrefGrupo = gid => `grupos.html?g=${encodeURIComponent(gid)}`;
+  const lista = (items, vacio, f, max) => items.length ? `<ul>${items.slice(0, max || 3).map(f).join('')}</ul>` : `<div class="nada">${vacio}</div>`;
+  const mas = (items, max, href, txt) => items.length > (max || 3) ? `<a class="mas" href="${href}">${txt || 'Ver todos'} (${items.length})</a>` : '';
+  const vt = (href, txt) => `<a class="vt" href="${href}">${txt || 'Ver'}</a>`;
+  // Cuotas de proveedores por pagar: vencidas y de los próximos 15 días
+  const pagos = [];
+  Object.keys(PROVS).forEach(gid => Object.keys(PROVS[gid] || {}).forEach(pid => { const p = PROVS[gid][pid] || {}; Object.keys(p.cuotas || {}).forEach(cid => { const c = p.cuotas[cid] || {}; if (c.pagado || !c.fecha || dias(c.fecha) > 15) return;
+    const v = (c.monto != null && c.monto !== '') ? Number(c.monto) || 0 : (Number(p.total) || 0) * (Number(c.pct) || 0) / 100;
+    pagos.push({ gid, nombre: p.nombre || 'Proveedor', grupo: (IDXG[gid] || {}).nombre || '', fecha: c.fecha, mon: p.moneda || 'USD', v }); }); }));
+  pagos.sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const atras = pagos.filter(x => dias(x.fecha) < 0).length;
   $('res').innerHTML =
-    `<div class="rc"><h3>Recordatorios <em class="${venc.length ? 'alerta' : ''}">${venc.length}</em></h3>${lista(venc, 'Nada vencido ni para hoy.', x => { const d = dias(x.fecha); return `<li><span>${esc(x.titulo || x.tipo || 'Recordatorio')}</span><small>${d < 0 ? 'vencido' : 'hoy'}</small></li>`; })}</div>`
-    + `<div class="rc"><h3>Próximas salidas <em>${salidas.length}</em></h3>${lista(salidas, 'Sin salidas en los próximos 30 días.', r => `<li><span>${esc(r.codigo || '')} ${esc(r.cliente || '')}</span><small>${cuando(dias(r.fechaInicio))}</small></li>`)}</div>`
-    + `<div class="rc"><h3>Saldo a cobrar <em>${n}</em></h3>${(tot.USD || tot.ARS) ? (tot.USD ? `<div class="monto">${fmt(tot.USD, 'USD')}</div>` : '') + (tot.ARS ? `<div class="monto">${fmt(tot.ARS, 'ARS')}</div>` : '') + `<div class="nada" style="margin-top:4px">${n} reserva${n === 1 ? '' : 's'} aceptada${n === 1 ? '' : 's'} con saldo</div>` : '<div class="nada">Sin saldos pendientes.</div>'}</div>`;
+    `<div class="rc"><h3>Recordatorios <em class="${venc.length ? 'alerta' : ''}">${venc.length}</em>${vt('gestioninterna.html#recordatorios', 'Abrir')}</h3>${lista(venc, 'Nada vencido ni para hoy.', x => { const d = dias(x.fecha); return `<li><a class="it" href="gestioninterna.html#recordatorios"><span>${esc(x.titulo || x.tipo || 'Recordatorio')}</span><small>${d < 0 ? 'vencido hace ' + (-d) + (d === -1 ? ' día' : ' días') : 'hoy'}</small></a></li>`; })}${mas(venc, 3, 'gestioninterna.html#recordatorios')}</div>`
+    + `<div class="rc"><h3>Próximas salidas <em>${salidas.length}</em>${vt('gestioninterna.html#calendario', 'Calendario')}</h3>${lista(salidas, 'Sin salidas en los próximos 30 días.', r => `<li><a class="it" href="${hrefRes(r)}"><span>${esc(r.codigo || '')} ${esc(r.cliente || '')}</span><small>${cuando(dias(r.fechaInicio))}</small></a>${r.grupoId ? `<a class="grp" href="${hrefGrupo(r.grupoId)}">Grupo</a>` : ''}</li>`, 5)}${mas(salidas, 5, 'gestioninterna.html#calendario', 'Ver en el calendario')}</div>`
+    + `<div class="rc"><h3>Saldo a cobrar <em>${n}</em>${vt('gestioninterna.html#cartera', 'Cartera')}</h3>${(tot.USD || tot.ARS) ? (tot.USD ? `<div class="monto">${fmt(tot.USD, 'USD')}</div>` : '') + (tot.ARS ? `<div class="monto">${fmt(tot.ARS, 'ARS')}</div>` : '') + `<div class="nada" style="margin:4px 0 8px">${n} reserva${n === 1 ? '' : 's'} aceptada${n === 1 ? '' : 's'} con saldo</div>` + `<ul>${conSaldo.slice(0, 3).map(x => `<li><a class="it" href="${hrefRes(x.r)}"><span>${esc(x.r.codigo || '')} ${esc(x.r.cliente || '')}</span><small>${fmt(x.s, x.r.moneda === 'USD' ? 'USD' : 'ARS')}</small></a></li>`).join('')}</ul>${mas(conSaldo, 3, 'gestioninterna.html#cartera')}` : '<div class="nada">Sin saldos pendientes.</div>'}</div>`
+    + (Object.keys(PROVS).length ? `<div class="rc"><h3>Pagos a proveedores <em class="${atras ? 'alerta' : ''}">${pagos.length}</em></h3>${lista(pagos, 'Nada vencido ni en los próximos 15 días.', x => { const d = dias(x.fecha); return `<li><a class="it" href="${hrefGrupo(x.gid)}"><span>${esc(x.nombre)}${x.grupo ? ' · ' + esc(x.grupo) : ''}</span><small>${fmt(x.v, x.mon)} · ${d < 0 ? 'vencida' : d === 0 ? 'hoy' : cuando(d)}</small></a></li>`; }, 4)}${mas(pagos, 4, 'grupos.html', 'Ver en Grupos')}</div>` : '');
   $('resumen').classList.remove('hidden');
 }
 function escucharResumen(){
   db.ref('finanzas/reservas').on('value', s => { RES = s.val() || {}; pintarResumen(); }, () => {});
   db.ref('finanzas/recordatorios').on('value', s => { REC = s.val() || {}; pintarResumen(); }, () => {});
+  db.ref('finanzas/compromisosGrupo').on('value', s => { PROVS = s.val() || {}; pintarResumen(); }, () => {});
+  db.ref('gruposIndex').on('value', s => { IDXG = s.val() || {}; pintarResumen(); }, () => {});
 }
 
 // ── Sesión ─────────────────────────────────────────────────────────────────

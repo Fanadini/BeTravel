@@ -315,11 +315,21 @@ let GRUPOS = {};          // { gid: { meta, respuestas:{rid:{}}, habitaciones:{h
 let GID_ABIERTO = null;
 let TAB = 'res';
 
+// Si se llega con ?g=<id> (por ejemplo desde el inicio), abre directamente ese grupo la primera vez que esté disponible
+let ABIERTO_DESDE_URL = false;
+function abrirGrupoDesdeUrl(){
+  if (ABIERTO_DESDE_URL) return;
+  const gid = new URLSearchParams(location.search).get('g');
+  if (!gid){ ABIERTO_DESDE_URL = true; return; }
+  if (!GRUPOS[gid]) return;
+  ABIERTO_DESDE_URL = true; abrirGrupo(gid);
+}
 function attachListeners(){
   GRUPOS_REF.on('value', snap => {
     GRUPOS = snap.val() || {}; GRUPOS_CARGADOS = true;
     document.getElementById('lo').classList.add('hidden');
     showBanner('');
+    abrirGrupoDesdeUrl();
     render(); sincronizarIndice(); programarSyncResumen();
   }, err => { document.getElementById('lo').classList.add('hidden'); handleWriteError(err); });
   IDX_REF.on('value', snap => { IDX = snap.val() || {}; sincronizarIndice(); }, () => {});
