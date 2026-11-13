@@ -714,7 +714,8 @@ function attachListeners() {
   });
   db.ref('gruposIndex').on('value', snap => { GRUPOS_IDX = snap.val() || {}; const sel = document.getElementById('r-grupo'); if (sel) sel.innerHTML = grupoOptionsHtml(sel.value); }, () => {});
   if (CURRENT_USER.rol === 'admin'){
-    db.ref('finanzas/reservasCompartidas').on('value', snap => { SHARES = snap.val() || {}; renderReservasTable(); }, () => {});
+    db.ref('finanzas/reservasCompartidas').on('value', snap => { SHARES = snap.val() || {}; SHARES_OK = true; renderReservasTable(); programarSyncPax(); }, () => {});
+    db.ref('finanzas/pasajerosCompartidos').on('value', snap => { PAX_COMP = snap.val() || {}; PAXC_OK = true; programarSyncPax(); }, () => {});
     META_USUARIOS_REF.on('value', snap => { USUARIOS = snap.val() || {}; }, () => {});
   }
   META_PROV_REF.on('value', snap => {
@@ -1303,6 +1304,7 @@ function reservaRowHtml(r){
 }
 
 function renderReservasTable(){
+  programarSyncPax();
   const tbody = document.getElementById('tbody-reservas');
   let items = [...STATE.reservas];
 
@@ -3027,6 +3029,22 @@ function guardarCompartir(){
   const rid = compartirCtx.rid, up = {};
   document.querySelectorAll('#share-box .share-list input[type=checkbox]').forEach(c => { up[`${c.value}/${rid}`] = c.checked ? true : null; });
   db.ref('finanzas/reservasCompartidas').update(up).then(cerrarCompartir, err => { console.error(err); alert('No se pudo guardar. Revisá que hayas publicado las reglas de Firebase y que seas administrador.'); });
+}
+
+// Pasajeros visibles para cada cuenta con reservas compartidas: finanzas/pasajerosCompartidos/{cuenta}/{pasajero}: true.
+// Se recalcula solo (al cambiar lo compartido o los pasajeros de una reserva) y únicamente escribe si algo cambió.
+var PAX_COMP = {}, SHARES_OK = false, PAXC_OK = false, syncPaxTimer = null;
+function programarSyncPax(){ if (CURRENT_USER.rol !== 'admin') return; clearTimeout(syncPaxTimer); syncPaxTimer = setTimeout(syncPaxCompartidos, 1500); }
+function syncPaxCompartidos(){
+  if (!SHARES_OK || !PAXC_OK || !loadedOnce.reservas) return;
+  const up = {}, claves = new Set([...Object.keys(SHARES), ...Object.keys(PAX_COMP)]);
+  claves.forEach(k => {
+    const quiere = {};
+    Object.keys(SHARES[k] || {}).filter(rid => SHARES[k][rid] === true).forEach(rid => { const r = STATE.reservas.find(x => x.id === rid); Object.keys((r && r.pasajeroIds) || {}).forEach(pid => { quiere[pid] = true; }); });
+    const actual = PAX_COMP[k] || {}, a = Object.keys(actual).filter(x => actual[x] === true).sort().join(','), b = Object.keys(quiere).sort().join(',');
+    if (a !== b) up[k] = Object.keys(quiere).length ? quiere : null;
+  });
+  if (Object.keys(up).length) db.ref('finanzas/pasajerosCompartidos').update(up).catch(err => console.error('pasajerosCompartidos', err));
 }
 
 // ── Arrastrar y soltar para ordenar las tarjetas del detalle de la reserva ──
