@@ -54,7 +54,8 @@
       },
 
       "recibos": {
-        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
+        ".indexOn": ["reservaId"],
+        ".read": "(auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador') || (auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && (query.orderByChild === 'reservaId' && (root.child('finanzas/reservasCompartidas').child(auth.token.email.toLowerCase().replace('.', ',')).child(query.equalTo).val() === true || root.child('finanzas/reservas').child(query.equalTo).child('creadoPor').val() === auth.token.email)))",
         ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'"
       },
       "compromisosGrupo": {
@@ -73,7 +74,18 @@
       },
       "pasajeros": {
         ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
-        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'"
+        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
+        "$pid": {
+          ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && (data.child('creadoPor').val() === auth.token.email || root.child('finanzas/pasajerosCompartidos').child(auth.token.email.toLowerCase().replace('.', ',')).child($pid).val() === true)",
+          ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && newData.exists() && newData.child('creadoPor').val() === auth.token.email && (!data.exists() || data.child('creadoPor').val() === auth.token.email)"
+        }
+      },
+      "pasajerosCompartidos": {
+        ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() === 'admin'",
+        ".write": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() === 'admin'",
+        "$usuario": {
+          ".read": "auth != null && auth.token.email.toLowerCase().replace('.', ',') === $usuario"
+        }
       },
       "clientesDocumentos": {
         ".read": "auth != null && auth.token.email_verified === true && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).exists() && root.child('finanzas/meta/usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('rol').val() !== 'cotizador'",
