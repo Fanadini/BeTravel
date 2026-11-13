@@ -469,7 +469,7 @@ function vistaRecibos(){
   lista.sort((a, b) => String(b.r.fecha || '').localeCompare(String(a.r.fecha || '')));
   let h = '<div class="section-head"><h2>Recibos</h2></div><div class="hint">Los recibos emitidos para tus reservas y las que te compartieron. Los emite el personal.</div>';
   if (!lista.length) return h + '<div class="lista"><div class="vacio">Todavía no hay recibos para tus reservas.</div></div>';
-  return h + '<div class="lista"><table><thead><tr><th>Número</th><th>Fecha</th><th>Recibí de</th><th>Concepto</th><th>Reserva</th><th class="num">Total</th></tr></thead><tbody>' + lista.map(x => `<tr class="fila" onclick="verRecibo('${esc(x.rid)}','${esc(x.id)}')"><td><strong>${esc(x.r.numero || '—')}</strong></td><td>${fecha(x.r.fecha)}</td><td>${esc(x.r.recibiDe || '')}</td><td>${esc(x.r.concepto || '')}</td><td>${esc(RES[x.rid].codigo || '')}</td><td class="num">${money(totRecibo(x.r), x.r.moneda)}</td></tr>`).join('') + '</tbody></table></div>';
+  return h + '<div class="lista"><table><thead><tr><th>Número</th><th>Fecha</th><th>Recibí de</th><th>Concepto</th><th>Reserva</th><th class="num">Total</th><th></th></tr></thead><tbody>' + lista.map(x => `<tr class="fila" onclick="verRecibo('${esc(x.rid)}','${esc(x.id)}')"><td><strong>${esc(x.r.numero || '—')}</strong></td><td>${fecha(x.r.fecha)}</td><td>${esc(x.r.recibiDe || '')}</td><td>${esc(x.r.concepto || '')}</td><td>${esc(RES[x.rid].codigo || '')}</td><td class="num">${money(totRecibo(x.r), x.r.moneda)}</td><td><button class="btn outline small" onclick="event.stopPropagation();descargarRecibo('${esc(x.rid)}','${esc(x.id)}')">PDF</button></td></tr>`).join('') + '</tbody></table></div>';
 }
 function verRecibo(rid, id){
   modalVivo(() => verRecibo(rid, id));
@@ -478,8 +478,9 @@ function verRecibo(rid, id){
   document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrar()"><div class="modal wide"><div class="section-head"><h3 style="margin:0">Recibo ${esc(r.numero || '')}</h3><span class="pill">Solo lectura</span></div>
     <div class="sec"><dl class="kv"><dt>Fecha</dt><dd>${fecha(r.fecha)}</dd><dt>Recibí de</dt><dd>${esc(r.recibiDe || '')}</dd><dt>Documento</dt><dd>${esc(r.documento || '')}</dd><dt>Concepto</dt><dd>${esc(r.concepto || '')}</dd><dt>Reserva</dt><dd>${esc((RES[rid] || {}).codigo || '')}</dd></dl></div>
     <div class="sec"><h3>Detalle</h3><div class="lista"><table><tbody>${items.map(i => `<tr><td>${esc(i.desc || '')}${i.cant ? ' · ' + esc(i.cant) + ' ' + esc(i.unidad || '') : ''}</td><td class="num">${money(i.monto, r.moneda)}</td></tr>`).join('')}<tr><td><strong>Total</strong></td><td class="num"><strong>${money(totRecibo(r), r.moneda)}</strong></td></tr></tbody></table></div></div>
-    <div class="row-btns" style="justify-content:flex-end"><button class="btn" onclick="cerrar()">Cerrar</button></div></div></div>`;
+    <div class="row-btns" style="justify-content:flex-end"><button class="btn outline" onclick="descargarRecibo('${esc(rid)}','${esc(id)}')">Descargar PDF</button><button class="btn" onclick="cerrar()">Cerrar</button></div></div></div>`;
 }
+function descargarRecibo(rid, id){ const r = (REC[rid] || {})[id]; if (r && window.rcbImprimir) window.rcbImprimir(r); }
 // Las ventanas de solo lectura (reserva compartida, recibo) se redibujan solas si alguien cambia los datos
 let MODAL_VIVO = null, MODAL_EL = null;
 function modalVivo(fn){ MODAL_VIVO = fn; MODAL_EL = null; setTimeout(() => { MODAL_EL = document.getElementById('modal-root').firstElementChild; }, 0); }
@@ -493,5 +494,8 @@ function refrescarModal(){
 }
 function cerrar(){ MODAL_VIVO = null; document.getElementById('modal-root').innerHTML = ''; }
 </script>
+<div id="rcb-print"></div>
+<script>window.escHtml = window.escHtml || esc;</script>
+<script src="recibos.js"></script>
 </body>
 </html>

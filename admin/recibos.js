@@ -282,6 +282,8 @@
     var r = STATE.recibos.find(function(x){ return x.id === id; }); if (!r) return;
     var d = JSON.parse(JSON.stringify(r)); d.items = arr(d.items); imprimir(d, tituloArchivo(d));
   };
+  // Descargar (imprimir / PDF) un recibo ya guardado desde otra página, por ejemplo "Mis reservas" (solo lectura)
+  window.rcbImprimir = function(r){ var d = JSON.parse(JSON.stringify(r)); d.items = arr(d.items); imprimir(d, tituloArchivo(d)); };
   window.rcbEliminar = function(id){
     var r = STATE.recibos.find(function(x){ return x.id === id; }); if (!r) return;
     if (!confirm('¿Eliminar el recibo ' + (r.numero || '') + ' de ' + (r.recibiDe || '') + '? No se puede deshacer (el número no se reutiliza).')) return;
