@@ -37,6 +37,7 @@
     '.adm-link:hover{background:rgba(255,255,255,.16);color:#E6E1D8;border-color:rgba(230,225,216,.4)}',
     '.adm-link.on{background:#E6E1D8;color:#0F3D3E;border-color:#E6E1D8;font-weight:600;cursor:default}',
     '.adm-right{display:flex;align-items:center;gap:8px;flex-shrink:0}',
+    '.adm-vercomo-sel option{color:#2B2B2B;background:#fff}',
     '.adm-sync{display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:99px;background:rgba(0,0,0,.2);font-size:10px;color:rgba(230,225,216,.6);white-space:nowrap}',
     '.adm-sync .sync-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:#B08A5A;transition:background .4s}',
     '.adm-sync .sync-dot.ok{background:#4ade80}',
@@ -65,7 +66,7 @@
     '@media(max-width:900px){',
     '  .nav.adm-nav{padding:0 12px;gap:8px}',
     '  .adm-burger{display:inline-flex}',
-    '  .adm-links,.adm-right .adm-out{display:none}',
+    '  .adm-links,.adm-right .adm-out,.adm-right .adm-vercomo-sel{display:none}',
     '  .adm-right{margin-left:auto}',
     '}',
     '@media(max-width:420px){.adm-page{font-size:12.5px;padding-left:9px}.adm-brand{font-size:14px}}',
@@ -201,15 +202,31 @@
     b.querySelector('button').addEventListener('click', function(){ setVerComo(''); });
     document.body.insertBefore(b, document.body.firstChild);
   }
+  // Selector siempre visible en el encabezado (y en el menú del celular) para los admin: elegir a quién ver
+  var selectorPintado = false;
+  function selectorVerComo(){
+    if (selectorPintado || !window.firebase || !firebase.database) return; selectorPintado = true;
+    firebase.database().ref('finanzas/meta/usuarios').once('value').then(function(snap){
+      var v = snap.val() || {}, actual = verComo(), us = Object.keys(v).map(function(k){ return v[k]; }).filter(function(u){ return u && u.email; })
+        .sort(function(a, b){ return String(a.nombre || a.email).localeCompare(String(b.nombre || b.email), 'es'); });
+      var opts = '<option value="">Ver como: mi vista</option>' + us.map(function(u){ return '<option value="' + esc(u.email) + '"' + (u.email === actual ? ' selected' : '') + '>Ver como: ' + esc(u.nombre || u.email) + ' (' + esc(u.rol || 'agente') + ')</option>'; }).join('');
+      var css = 'font-family:Inter,sans-serif;font-size:11.5px;border-radius:6px;padding:5px 8px;cursor:pointer;';
+      function crear(estilo){ var s2 = document.createElement('select'); s2.className = 'adm-vercomo-sel'; s2.title = 'Ver las páginas como otra cuenta (solo admin)'; s2.setAttribute('aria-label', 'Ver como otra cuenta'); s2.style.cssText = css + estilo; s2.innerHTML = opts; s2.addEventListener('change', function(){ setVerComo(s2.value); }); return s2; }
+      var dest = (estado.header && estado.header.querySelector('.adm-right')) || document.querySelector('[data-vercomo-slot]');
+      if (dest) dest.insertBefore(crear('max-width:190px;background:rgba(255,255,255,.08);color:#E6E1D8;border:1px solid rgba(230,225,216,.25)'), dest.firstChild);
+      if (estado.drawer){ var pie = estado.drawer.querySelector('.adm-dr-foot'); if (pie) pie.insertBefore(crear('width:100%;min-height:42px;font-size:14px;background:#fff;color:#0F3D3E;border:1px solid #D5CEC3;margin-bottom:8px'), pie.firstChild); }
+    }, function(){ selectorPintado = false; });
+  }
   // Envuelve la verificación de acceso de cada página: si el usuario real es admin y eligió "ver como", devuelve el perfil de esa cuenta.
   function acceso(verificar, emailReal){
     return verificar(emailReal).then(function(acc){
       var vc = verComo(), esAdmin = !!(acc && (acc.sinConfigurar || (acc.perfil && acc.perfil.rol === 'admin')));
       api.esAdminReal = esAdmin; api.emailEfectivo = emailReal; api.simulando = '';
+      if (esAdmin) selectorVerComo();
       if (!vc || !esAdmin || vc.toLowerCase() === String(emailReal || '').toLowerCase()) return acc;
       return verificar(vc).then(function(acc2){
         if (!acc2 || !acc2.perfil || acc2.sinConfigurar) return acc;
-        api.emailEfectivo = vc; api.simulando = vc; bannerVerComo(vc, acc2.perfil.rol);
+        api.emailEfectivo = vc; api.simulando = vc; bannerVerComo(vc, acc2.perfil.rol); selectorVerComo();
         return acc2;
       }, function(){ return acc; });
     });
