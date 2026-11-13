@@ -712,7 +712,8 @@ function attachListeners() {
       if (loadedOnce.reservas && loadedOnce.pasajeros) migratePasajerosEmbebidos();
     }, err => { setSyncStatus('err','Error de sync'); console.error(err); });
   });
-  db.ref('gruposIndex').on('value', snap => { GRUPOS_IDX = snap.val() || {}; const sel = document.getElementById('r-grupo'); if (sel) sel.innerHTML = grupoOptionsHtml(sel.value); }, () => {});
+  db.ref('finanzas/compromisosGrupo').on('value', snap => { COMP_GRUPOS = snap.val() || {}; if (typeof renderResumen === 'function') renderResumen(); }, () => {});
+  db.ref('gruposIndex').on('value', snap => { GRUPOS_IDX = snap.val() || {}; if (Object.keys(COMP_GRUPOS || {}).length && typeof renderResumen === 'function') renderResumen(); const sel = document.getElementById('r-grupo'); if (sel) sel.innerHTML = grupoOptionsHtml(sel.value); }, () => {});
   if (CURRENT_USER.rol === 'admin'){
     db.ref('finanzas/reservasCompartidas').on('value', snap => { SHARES = snap.val() || {}; SHARES_OK = true; renderReservasTable(); programarSyncPax(); }, () => {});
     db.ref('finanzas/pasajerosCompartidos').on('value', snap => { PAX_COMP = snap.val() || {}; PAXC_OK = true; programarSyncPax(); }, () => {});
@@ -1741,13 +1742,29 @@ function toggleCostoPagado(reservaId, costoId, checked){
 // Junta facturas de proveedores pendientes, costos con tarjeta pendientes y
 // BSP sin resolver, agrupado por proveedor, para saber a quién hay que
 // pagarle y cuánto.
-const MEDIO_PAGAR_LABELS = { tarjeta:'Tarjeta de crédito', bsp:'BSP', factura:'Facturas de proveedores' };
-const MEDIO_PAGAR_ORDER = ['tarjeta','bsp','factura'];
+const MEDIO_PAGAR_LABELS = { tarjeta:'Tarjeta de crédito', bsp:'BSP', factura:'Facturas de proveedores', grupo:'Compromisos de grupos' };
+const MEDIO_PAGAR_ORDER = ['tarjeta','bsp','factura','grupo'];
+// Cuotas sin pagar de los compromisos con proveedores que se cargan en cada grupo (página Grupos → Resumen)
+var COMP_GRUPOS = {};
+function computeCuotasGrupoPendientes(){
+  const out = [];
+  Object.keys(COMP_GRUPOS || {}).forEach(gid => Object.keys(COMP_GRUPOS[gid] || {}).forEach(pid => {
+    const p = COMP_GRUPOS[gid][pid] || {}, cs = Object.keys(p.cuotas || {}).map(cid => ({ cid, ...p.cuotas[cid] }));
+    cs.forEach((c, i) => {
+      if (c.pagado) return;
+      const monto = (c.monto != null && c.monto !== '') ? Number(c.monto) || 0 : (Number(p.total) || 0) * (Number(c.pct) || 0) / 100;
+      if (!(monto > 0)) return;
+      out.push({ gid, pid, cid: c.cid, proveedor: p.nombre || 'Proveedor sin nombre', grupo: (GRUPOS_IDX[gid] || {}).nombre || 'Grupo', n: i + 1, fecha: c.fecha || '', monto: Math.round(monto * 100) / 100, moneda: p.moneda || 'USD' });
+    });
+  }));
+  return out;
+}
 function computePorPagarPorMedio(){
   const map = {
     tarjeta: { ARS:0, USD:0, items:[] },
     bsp: { ARS:0, USD:0, items:[] },
     factura: { ARS:0, USD:0, items:[] },
+    grupo: { ARS:0, USD:0, items:[] },
   };
   const addItem = (medio, prov, moneda, monto, item) => {
     const g = map[medio];
@@ -1762,6 +1779,9 @@ function computePorPagarPorMedio(){
   });
   computeCostosTarjetaPendientes().forEach(c => {
     addItem('tarjeta', c.proveedor, c.moneda, c.monto, { kind:'costo', reservaId:c.reservaId, costoId:c.costoId, label:`${c.concepto} — ${c.reservaCodigo||c.reservaCliente||'reserva'}`, monto:c.monto, moneda:c.moneda, fechaVencimiento:c.fechaVencimiento });
+  });
+  computeCuotasGrupoPendientes().forEach(c => {
+    addItem('grupo', c.proveedor, c.moneda, c.monto, { kind:'grupo', id:c.gid, label:`${c.grupo} · cuota ${c.n}`, monto:c.monto, moneda:c.moneda, fechaVencimiento:c.fecha });
   });
   STATE.recordatorios.forEach(item => {
     if (item.tipo!=='BSP' || item.resuelto) return;
@@ -1812,7 +1832,9 @@ function renderResumen(){
   });
   const tarjetaT = { ARS:0, USD:0 };
   computeCostosTarjetaPendientes().forEach(c => { tarjetaT[c.moneda==='USD'?'USD':'ARS'] += c.monto; });
-  const porPagarT = { ARS: facturasT.ARS + bspT.ARS + tarjetaT.ARS, USD: facturasT.USD + bspT.USD + tarjetaT.USD };
+  const grupoT = { ARS:0, USD:0 };
+  computeCuotasGrupoPendientes().forEach(c => { grupoT[c.moneda==='USD'?'USD':'ARS'] += c.monto; });
+  const porPagarT = { ARS: facturasT.ARS + bspT.ARS + tarjetaT.ARS + grupoT.ARS, USD: facturasT.USD + bspT.USD + tarjetaT.USD + grupoT.USD };
 
   const allItems = [];
   ['reservas','facturas','recordatorios'].forEach(kind => {
@@ -1831,6 +1853,12 @@ function renderResumen(){
     const days = diffDays(c.fechaVencimiento);
     if (days==null) return;
     allItems.push({ kind:'costo-tarjeta', item: { id:c.reservaId, monto:c.monto, moneda:c.moneda, proveedor:c.proveedor, concepto:c.concepto }, days });
+  });
+  computeCuotasGrupoPendientes().forEach(c => {
+    if (!c.fecha) return;
+    const days = diffDays(c.fecha);
+    if (days==null) return;
+    allItems.push({ kind:'cuota-grupo', item: { id:c.gid, monto:c.monto, moneda:c.moneda, proveedor:c.proveedor, concepto:`${c.grupo} · cuota ${c.n}` }, days });
   });
   const vencidos = allItems.filter(x => x.days<0).sort((a,b)=>a.days-b.days);
   const proximos = allItems.filter(x => x.days>=0 && x.days<=15).sort((a,b)=>a.days-b.days);
@@ -1954,6 +1982,14 @@ function renderResumen(){
                 <div class="alert-meta">${fechaHtml}${amountHtml(it.monto, it.moneda, 'alert-amount')}</div>
               </div>`;
             }
+            if (it.kind==='grupo'){
+              const days = it.fechaVencimiento ? diffDays(it.fechaVencimiento) : null;
+              const color = days==null ? 'rgba(43,43,43,.45)' : days<0 ? 'var(--red)' : (days<=15 ? 'var(--amber)' : 'rgba(43,43,43,.45)');
+              return `<div class="alert-row" onclick="jumpTo('grupo','${escHtml(it.id)}')" style="padding-left:32px">
+                <div class="alert-title">${escHtml(it.label)}</div>
+                <div class="alert-meta"><div style="font-size:10px;font-weight:600;color:${color}">${it.fechaVencimiento ? (days<0 ? 'Vencida ' : 'Vence ') + fmtDate(it.fechaVencimiento) : 'Sin fecha'}</div>${amountHtml(it.monto, it.moneda, 'alert-amount')}</div>
+              </div>`;
+            }
             const jumpKind = it.kind==='factura' ? 'facturas' : 'recordatorios';
             return `<div class="alert-row" onclick="jumpTo('${jumpKind}','${it.id}')" style="padding-left:32px">
               <div class="alert-title">${escHtml(it.label)}</div>
@@ -2045,10 +2081,12 @@ const TITLE_FIELD = {
   facturas: i => i.proveedor || 'Factura sin proveedor',
   recordatorios: i => i.titulo || 'Recordatorio',
   'costo-tarjeta': i => `${i.proveedor} — ${i.concepto}`,
+  'cuota-grupo': i => `${i.proveedor} — ${i.concepto}`,
 };
-const KIND_LABEL = { reservas:'Reserva', facturas:'Factura de proveedor', recordatorios:'Recordatorio', 'costo-tarjeta':'Tarjeta de crédito' };
+const KIND_LABEL = { reservas:'Reserva', facturas:'Factura de proveedor', recordatorios:'Recordatorio', 'costo-tarjeta':'Tarjeta de crédito', 'cuota-grupo':'Compromiso de grupo' };
 
 function jumpTo(kind, id){
+  if (kind==='cuota-grupo' || kind==='grupo'){ location.href = 'grupos.html?g=' + encodeURIComponent(id); return; }
   const tab = kind==='costo-tarjeta' ? 'reservas' : kind;
   switchTab(tab);
   if (kind==='reservas' || kind==='costo-tarjeta') openReserva(id); else openForm(kind, id);
