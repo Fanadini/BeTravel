@@ -135,6 +135,7 @@ body{font-family:'Inter',sans-serif;background:var(--beige);color:var(--dark);-w
     <div class="bus hidden" id="bus"><input id="bus-q" type="search" placeholder="Buscar reservas, grupos, pasajeros, cotizaciones…" autocomplete="off" oninput="buscar(this.value)" onfocus="cargarBusqueda()"><div id="bus-r" class="bus-r hidden"></div></div>
     <div class="sec-t">Herramientas</div>
     <div class="grid" id="botones" style="margin-bottom:24px"></div>
+    <div class="rc hidden" id="vercomo" style="margin-bottom:24px"></div>
     <section id="resumen" class="hidden">
       <div class="sec-t">Resumen</div>
       <div class="res" id="res"></div>
@@ -345,13 +346,27 @@ function pintarCalendario(){
   ajustarLinksCot(box);
 }
 
+// ── "Ver como" (solo admin): elegir una cuenta y navegar las páginas con su perfil ──
+function pintarVerComo(){
+  db.ref('finanzas/meta/usuarios').once('value').then(snap => {
+    const us = Object.values(snap.val() || {}).filter(u => u && u.email).sort((a, b) => String(a.nombre || a.email).localeCompare(String(b.nombre || b.email), 'es'));
+    const actual = AdminNav.verComo();
+    $('vercomo').innerHTML = `<h3>Ver como otra cuenta</h3><div class="nada" style="margin-bottom:8px">Navegá las páginas con el perfil de otra persona para ver exactamente lo que ve. Lo que guardes se guarda con tu cuenta.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><select id="vc-sel" style="flex:1;min-width:200px;font-family:'Inter',sans-serif;font-size:14px;border:1px solid var(--beige-d);border-radius:8px;padding:9px 10px;background:var(--white)"><option value="">Mi vista (admin)</option>${us.map(u => `<option value="${esc(u.email)}" ${u.email === actual ? 'selected' : ''}>${esc(u.nombre || u.email)} · ${esc(u.rol || 'agente')}${u.grupos ? ' + grupos' : ''}</option>`).join('')}</select>
+      <button class="out" style="color:var(--teal);border-color:var(--teal)" onclick="AdminNav.setVerComo($('vc-sel').value)">Ver</button></div>`;
+    $('vercomo').classList.remove('hidden');
+  }, () => {});
+}
+
 // ── Sesión ─────────────────────────────────────────────────────────────────
 let escuchando = false;
 auth.onAuthStateChanged(user => {
   $('spin').classList.add('hidden');
   if (!user){ $('app').classList.add('hidden'); $('login').classList.remove('hidden'); return; }
   $('login').classList.add('hidden');
-  db.ref('finanzas/meta/usuarios/' + emailKey(user.email)).once('value').then(s => {
+  const verif = e => db.ref('finanzas/meta/usuarios/' + emailKey(e)).once('value').then(x => x.exists() ? { perfil: x.val() || {}, x } : null);
+  AdminNav.acceso(verif, user.email).then(acc => {
+    const s = acc ? acc.x : { val: () => null, exists: () => false };
     $('app').classList.remove('hidden');
     $('nombre').textContent = ' ' + (((s.val() || {}).nombre) || (user.displayName || user.email).split(' ')[0]);
     if (!s.exists()){
@@ -363,7 +378,8 @@ auth.onAuthStateChanged(user => {
     botones();
     if (ROL !== 'cotizador') $('bus').classList.remove('hidden');
     if (ROL !== 'cotizador' && !escuchando){ escuchando = true; escucharResumen(); }
-    if (ROL === 'cotizador' && GRUPOS_OK && !escuchando){ escuchando = true; $('bus').classList.remove('hidden'); escucharResumenCot(user.email); }
+    if (ROL === 'cotizador' && GRUPOS_OK && !escuchando){ escuchando = true; $('bus').classList.remove('hidden'); escucharResumenCot(AdminNav.emailEfectivo || user.email); }
+    if (AdminNav.esAdminReal) pintarVerComo();
   }, () => {
     $('app').classList.remove('hidden');
     $('aviso').textContent = 'No se pudo leer tu perfil. Revisá la conexión e intentá de nuevo.'; $('aviso').classList.remove('hidden');

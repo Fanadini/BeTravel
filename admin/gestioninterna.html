@@ -612,11 +612,11 @@ auth.onAuthStateChanged(user => {
   if (user) {
     loginScreen.classList.add('hidden');
     document.getElementById('nav-user-name').textContent = user.displayName ? user.displayName.split(' ')[0] : user.email;
-    verificarAcceso(user.email).then(acc => {
+    AdminNav.acceso(verificarAcceso, user.email).then(acc => {
       if (!acc) { mostrarSinAcceso(user.email); return; }
       if (acc.perfil.rol === 'cotizador') { mostrarSinAcceso(user.email, true); return; }
       CURRENT_USER = {
-        email: user.email,
+        email: AdminNav.emailEfectivo || user.email,
         nombre: acc.perfil.nombre || (user.displayName ? user.displayName.split(' ')[0] : user.email),
         rol: acc.sinConfigurar || acc.perfil.rol === 'admin' ? 'admin' : 'agente',
       };

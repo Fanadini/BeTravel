@@ -530,7 +530,7 @@ auth.onAuthStateChanged(user => {
     // Mostrar nombre en nav
     const nameEl = document.getElementById('nav-user-name');
     if (nameEl) nameEl.textContent = user.displayName ? user.displayName.split(' ')[0] : user.email;
-    verificarAcceso(user.email).then(acc => {
+    AdminNav.acceso(verificarAcceso, user.email).then(acc => {
       if (!acc) mostrarSinAcceso(user.email);
       else if (acc.perfil.rol === 'cotizador') mostrarSinAcceso(user.email, true);
       else AdminNav.setUser({ rol: acc.sinConfigurar || acc.perfil.rol === 'admin' ? 'admin' : (acc.perfil.rol || 'agente'), nombre: acc.perfil.nombre || '' });

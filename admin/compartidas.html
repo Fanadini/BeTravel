@@ -218,7 +218,7 @@ auth.onAuthStateChanged(user => {
   const nombreGoogle = user.displayName ? user.displayName.split(' ')[0] : user.email;
   document.getElementById('nav-user-name').textContent = nombreGoogle;
   CURRENT_USER = { email:user.email, nombre: user.displayName || nombreGoogle, rol:'', grupos:false };
-  verificarAcceso(user.email).then(acc => {
+  AdminNav.acceso(verificarAcceso, user.email).then(acc => { if (AdminNav.emailEfectivo && CURRENT_USER) CURRENT_USER.email = AdminNav.emailEfectivo;
     if (!acc){ mostrarSinAcceso(user.email); return; }
     CURRENT_USER.rol = acc.perfil.rol || 'agente'; CURRENT_USER.grupos = acc.perfil.grupos === true;
     AdminNav.setUser({ rol: CURRENT_USER.rol, nombre: CURRENT_USER.nombre, grupos: CURRENT_USER.grupos });

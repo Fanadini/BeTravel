@@ -187,5 +187,34 @@
   // Acciones propias de la página para el menú del celular (se pueden actualizar en cualquier momento).
   function setExtras(lista){ estado.extras = lista || []; if (estado.header) pintarExtras(); }
 
-  window.AdminNav = { mount: mount, setUser: setUser, setExtras: setExtras, secciones: SECCIONES };
+  // ── "Ver como": un admin puede navegar las páginas con el perfil de otra cuenta para ver lo que ve.
+  // Solo cambia la vista (rol, accesos y filtros de esa cuenta); los datos se leen y guardan con la sesión del admin.
+  var VC_KEY = 'bt_vercomo';
+  function verComo(){ try { return localStorage.getItem(VC_KEY) || ''; } catch (e) { return ''; } }
+  function setVerComo(email){ try { if (email) localStorage.setItem(VC_KEY, email); else localStorage.removeItem(VC_KEY); } catch (e) {} location.reload(); }
+  function bannerVerComo(email, rol){
+    if (document.getElementById('adm-vercomo')) return;
+    var b = document.createElement('div'); b.id = 'adm-vercomo';
+    b.style.cssText = 'position:sticky;top:0;z-index:2000;background:#B08A5A;color:#fff;font:500 12px Inter,sans-serif;padding:7px 14px;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;text-align:center';
+    b.innerHTML = '<span>Viendo como <strong></strong> (' + (rol || 'agente') + '). Lo que guardes se guarda con tu cuenta.</span><button type="button" style="font:600 12px Inter,sans-serif;border:1px solid #fff;background:transparent;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer">Volver a mi vista</button>';
+    b.querySelector('strong').textContent = email;
+    b.querySelector('button').addEventListener('click', function(){ setVerComo(''); });
+    document.body.insertBefore(b, document.body.firstChild);
+  }
+  // Envuelve la verificación de acceso de cada página: si el usuario real es admin y eligió "ver como", devuelve el perfil de esa cuenta.
+  function acceso(verificar, emailReal){
+    return verificar(emailReal).then(function(acc){
+      var vc = verComo(), esAdmin = !!(acc && (acc.sinConfigurar || (acc.perfil && acc.perfil.rol === 'admin')));
+      api.esAdminReal = esAdmin; api.emailEfectivo = emailReal; api.simulando = '';
+      if (!vc || !esAdmin || vc.toLowerCase() === String(emailReal || '').toLowerCase()) return acc;
+      return verificar(vc).then(function(acc2){
+        if (!acc2 || !acc2.perfil || acc2.sinConfigurar) return acc;
+        api.emailEfectivo = vc; api.simulando = vc; bannerVerComo(vc, acc2.perfil.rol);
+        return acc2;
+      }, function(){ return acc; });
+    });
+  }
+
+  var api = { mount: mount, setUser: setUser, setExtras: setExtras, secciones: SECCIONES, acceso: acceso, verComo: verComo, setVerComo: setVerComo, emailEfectivo: '', simulando: '', esAdminReal: false };
+  window.AdminNav = api;
 })();
