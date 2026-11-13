@@ -927,6 +927,88 @@ function verPlanPagos(){
     <div class="lista" id="plan-lista" style="margin-top:8px">${htmlPlanTabla(g)}</div>
     <div class="row-btns" style="justify-content:flex-end;margin-top:10px"><button class="btn outline small" onclick="exportarPlanExcel()">Descargar Excel</button><button class="btn outline small" onclick="imprimir('plan')">Imprimir / PDF</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
+// ── REPORTE DE CUENTA DEL GRUPO (interno): lo que se cobra, lo cobrado, los pagos recibidos, los compromisos con proveedores y la posición ──
+let REP_VISTA = 'pax';
+function setRepVista(v){ REP_VISTA = v; verReporteCuenta(); }
+function reporteCuentaHtml(g){
+  const resps = g.respuestas || {}, ref = refViaje(g), asg = asignaciones(g), mon = (g.meta.precios || {}).moneda || 'USD', m = x => moneyG(x, mon);
+  const conSaldo = veSaldo(), pp = conSaldo ? pagosPorPasajero(GID_ABIERTO) : {}, hoy = hoyISO();
+  const filas = respuestasOrdenadas(g).map(([rid, r]) => ({ rid, r, c: cobroDe(g, rid, r, ref, asg, pp) }));
+  const tot = filas.reduce((a, f) => ({ total: a.total + f.c.total, pagado: a.pagado + f.c.pagado }), { total: 0, pagado: 0 }), saldo = tot.total - tot.pagado;
+  const estado = c => c.falta.length ? '<span class="pill warn">Datos faltantes</span>' : !conSaldo ? '' : c.saldo <= 0.005 ? '<span class="pill ok">Al día</span>' : c.pagado > 0.005 ? '<span class="pill warn">Con saldo</span>' : '<span class="pill">Sin pagos</span>';
+  const sec = t => `<h4 style="margin:16px 0 6px;font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--teal)">${t}</h4>`;
+  let h = `<div class="ocu"><div class="nom">A cobrar (${filas.length} pasajeros)</div><strong>${m(tot.total)}</strong></div>`
+    + (conSaldo ? `<div class="ocu"><div class="nom">Cobrado</div><strong>${m(tot.pagado)}</strong></div><div class="ocu"><div class="nom">Saldo pendiente</div><strong style="color:${saldo > 0.005 ? 'var(--red)' : 'var(--green)'}">${m(saldo)}</strong></div>`
+      + `<div class="ocu"><div class="nom"><div style="height:8px;border-radius:99px;background:var(--beige-d);overflow:hidden"><div style="height:100%;width:${tot.total ? Math.max(0, Math.min(100, tot.pagado / tot.total * 100)).toFixed(1) : 0}%;background:var(--teal)"></div></div></div><strong>${tot.total ? Math.round(tot.pagado / tot.total * 100) : 0}%</strong></div>`
+      : '<div class="hint">Vinculá la reserva del grupo (pestaña Ajustes) para ver lo cobrado y el saldo.</div>');
+  // Por pasajero / por habitación
+  h += sec('Por pasajero o por habitación') + `<div class="filtros" style="align-items:center"><span>Ver por:</span><select onchange="setRepVista(this.value)"><option value="pax" ${REP_VISTA === 'pax' ? 'selected' : ''}>Pasajero</option><option value="hab" ${REP_VISTA === 'hab' ? 'selected' : ''}>Habitación</option></select></div>`;
+  const fila = (et, a, b, c, est) => `<tr><td>${et}</td><td class="num">${m(a)}</td><td class="num">${conSaldo ? m(b) : '—'}</td><td class="num">${conSaldo ? m(c) : '—'}</td><td>${est}</td></tr>`;
+  const cab = `<thead><tr><th>${REP_VISTA === 'hab' ? 'Habitación' : 'Pasajero'}</th><th class="num">Total</th><th class="num">Pagado</th><th class="num">Saldo</th><th>Estado</th></tr></thead>`;
+  let cuerpo = '';
+  if (REP_VISTA === 'hab'){
+    const porRid = Object.fromEntries(filas.map(f => [f.rid, f])), usados = new Set();
+    listaHab(g).forEach(([, hb], i) => {
+      const fs = Object.keys(hb.pasajeros || {}).map(x => porRid[x]).filter(Boolean); if (!fs.length) return; fs.forEach(f => usados.add(f.rid));
+      const a = fs.reduce((x, f) => x + f.c.total, 0), b = fs.reduce((x, f) => x + f.c.pagado, 0), falta = fs.some(f => f.c.falta.length);
+      cuerpo += fila(`<strong>Hab. ${i + 1} · ${esc(hb.tipo)}</strong><div class="hint" style="margin:0">${fs.map(f => esc(`${f.r.apellido}, ${f.r.nombre}`)).join(' · ')}</div>`, a, b, a - b, falta ? '<span class="pill warn">Datos faltantes</span>' : !conSaldo ? '' : a - b <= 0.005 ? '<span class="pill ok">Al día</span>' : b > 0.005 ? '<span class="pill warn">Con saldo</span>' : '<span class="pill">Sin pagos</span>');
+    });
+    const sin = filas.filter(f => !usados.has(f.rid));
+    if (sin.length){ const a = sin.reduce((x, f) => x + f.c.total, 0), b = sin.reduce((x, f) => x + f.c.pagado, 0); cuerpo += fila(`<strong>Sin habitación</strong><div class="hint" style="margin:0">${sin.map(f => esc(`${f.r.apellido}, ${f.r.nombre}`)).join(' · ')}</div>`, a, b, a - b, ''); }
+  } else cuerpo = filas.map(f => fila(`${esc(f.r.apellido)}, ${esc(f.r.nombre)}${f.c.falta.length ? ' *' : ''}`, f.c.total, f.c.pagado, f.c.saldo, estado(f.c))).join('');
+  h += `<table style="width:100%;border-collapse:collapse;font-size:12px">${cab}<tbody>${cuerpo}</tbody></table>` + (filas.some(f => f.c.falta.length) ? '<div class="hint" style="margin-top:4px">* Faltan datos para calcular lo que debe ese pasajero.</div>' : '');
+  // Pagos recibidos
+  if (conSaldo){
+    const pagos = [];
+    reservasDelGrupo(GID_ABIERTO).forEach(([, r]) => aArr(r.pagos).forEach(p => pagos.push({ p, mon: p.moneda || r.moneda || 'ARS', monto: Number(p.monto) || 0 })));
+    pagos.sort((a, b) => String(a.p.fecha || '').localeCompare(String(b.p.fecha || '')));
+    const MED = { transferencia:'Transferencia', efectivo:'Efectivo', tarjeta:'Tarjeta', cheque:'Cheque', otro:'Otro' };
+    const nombreMedio = p => (p.medio ? (MED[p.medio] || p.medio) : 'Sin medio') + (p.medio === 'otro' && p.comentario ? ' · ' + p.comentario : '');
+    const porMedio = {}, totMon = {};
+    pagos.forEach(x => { const k = nombreMedio(x.p), o = porMedio[k] = porMedio[k] || {}; o[x.mon] = (o[x.mon] || 0) + x.monto; totMon[x.mon] = (totMon[x.mon] || 0) + x.monto; });
+    h += sec('Pagos recibidos');
+    if (!pagos.length) h += '<div class="hint">Todavía no se cargó ningún pago.</div>';
+    else {
+      h += Object.entries(porMedio).sort((a, b) => Object.values(b[1]).reduce((x, y) => x + y, 0) - Object.values(a[1]).reduce((x, y) => x + y, 0)).map(([k, o]) => `<div class="ocu"><div class="nom">${esc(k)}</div><strong>${Object.entries(o).map(([mm, v]) => moneyG(v, mm)).join(' + ')}</strong></div>`).join('')
+        + `<div class="ocu" style="font-weight:600"><div class="nom">Total recibido (${pagos.length} pago${pagos.length === 1 ? '' : 's'})</div><strong>${Object.entries(totMon).map(([mm, v]) => moneyG(v, mm)).join(' + ')}</strong></div>`;
+      h += `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px"><thead><tr><th>Fecha</th><th class="num">Monto</th><th>Medio</th><th>A nombre de</th></tr></thead><tbody>${pagos.map(x => {
+        const ks = Object.keys(x.p.grupoPasajeros || {}).map(id => resps[id] ? `${resps[id].apellido}, ${resps[id].nombre}` : '').filter(Boolean);
+        return `<tr><td>${fmtFecha(x.p.fecha) || 's/f'}</td><td class="num">${moneyG(x.monto, x.mon)}</td><td>${esc(nombreMedio(x.p))}</td><td>${ks.length ? esc(ks.slice(0, 3).join(' · ')) + (ks.length > 3 ? ` · +${ks.length - 3}` : '') : '<span class="hint" style="margin:0">Sin asignar</span>'}</td></tr>`;
+      }).join('')}</tbody></table>`;
+    }
+  }
+  // Compromisos con proveedores
+  const { provs, tot: tp } = resumenCompromisos(g);
+  h += sec('Compromisos con proveedores');
+  if (!provs.length) h += '<div class="hint">No se cargaron compromisos con proveedores.</div>';
+  else {
+    h += `<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th>Proveedor</th><th class="num">Comprometido</th><th class="num">Pagado</th><th class="num">Pendiente</th><th>Cuotas</th></tr></thead><tbody>${provs.map(p => {
+      const mm = p.moneda || 'USD', cs = nCuotas(p), comp = cs.reduce((a, c) => a + cuotaMonto(p, c), 0), pag = cs.filter(c => c.pagado).reduce((a, c) => a + cuotaMonto(p, c), 0), venc = cs.filter(c => !c.pagado && c.fecha && c.fecha < hoy).length;
+      return `<tr><td>${esc(p.nombre || 'Sin nombre')}<div class="hint" style="margin:0">${esc(p.tipo || '')}</div></td><td class="num">${moneyG(comp, mm)}</td><td class="num">${moneyG(pag, mm)}</td><td class="num">${moneyG(comp - pag, mm)}</td><td>${cs.filter(c => c.pagado).length} de ${cs.length} pagadas${venc ? ` <span class="pill bad">${venc} vencida${venc === 1 ? '' : 's'}</span>` : ''}</td></tr>`;
+    }).join('')}</tbody></table>`;
+    // Posición: cobrado menos pagado a proveedores, por moneda (sin mezclar monedas)
+    h += sec('Posición');
+    const monedas = [...new Set([mon, ...Object.keys(tp)])];
+    h += monedas.map(mm => {
+      const cobrado = conSaldo && mm === mon ? tot.pagado : null, t = tp[mm] || { comp: 0, pag: 0 };
+      return `<div class="hint" style="margin:6px 0 2px"><strong>${esc(mm)}</strong></div>`
+        + (cobrado != null ? `<div class="ocu"><div class="nom">Cobrado a los pasajeros</div><strong>${moneyG(cobrado, mm)}</strong></div>` : '')
+        + `<div class="ocu"><div class="nom">Pagado a proveedores</div><strong>${moneyG(t.pag, mm)}</strong></div>`
+        + (cobrado != null ? `<div class="ocu" style="font-weight:600"><div class="nom">Cobrado menos pagado a proveedores</div><strong style="color:${cobrado - t.pag >= 0 ? 'var(--green)' : 'var(--red)'}">${moneyG(cobrado - t.pag, mm)}</strong></div>` : '')
+        + (mm === mon ? `<div class="ocu"><div class="nom">Pendiente de cobrar</div><strong>${m(saldo)}</strong></div>` : '')
+        + `<div class="ocu"><div class="nom">Pendiente de pagar a proveedores</div><strong>${moneyG(t.comp - t.pag, mm)}</strong></div>`;
+    }).join('');
+    if (monedas.length > 1) h += '<div class="hint" style="margin-top:4px">Los importes en monedas distintas no se mezclan: cada moneda se muestra por separado.</div>';
+  }
+  return h;
+}
+function verReporteCuenta(){
+  if (!puedeEditarReservas()) return;
+  const g = GRUPOS[GID_ABIERTO];
+  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal" style="max-width:980px"><h3>Reporte de cuenta · ${esc(g.meta.nombre || 'Grupo')}</h3>
+    <div class="hint">Uso interno de la agencia. Al ${esc(fmtFecha(hoyISO()))}.</div>${reporteCuentaHtml(g)}
+    <div class="row-btns" style="justify-content:flex-end;margin-top:10px"><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+}
 function guardarCuotas(n){
   const arr = [];
   for (let i = 0; i < n; i++) arr.push({ pct: parseFloat(document.getElementById('pl-pct-' + i).value) || 0, fecha: document.getElementById('pl-fec-' + i).value || '' });
@@ -1311,7 +1393,7 @@ function htmlResumen(g){
     const conSaldo = veSaldo(), pp = conSaldo ? pagosPorPasajero(GID_ABIERTO) : {}, mon = (g.meta.precios || {}).moneda || 'USD';
     let total = 0, pagado = 0, alDia = 0, deben = 0, faltanDatos = 0, sinPagos = 0;
     ids.forEach(id => { const c = cobroDe(g, id, resps[id], ref, asg, pp); total += c.total; pagado += c.pagado; if (c.falta.length) faltanDatos++; else if (c.saldo <= 0.005) alDia++; else deben++; if (conSaldo && !pp[id]) sinPagos++; });
-    html += `<div class="card"><h3>Cobros (${esc(mon)})</h3><div style="margin:0 0 8px"><button class="btn small" onclick="verPlanPagos()">Plan de pagos (cuotas)</button></div>` + fila('A cobrar', moneyG(total, mon), "irA('resp')")
+    html += `<div class="card"><h3>Cobros (${esc(mon)})</h3><div style="margin:0 0 8px"><button class="btn small" onclick="verPlanPagos()">Plan de pagos (cuotas)</button>${puedeEditarReservas() ? ' <button class="btn outline small" onclick="verReporteCuenta()">Reporte de cuenta</button>' : ''}</div>` + fila('A cobrar', moneyG(total, mon), "irA('resp')")
       + (conSaldo ? fila('Cobrado', moneyG(pagado, mon), "irA('resp',{pago:'con'})") + fila('Saldo pendiente', `<span style="color:${total - pagado > 0.005 ? 'var(--red)' : 'var(--green)'}">${moneyG(total - pagado, mon)}</span>`, "irA('resp',{saldo:'con'})") + `<div class="ocu"><div class="nom"><div style="height:8px;border-radius:99px;background:var(--beige-d);overflow:hidden"><div style="height:100%;width:${total ? Math.max(0, Math.min(100, pagado / total * 100)).toFixed(1) : 0}%;background:var(--teal)"></div></div></div><strong>${total ? Math.round(pagado / total * 100) : 0}%</strong></div>`
         + fila('Al día', alDia, alDia ? "irA('resp',{saldo:'ok'})" : '') + fila('Con saldo pendiente', deben, deben ? "irA('resp',{saldo:'con'})" : '') + fila('Sin ningún pago', sinPagos, sinPagos ? "irA('resp',{pago:'sin'})" : '')
         : '<div class="hint" style="margin-top:6px">Para ver lo cobrado hace falta vincular la reserva del grupo (o que un administrador abra Grupos).</div>')
