@@ -253,6 +253,7 @@ function attachListeners(){
     [...PROPIAS].forEach(id => { if (!v[id]){ PROPIAS.delete(id); if (!COMPARTIDAS.has(id)) delete RES[id]; } });
     Object.keys(v).forEach(id => { PROPIAS.add(id); RES[id] = v[id]; cargarNombresGrupo(RES[id]); });
     CARGADO = true; document.getElementById('lo').classList.add('hidden'); render();
+    abrirDesdeUrl();
   }, err => { console.error(err); document.getElementById('lo').classList.add('hidden'); showBanner('No se pudieron leer tus reservas: falta publicar las reglas de Firebase.'); });
   const ref = db.ref('finanzas/reservasCompartidas/' + emailKey(CURRENT_USER.email));
   ref.on('value', snap => {
@@ -288,8 +289,13 @@ const fecha = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); re
 function totales(r){
   const cot = arr(r.cotizado).reduce((s, c) => s + convertir(Number(c.monto) || 0, c.moneda || r.moneda, r.moneda, c.tipoCambio).v, 0);
   const pag = arr(r.pagos).reduce((s, p) => s + convertir(Number(p.monto) || 0, p.moneda || r.moneda, r.moneda, p.tipoCambio).v, 0);
-  return { cot, pag, saldo: cot - pag };
+  // Igual que Gestión interna: lo que un pasajero le pagó directo a un ejecutivo también descuenta el saldo
+  const dir = arr(r.reparto).reduce((s, x) => s + (Number(x.montoCobradoDirecto) ? convertir(Number(x.montoCobradoDirecto), x.moneda || r.moneda, r.moneda, x.tipoCambio).v : 0), 0);
+  return { cot, pag, dir, saldo: cot - pag - dir };
 }
+// ?reserva=<id> (por ejemplo, al convertir una cotización): abre esa reserva una sola vez
+let ABIERTA_URL = false;
+function abrirDesdeUrl(){ if (ABIERTA_URL) return; const id = new URLSearchParams(location.search).get('reserva'); if (!id){ ABIERTA_URL = true; return; } if (!RES[id]) return; ABIERTA_URL = true; TAB = 'res'; render(); PROPIAS.has(id) ? editarReserva(id) : verReserva(id); }
 function setTab(t){ TAB = t; render(); }
 function render(){
   sincronizarSub();
@@ -389,7 +395,7 @@ function vistaResumen(){
   const hoy = new Date().toISOString().slice(0, 10), dias = f => Math.round((new Date(f + 'T00:00:00') - new Date(hoy + 'T00:00:00')) / 864e5);
   const activas = Object.keys(RES).map(id => ({ id, r: RES[id] })).filter(x => x.r && x.r.estado !== 'cancelado' && x.r.estado !== 'perdida');
   const sum = {}, add = (k, m, v) => { const o = sum[k] = sum[k] || {}; o[m] = (o[m] || 0) + v; };
-  activas.forEach(({ r }) => { const t = totales(r), m = r.moneda || 'ARS'; add('cot', m, t.cot); add('pag', m, t.pag); if (t.saldo > 0.005) add('saldo', m, t.saldo); });
+  activas.forEach(({ r }) => { const t = totales(r), m = r.moneda || 'ARS'; add('cot', m, t.cot); add('pag', m, t.pag); if (r.estado === 'aceptado' && t.saldo > 0.005) add('saldo', m, t.saldo); });
   const costos = [];
   activas.forEach(({ id, r }) => arr(r.costos).forEach(c => { if (c.pagado || !(parseFloat(c.monto) > 0)) return; costos.push({ id, r, c, m: c.moneda || r.moneda || 'ARS', v: parseFloat(c.monto) || 0 }); add('costo', c.moneda || r.moneda || 'ARS', parseFloat(c.monto) || 0); }));
   costos.sort((a, b) => String(a.c.fechaVencimiento || '9999').localeCompare(String(b.c.fechaVencimiento || '9999')));
@@ -398,13 +404,13 @@ function vistaResumen(){
   const card = (t, v, sub) => `<div class="sec" style="margin:0"><div class="hint" style="margin:0 0 4px;text-transform:uppercase;letter-spacing:.6px;font-size:10px;font-weight:600">${t}</div><div style="font-size:18px;font-weight:600;color:var(--teal)">${v}</div>${sub ? `<div class="hint" style="margin:2px 0 0">${sub}</div>` : ''}</div>`;
   const abrir = id => PROPIAS.has(id) ? `editarReserva('${esc(id)}')` : `verReserva('${esc(id)}')`;
   const salidas = activas.filter(x => x.r.fechaInicio && dias(x.r.fechaInicio) >= 0 && dias(x.r.fechaInicio) <= 30).sort((a, b) => a.r.fechaInicio.localeCompare(b.r.fechaInicio));
-  const conSaldo = activas.map(x => ({ ...x, t: totales(x.r) })).filter(x => x.t.saldo > 0.005).sort((a, b) => b.t.saldo - a.t.saldo);
+  const conSaldo = activas.filter(x => x.r.estado === 'aceptado').map(x => ({ ...x, t: totales(x.r) })).filter(x => x.t.saldo > 0.005).sort((a, b) => b.t.saldo - a.t.saldo);
   const fila = (onclick, a, b) => `<tr class="fila" onclick="${onclick}"><td>${a}</td><td class="num">${b}</td></tr>`;
   const bloque = (t, filas, vacio) => `<div class="sec"><h3>${t}</h3>${filas.length ? '<div class="lista"><table><tbody>' + filas.join('') + '</tbody></table></div>' : `<div class="hint" style="margin:0">${vacio}</div>`}</div>`;
   return `<div class="section-head"><h2>Resumen</h2>${CURRENT_USER.rol === 'cotizador' ? '<button class="btn" onclick="editarReserva()">+ Nueva reserva</button>' : ''}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-bottom:12px">
       ${card('Reservas activas', activas.length, `${activas.filter(x => PROPIAS.has(x.id)).length} propias · ${activas.filter(x => !PROPIAS.has(x.id)).length} compartidas`)}
-      ${card('Valor cotizado', txt('cot'))}${card('Cobrado', txt('pag'))}${card('Saldo a cobrar', txt('saldo'), `${conSaldo.length} reserva${conSaldo.length === 1 ? '' : 's'} con saldo`)}
+      ${card('Valor cotizado', txt('cot'))}${card('Cobrado', txt('pag'))}${card('Saldo a cobrar', txt('saldo'), `${conSaldo.length} reserva${conSaldo.length === 1 ? '' : 's'} aceptada${conSaldo.length === 1 ? '' : 's'} con saldo`)}
       ${card('Por pagar a proveedores', txt('costo'), `${costos.length} costo${costos.length === 1 ? '' : 's'} sin pagar`)}${card('Pasajeros', paxIds().size)}${card('Recibos', nRecibos)}
     </div>
     ${bloque('Próximas salidas (30 días)', salidas.map(x => fila(abrir(x.id), `<strong>${esc(x.r.codigo || '')}</strong> ${esc(x.r.cliente || '')}`, (d => d === 0 ? 'hoy' : d === 1 ? 'mañana' : `en ${d} días`)(dias(x.r.fechaInicio)) + ' · ' + fecha(x.r.fechaInicio))), 'Sin salidas en los próximos 30 días.')}
