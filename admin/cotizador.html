@@ -1415,7 +1415,7 @@ function renderEditor(){
           <div class="side-btns">
             <button class="new-btn" onclick="abrirDeck(false)">Vista previa</button>
             <button class="new-btn outline" onclick="abrirDeck(true)">Descargar PDF</button>
-            ${CURRENT_USER.rol === 'cotizador' ? '' : `<button class="new-btn outline" onclick="convertirEnReserva()">${c.reservaId ? 'Ver reserva →' : 'Convertir en reserva'}</button>`}
+            <button class="new-btn outline" onclick="convertirEnReserva()">${c.reservaId ? 'Ver reserva →' : 'Convertir en reserva'}</button>
             <button class="new-btn outline" onclick="duplicarCotizacion()">Duplicar</button>
             <button class="new-btn outline solo-admin" style="${CURRENT_USER.rol === 'admin' ? '' : 'display:none'}" onclick="abrirInformeContador()" title="Costo y venta de cada producto, para compartir con el contador">Informe para contador</button>
           </div>
@@ -3296,6 +3296,7 @@ function eliminarCotizacion(){
 // Se asigna acá (y no después, en Gestión interna) para que la reserva ya abra
 // con su código y el primer guardado del panel no lo deje vacío.
 function asignarCodigoReserva(){
+  if (CURRENT_USER.rol === 'cotizador') return META_RES_COUNTER_REF.transaction(n => (Number(n) || 0) + 1).then(res => 'BeT' + res.snapshot.val());   // no lee todas las reservas
   return RESERVAS_REF.once('value').then(snap => {
     const maxExisting = Object.values(snap.val() || {}).reduce((m, r) => {
       const x = /^BeT(\d+)$/.exec((r && r.codigo) || '');
@@ -3382,10 +3383,11 @@ function copiarTablaContador(){
 // servicios tildados de lo incluido + la opción que eligió el cliente (+ los
 // adicionales, si los contrató).
 function convertirEnReserva(){
-  if (CURRENT_USER.rol === 'cotizador') return; // sin acceso a reservas
+  // La cuenta cotizador crea la reserva a su nombre y la gestiona desde "Mis reservas"
+  const esCot = CURRENT_USER.rol === 'cotizador', destino = id => (esCot ? 'mis-reservas.html?reserva=' : 'gestioninterna.html?reserva=') + encodeURIComponent(id);
   const c = editing.data;
   if (c.reservaId){
-    flushSave().finally(() => { location.href = 'gestioninterna.html?reserva=' + encodeURIComponent(c.reservaId); });
+    flushSave().finally(() => { location.href = destino(c.reservaId); });
     return;
   }
   if (!String(c.cliente).trim()){ alert('Cargá el cliente antes de convertir la cotización en reserva.'); return; }
@@ -3431,13 +3433,14 @@ function convertirEnReserva(){
     pagos:{}, reparto:{}, comprobantes:{}, costos, cotizado, facturacion:{}, pasajeroIds:{},
     cotizacionId: editing.id, cotizacionCodigo: c.codigo,
     updatedAt: Date.now(), updatedBy: CURRENT_USER.email,
+    ...(esCot ? { creadoPor: CURRENT_USER.email, creadoEn: Date.now() } : {}),
   };
   const ref = RESERVAS_REF.push();
   flushSave()
     .then(() => asignarCodigoReserva())
     .then(codigo => { nueva.codigo = codigo; return ref.set(nueva); })
     .then(() => { c.reservaId = ref.key; return saveNow(); })
-    .then(() => { location.href = 'gestioninterna.html?reserva=' + encodeURIComponent(ref.key); })
+    .then(() => { location.href = destino(ref.key); })
     .catch(handleWriteError);
 }
 

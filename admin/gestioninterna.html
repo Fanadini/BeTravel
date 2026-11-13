@@ -3009,6 +3009,11 @@ function syncPanelPagos(){
 // finanzas/reservasCompartidas/{email con "," en lugar de "."}/{id de reserva}: true. Las reglas dejan leer esa reserva a esa cuenta.
 let SHARES = {}, USUARIOS = {};
 const emailKeyG = e => String(e || '').toLowerCase().replace(/\./g, ',');
+function duenioOptionsHtml(sel){
+  const us = Object.entries(USUARIOS || {}).filter(([, u]) => u && u.email).sort((a, b) => String(a[1].nombre || a[1].email).localeCompare(String(b[1].nombre || b[1].email), 'es'));
+  const falta = sel && !us.some(([, u]) => u.email === sel) ? `<option value="${escHtml(sel)}" selected>${escHtml(sel)}</option>` : '';
+  return `<option value="">Personal (sin dueño)</option>${falta}` + us.map(([, u]) => `<option value="${escHtml(u.email)}" ${u.email === sel ? 'selected' : ''}>${escHtml(u.nombre || u.email)} · ${escHtml(u.email)}${u.rol ? ' (' + escHtml(u.rol) + ')' : ''}</option>`).join('');
+}
 function compartidaCon(rid){ return Object.keys(SHARES).filter(k => SHARES[k] && SHARES[k][rid]); }
 let compartirCtx = null;
 function abrirCompartir(rid){
@@ -3105,6 +3110,9 @@ function renderReservaPanel(){
       <div class="frow"><label class="fl">Grupo de pasajeros (página Grupos)</label>
         <select class="fsel" id="r-grupo" onchange="onGrupoChange()">${grupoOptionsHtml(d.grupoId)}</select>
         <div class="upload-hint" style="margin-top:4px">Al vincularlo, cada pago puede asignarse a los pasajeros del grupo y se ve en su lista.</div></div>
+      ${CURRENT_USER.rol === 'admin' ? `<div class="frow"><label class="fl">Dueño de la reserva</label>
+        <select class="fsel" id="r-duenio">${duenioOptionsHtml(d.creadoPor)}</select>
+        <div class="upload-hint" style="margin-top:4px">La cuenta elegida la ve y la edita desde su Gestión interna ("Mis reservas"). "Personal" = solo la ve el equipo.</div></div>` : ''}
       <div class="frow">
         <label class="fl">Servicios incluidos</label>
         <div class="servicio-chips" id="servicio-chips">
@@ -3239,8 +3247,10 @@ function saveReserva(){
     pagos: {}, reparto: {}, comprobantes: {}, costos: {}, cotizado: {}, facturacion: {}, pasajeroIds: {},
     // Vínculos de origen (prospecto del kanban / cotización): no son campos del
     // formulario, así que se copian para que el set() completo no los borre.
-    ...Object.fromEntries(['prospectoId','cotizacionId','cotizacionCodigo']
+    ...Object.fromEntries(['prospectoId','cotizacionId','cotizacionCodigo','creadoPor','creadoEn']
       .filter(k => reservaCtx.data && reservaCtx.data[k]).map(k => [k, reservaCtx.data[k]])),
+    // Dueño de la reserva (cuenta que la gestiona desde "Mis reservas"): solo un admin lo puede transferir
+    ...(document.getElementById('r-duenio') ? { creadoPor: gv('r-duenio') || null } : {}),
     updatedAt: Date.now(), updatedBy: CURRENT_USER.email,
     historial: [...(Array.isArray(reservaCtx.data && reservaCtx.data.historial) ? reservaCtx.data.historial : []),
       { fecha: Date.now(), usuario: CURRENT_USER.email }].slice(-20),
