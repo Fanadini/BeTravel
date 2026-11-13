@@ -238,12 +238,30 @@ function pintarResumen(){
   pagos.sort((a, b) => a.fecha.localeCompare(b.fecha));
   const atras = pagos.filter(x => dias(x.fecha) < 0).length;
   $('res').innerHTML =
-    `<div class="rc"><h3>Recordatorios <em class="${venc.length ? 'alerta' : ''}">${venc.length}</em>${vt('gestioninterna.html#recordatorios', 'Abrir')}</h3>${lista(venc, 'Nada vencido ni para hoy.', x => { const d = dias(x.fecha); return `<li><a class="it" href="gestioninterna.html#recordatorios"><span>${esc(x.titulo || x.tipo || 'Recordatorio')}</span><small>${d < 0 ? 'vencido hace ' + (-d) + (d === -1 ? ' día' : ' días') : 'hoy'}</small></a></li>`; })}${mas(venc, 3, 'gestioninterna.html#recordatorios')}</div>`
+    (ROL === 'cotizador' ? '' : `<div class="rc"><h3>Recordatorios <em class="${venc.length ? 'alerta' : ''}">${venc.length}</em>${vt('gestioninterna.html#recordatorios', 'Abrir')}</h3>${lista(venc, 'Nada vencido ni para hoy.', x => { const d = dias(x.fecha); return `<li><a class="it" href="gestioninterna.html#recordatorios"><span>${esc(x.titulo || x.tipo || 'Recordatorio')}</span><small>${d < 0 ? 'vencido hace ' + (-d) + (d === -1 ? ' día' : ' días') : 'hoy'}</small></a></li>`; })}${mas(venc, 3, 'gestioninterna.html#recordatorios')}</div>`)
     + `<div class="rc"><h3>Próximas salidas <em>${salidas.length}</em>${vt('gestioninterna.html#calendario', 'Calendario')}</h3>${lista(salidas, 'Sin salidas en los próximos 30 días.', r => `<li><a class="it" href="${hrefRes(r)}"><span>${esc(r.codigo || '')} ${esc(r.cliente || '')}</span><small>${cuando(dias(r.fechaInicio))}</small></a>${r.grupoId ? `<a class="grp" href="${hrefGrupo(r.grupoId)}">Grupo</a>` : ''}</li>`, 5)}${mas(salidas, 5, 'gestioninterna.html#calendario', 'Ver en el calendario')}</div>`
     + `<div class="rc"><h3>Saldo a cobrar <em>${n}</em>${vt('gestioninterna.html#cartera', 'Cartera')}</h3>${(tot.USD || tot.ARS) ? (tot.USD ? `<div class="monto">${fmt(tot.USD, 'USD')}</div>` : '') + (tot.ARS ? `<div class="monto">${fmt(tot.ARS, 'ARS')}</div>` : '') + `<div class="nada" style="margin:4px 0 8px">${n} reserva${n === 1 ? '' : 's'} aceptada${n === 1 ? '' : 's'} con saldo</div>` + `<ul>${conSaldo.slice(0, 3).map(x => `<li><a class="it" href="${hrefRes(x.r)}"><span>${esc(x.r.codigo || '')} ${esc(x.r.cliente || '')}</span><small>${fmt(x.s, x.r.moneda === 'USD' ? 'USD' : 'ARS')}</small></a></li>`).join('')}</ul>${mas(conSaldo, 3, 'gestioninterna.html#cartera')}` : '<div class="nada">Sin saldos pendientes.</div>'}</div>`
     + (Object.keys(PROVS).length ? `<div class="rc"><h3>Pagos a proveedores <em class="${atras ? 'alerta' : ''}">${pagos.length}</em></h3>${lista(pagos, 'Nada vencido ni en los próximos 15 días.', x => { const d = dias(x.fecha); return `<li><a class="it" href="${hrefGrupo(x.gid)}"><span>${esc(x.nombre)}${x.grupo ? ' · ' + esc(x.grupo) : ''}</span><small>${fmt(x.v, x.mon)} · ${d < 0 ? 'vencida' : d === 0 ? 'hoy' : cuando(d)}</small></a></li>`; }, 4)}${mas(pagos, 4, 'grupos.html', 'Ver en Grupos')}</div>` : '');
+  ajustarLinksCot($('res'));
   $('resumen').classList.remove('hidden');
   pintarCalendario();
+}
+// Cuenta cotizador con acceso a Grupos: solo las reservas que le compartieron y los compromisos de los grupos que ve
+let REFS_COT = {};
+// La cuenta cotizador no entra a Gestión interna: sus reservas se ven en "Compartidas conmigo"
+function ajustarLinksCot(raiz){
+  if (ROL !== 'cotizador' || !raiz) return;
+  raiz.querySelectorAll('a[href^="gestioninterna.html"]').forEach(a => { if (/#calendario$/.test(a.getAttribute('href')) && a.classList.contains('cal-f')) a.remove(); else a.setAttribute('href', 'compartidas.html'); });
+}
+function escucharResumenCot(email){
+  db.ref('finanzas/reservasCompartidas/' + emailKey(email)).on('value', snap => {
+    const v = snap.val() || {}, ids = Object.keys(v).filter(k => v[k] === true);
+    ids.forEach(id => { if (REFS_COT[id]) return; REFS_COT[id] = db.ref('finanzas/reservas/' + id); REFS_COT[id].on('value', s => { s.exists() ? RES[id] = s.val() : delete RES[id]; pintarResumen(); }, () => { delete RES[id]; pintarResumen(); }); });
+    Object.keys(REFS_COT).filter(id => !ids.includes(id)).forEach(id => { REFS_COT[id].off(); delete REFS_COT[id]; delete RES[id]; });
+    pintarResumen();
+  }, () => { pintarResumen(); });
+  db.ref('finanzas/compromisosGrupo').on('value', s => { PROVS = s.val() || {}; pintarResumen(); }, () => {});
+  db.ref('gruposIndex').on('value', s => { IDXG = s.val() || {}; pintarResumen(); }, () => {});
 }
 function escucharResumen(){
   db.ref('finanzas/reservas').on('value', s => { RES = s.val() || {}; pintarResumen(); }, () => {});
@@ -258,8 +276,8 @@ function escucharResumen(){
 const normB = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 let BUS_COT = {}, BUS_GRP = {}, BUS_CARGADO = false;
 function cargarBusqueda(){
-  if (BUS_CARGADO || ROL === 'cotizador') return; BUS_CARGADO = true;
-  db.ref('finanzas/cotizaciones').once('value').then(s => { BUS_COT = s.val() || {}; buscar($('bus-q').value); }, () => {});
+  if (BUS_CARGADO) return; BUS_CARGADO = true;
+  if (ROL !== 'cotizador') db.ref('finanzas/cotizaciones').once('value').then(s => { BUS_COT = s.val() || {}; buscar($('bus-q').value); }, () => {});
   db.ref('grupos').once('value').then(s => { BUS_GRP = s.val() || {}; buscar($('bus-q').value); }, () => {});
 }
 function buscar(q){
@@ -274,7 +292,7 @@ function buscar(q){
     Object.keys(rs).forEach(rid => { const r = rs[rid] || {}; if (ok([r.nombre, r.apellido, r.pasaporte, r.email].join(' '))) pax.push({ href: `grupos.html?g=${encodeURIComponent(gid)}&q=${encodeURIComponent(`${r.apellido || ''} ${r.nombre || ''}`.trim())}`, t: esc(`${r.apellido || ''}, ${r.nombre || ''}`), s: esc((g.meta || {}).nombre || '') }); }); });
   const cots = Object.keys(BUS_COT).map(id => ({ id, ...BUS_COT[id] })).filter(c => ok([c.codigo, c.cliente, c.titulo, c.destino].join(' '))).map(c => ({ href: `cotizador.html?c=${encodeURIComponent(c.id)}`, t: esc(`${c.codigo || ''} ${c.cliente || c.titulo || ''}`.trim() || 'Cotización'), s: 'Cotización' }));
   const h = sec('Reservas', reservas) + sec('Grupos', grupos) + sec('Pasajeros', pax) + sec('Cotizaciones', cots);
-  box.innerHTML = h || '<div class="nada">Sin resultados.</div>'; box.classList.remove('hidden');
+  box.innerHTML = h || '<div class="nada">Sin resultados.</div>'; box.classList.remove('hidden'); ajustarLinksCot(box);
 }
 
 
@@ -317,6 +335,7 @@ function pintarCalendario(){
   box.innerHTML = `<div class="cal-h"><button type="button" onclick="calMes(-1)" aria-label="Mes anterior">‹</button><b>${MESES_L[m - 1]} ${y}</b><button type="button" class="hoy" onclick="calHoy()">Hoy</button><button type="button" onclick="calMes(1)" aria-label="Mes siguiente">›</button></div><div class="cal-g">${celdas}</div>`
     + (dia ? `<div class="cal-l"><div class="nada" style="font-weight:600;color:var(--teal)">${esc(tit.charAt(0).toUpperCase() + tit.slice(1))}</div>${dia.length ? dia.map(x => `<a class="${x.k === 'r' ? '' : x.k}" href="${x.href}">${esc(x.t)}</a>`).join('') : '<div class="nada">Sin eventos este día.</div>'}</div>` : '')
     + '<a class="cal-f" href="gestioninterna.html#calendario">Abrir el calendario completo</a>';
+  ajustarLinksCot(box);
 }
 
 // ── Sesión ─────────────────────────────────────────────────────────────────
@@ -337,6 +356,7 @@ auth.onAuthStateChanged(user => {
     botones();
     if (ROL !== 'cotizador') $('bus').classList.remove('hidden');
     if (ROL !== 'cotizador' && !escuchando){ escuchando = true; escucharResumen(); }
+    if (ROL === 'cotizador' && GRUPOS_OK && !escuchando){ escuchando = true; $('bus').classList.remove('hidden'); escucharResumenCot(user.email); }
   }, () => {
     $('app').classList.remove('hidden');
     $('aviso').textContent = 'No se pudo leer tu perfil. Revisá la conexión e intentá de nuevo.'; $('aviso').classList.remove('hidden');
