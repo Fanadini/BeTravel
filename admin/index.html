@@ -68,7 +68,7 @@ body{font-family:'Inter',sans-serif;background:var(--beige);color:var(--dark);-w
 .bus{position:relative;margin:0 0 18px}
 .bus input{width:100%;font-family:'Inter',sans-serif;font-size:15px;color:var(--dark);background:var(--white);border:1px solid var(--beige-d);border-radius:12px;padding:12px 14px;outline:none}
 .bus input:focus{border-color:var(--teal)}
-.bus-r{margin-top:8px;background:var(--white);border:1px solid var(--beige-d);border-radius:14px;padding:8px 6px;display:grid;gap:2px;max-height:60vh;overflow-y:auto}
+.bus-r{position:absolute;left:0;right:0;top:100%;z-index:40;box-shadow:0 8px 24px rgba(15,61,62,.18);margin-top:8px;background:var(--white);border:1px solid var(--beige-d);border-radius:14px;padding:8px 6px;display:grid;gap:2px;max-height:60vh;overflow-y:auto}
 .bus-r h4{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(43,43,43,.5);margin:8px 8px 2px}
 .bus-r a{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px;border-radius:8px;color:var(--dark);text-decoration:none;font-size:14px;line-height:1.3}
 .bus-r a:active,.bus-r a:hover{background:var(--beige)}
@@ -110,6 +110,62 @@ body{font-family:'Inter',sans-serif;background:var(--beige);color:var(--dark);-w
 @keyframes g{to{transform:rotate(360deg)}}
 .aviso{background:rgba(184,50,50,.08);border:1px solid rgba(184,50,50,.3);color:var(--red);border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.45;margin-bottom:14px}
 @media(min-width:640px){.res{grid-template-columns:repeat(3,1fr)}}
+
+/* ── Rediseño del inicio: jerarquía clara (cifras arriba, tareas en filas legibles, calendario al lado) ── */
+.top{padding-bottom:18px}
+.top-row,.hola,.top-bus{max-width:1120px}
+.hola{margin-top:14px;font-size:13px;color:rgba(230,225,216,.6)}
+.hola strong{text-transform:none;font-size:24px;margin-top:4px}
+.top-bus{margin:16px auto 0}
+.top-bus .bus{margin:0}
+.top-bus .bus input{border:none;background:rgba(255,255,255,.96);padding:13px 16px;border-radius:12px}
+.wrap{max-width:1160px;padding-top:20px}
+#botones{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:22px}
+#botones .card{min-height:0;flex-direction:row;align-items:center;gap:12px;padding:12px 14px;border:none;border-radius:12px}
+#botones .card svg{width:22px;height:22px}
+#botones .card b{font-size:14px}
+#botones .card small{display:none}
+#botones .card.gi{flex-direction:column;align-items:stretch;gap:10px}
+#botones .card.gi .cab small{display:block}
+#botones .chip{padding:6px 12px;font-size:12.5px}
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.kpi{background:var(--white);border-radius:14px;padding:14px 16px;text-decoration:none;color:var(--dark);display:flex;flex-direction:column;gap:4px;min-width:0}
+.kpi span{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:rgba(43,43,43,.5)}
+.kpi b{font-size:22px;font-weight:600;color:var(--teal);letter-spacing:-.5px;line-height:1.15;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.kpi small{font-size:12px;color:rgba(43,43,43,.55)}
+.kpi.alerta b{color:var(--red)}
+.kpi.foco{background:var(--teal)}
+.kpi.foco span,.kpi.foco small{color:rgba(230,225,216,.7)}
+.kpi.foco b{color:var(--white)}
+.dash{display:grid;grid-template-columns:1fr;gap:14px;align-items:start}
+.res{display:grid;grid-template-columns:1fr;gap:10px;margin:0}
+.rc{border:none;border-radius:14px;padding:14px 16px 10px}
+.rc h3{font-size:13px;letter-spacing:0;text-transform:none;color:var(--dark);margin-bottom:6px}
+.rc h3 em{background:var(--beige);color:var(--dark)}
+.rc ul{gap:0}
+.rc li{border-top:1px solid rgba(213,206,195,.6)}
+.rc li:first-child{border-top:none}
+.rc li a.it{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:1px;padding:9px 6px;align-items:center}
+.rc li a.it .t{font-size:13.5px;font-weight:500;color:var(--dark);overflow-wrap:anywhere}
+.rc li a.it .s{grid-column:1;font-size:12px;color:rgba(43,43,43,.55)}
+.rc li a.it .v{grid-row:1/3;grid-column:2;text-align:right;font-size:13px;font-weight:600;color:var(--teal);white-space:nowrap;font-variant-numeric:tabular-nums}
+.rc li a.it .v.rojo{color:var(--red)}
+.rc .grp{display:none}
+.cal{border:none;margin-top:0}
+@media(min-width:720px){
+  #botones{grid-template-columns:repeat(4,minmax(0,1fr))}
+  #botones .card.gi{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between}
+  .res{align-items:start}
+  .kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .res{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(min-width:1040px){
+  #botones{grid-template-columns:repeat(6,minmax(0,1fr))}
+  #botones .card.gi{grid-column:span 2;flex-direction:column;align-items:stretch;justify-content:flex-start}
+  #botones .card.gi .cab small{display:none}
+  .dash{grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr)}
+  .dash-side{position:sticky;top:16px}
+}
 </style>
 </head>
 <body>
@@ -128,18 +184,18 @@ body{font-family:'Inter',sans-serif;background:var(--beige);color:var(--dark);-w
 <div id="app" class="hidden">
   <header class="top">
     <div class="top-row"><div class="brand">Be<span>•</span>Travel</div><div data-vercomo-slot style="display:flex;gap:8px;align-items:center;min-width:0"><button class="out" onclick="salir()">Salir</button></div></div>
-    <div class="hola">Hola<strong id="nombre"></strong></div>
+    <div class="hola"><span id="hoy-txt"></span><strong>Hola<span id="nombre"></span></strong></div>
+    <div class="top-bus" id="top-bus"><div class="bus hidden" id="bus"><input id="bus-q" type="search" placeholder="Buscar reservas, grupos, pasajeros, cotizaciones…" autocomplete="off" oninput="buscar(this.value)" onfocus="cargarBusqueda()"><div id="bus-r" class="bus-r hidden"></div></div></div>
   </header>
   <main class="wrap">
     <div class="aviso hidden" id="aviso"></div>
-    <div class="bus hidden" id="bus"><input id="bus-q" type="search" placeholder="Buscar reservas, grupos, pasajeros, cotizaciones…" autocomplete="off" oninput="buscar(this.value)" onfocus="cargarBusqueda()"><div id="bus-r" class="bus-r hidden"></div></div>
-    <div class="sec-t">Herramientas</div>
-    <div class="grid" id="botones" style="margin-bottom:24px"></div>
+    <div class="grid" id="botones"></div>
     <section id="resumen" class="hidden">
-      <div class="sec-t">Resumen</div>
-      <div class="res" id="res"></div>
-      <div class="sec-t" style="margin-top:18px">Calendario</div>
-      <div class="cal" id="cal"></div>
+      <div class="kpis" id="kpis"></div>
+      <div class="dash">
+        <div class="dash-main"><div class="res" id="res"></div></div>
+        <div class="dash-side"><div class="cal" id="cal"></div></div>
+      </div>
     </section>
   </main>
 </div>
@@ -237,15 +293,32 @@ function pintarResumen(){
     pagos.push({ gid, nombre: p.nombre || 'Proveedor', grupo: (IDXG[gid] || {}).nombre || '', fecha: c.fecha, mon: p.moneda || 'USD', v }); }); }));
   pagos.sort((a, b) => a.fecha.localeCompare(b.fecha));
   const atras = pagos.filter(x => dias(x.fecha) < 0).length;
+  // ── Cifras principales (lo primero que se mira) ──
+  const totPag = {}; pagos.forEach(x => { totPag[x.mon] = (totPag[x.mon] || 0) + x.v; });
+  const montos = o => Object.entries(o).filter(([, v]) => v > 0.5).map(([m, v]) => fmt(v, m)).join(' + ');
+  const kpi = (t, v, sub, href, cls) => `<a class="kpi ${cls || ''}" href="${href}"><span>${t}</span><b>${v}</b><small>${sub}</small></a>`;
+  $('kpis').innerHTML =
+      kpi('Saldo a cobrar', montos(tot) || fmt(0, 'USD'), `${n} reserva${n === 1 ? '' : 's'} con saldo`, 'gestioninterna.html#cartera', 'foco')
+    + (Object.keys(PROVS).length ? kpi('Pagos a proveedores', montos(totPag) || fmt(0, 'USD'), atras ? `${atras} vencido${atras === 1 ? '' : 's'} · próximos 15 días` : 'próximos 15 días', 'grupos.html', atras ? 'alerta' : '') : '')
+    + kpi('Próximas salidas', String(salidas.length), salidas[0] ? `la primera ${cuando(dias(salidas[0].fechaInicio))}` : 'en los próximos 30 días', 'gestioninterna.html#calendario')
+    + (ROL === 'cotizador' ? '' : kpi('Recordatorios', String(venc.length), venc.length ? 'vencidos o para hoy' : 'nada vencido', 'gestioninterna.html#recordatorios', venc.length ? 'alerta' : ''));
+  // ── Detalle en filas: título, dato secundario debajo y monto a la derecha ──
+  const fila = (href, t, sub, v, rojo) => `<li><a class="it" href="${href}"><span class="t">${t}</span><span class="s">${sub}</span>${v ? `<b class="v${rojo ? ' rojo' : ''}">${v}</b>` : ''}</a></li>`;
+  const card = (titulo, cuenta, alerta, link, cuerpo) => `<div class="rc"><h3>${titulo} <em class="${alerta ? 'alerta' : ''}">${cuenta}</em>${link}</h3>${cuerpo}</div>`;
   $('res').innerHTML =
-    (ROL === 'cotizador' ? '' : `<div class="rc"><h3>Recordatorios <em class="${venc.length ? 'alerta' : ''}">${venc.length}</em>${vt('gestioninterna.html#recordatorios', 'Abrir')}</h3>${lista(venc, 'Nada vencido ni para hoy.', x => { const d = dias(x.fecha); return `<li><a class="it" href="gestioninterna.html#recordatorios"><span>${esc(x.titulo || x.tipo || 'Recordatorio')}</span><small>${d < 0 ? 'vencido hace ' + (-d) + (d === -1 ? ' día' : ' días') : 'hoy'}</small></a></li>`; })}${mas(venc, 3, 'gestioninterna.html#recordatorios')}</div>`)
-    + `<div class="rc"><h3>Próximas salidas <em>${salidas.length}</em>${vt('gestioninterna.html#calendario', 'Calendario')}</h3>${lista(salidas, 'Sin salidas en los próximos 30 días.', r => `<li><a class="it" href="${hrefRes(r)}"><span>${esc(r.codigo || '')} ${esc(r.cliente || '')}</span><small>${cuando(dias(r.fechaInicio))}</small></a>${r.grupoId ? `<a class="grp" href="${hrefGrupo(r.grupoId)}">Grupo</a>` : ''}</li>`, 5)}${mas(salidas, 5, 'gestioninterna.html#calendario', 'Ver en el calendario')}</div>`
-    + `<div class="rc"><h3>Saldo a cobrar <em>${n}</em>${vt('gestioninterna.html#cartera', 'Cartera')}</h3>${(tot.USD || tot.ARS) ? (tot.USD ? `<div class="monto">${fmt(tot.USD, 'USD')}</div>` : '') + (tot.ARS ? `<div class="monto">${fmt(tot.ARS, 'ARS')}</div>` : '') + `<div class="nada" style="margin:4px 0 8px">${n} reserva${n === 1 ? '' : 's'} aceptada${n === 1 ? '' : 's'} con saldo</div>` + `<ul>${conSaldo.slice(0, 3).map(x => `<li><a class="it" href="${hrefRes(x.r)}"><span>${esc(x.r.codigo || '')} ${esc(x.r.cliente || '')}</span><small>${fmt(x.s, x.r.moneda === 'USD' ? 'USD' : 'ARS')}</small></a></li>`).join('')}</ul>${mas(conSaldo, 3, 'gestioninterna.html#cartera')}` : '<div class="nada">Sin saldos pendientes.</div>'}</div>`
-    + (Object.keys(PROVS).length ? `<div class="rc"><h3>Pagos a proveedores <em class="${atras ? 'alerta' : ''}">${pagos.length}</em></h3>${lista(pagos, 'Nada vencido ni en los próximos 15 días.', x => { const d = dias(x.fecha); return `<li><a class="it" href="${hrefGrupo(x.gid)}"><span>${esc(x.nombre)}${x.grupo ? ' · ' + esc(x.grupo) : ''}</span><small>${fmt(x.v, x.mon)} · ${d < 0 ? 'vencida' : d === 0 ? 'hoy' : cuando(d)}</small></a></li>`; }, 4)}${mas(pagos, 4, 'grupos.html', 'Ver en Grupos')}</div>` : '');
+    (ROL === 'cotizador' ? '' : card('Recordatorios', venc.length, venc.length, vt('gestioninterna.html#recordatorios', 'Abrir'),
+      lista(venc, 'Nada vencido ni para hoy.', x => { const d = dias(x.fecha); return fila('gestioninterna.html#recordatorios', esc(x.titulo || x.tipo || 'Recordatorio'), esc(x.tipo || 'Recordatorio'), d < 0 ? `hace ${-d} ${d === -1 ? 'día' : 'días'}` : 'hoy', d < 0); }) + mas(venc, 3, 'gestioninterna.html#recordatorios')))
+    + card('Próximas salidas', salidas.length, false, vt('gestioninterna.html#calendario', 'Calendario'),
+      lista(salidas, 'Sin salidas en los próximos 30 días.', r => fila(hrefRes(r), esc(`${r.codigo || ''} ${r.cliente || ''}`.trim()), esc([r.concepto, r.grupoId ? 'con grupo' : ''].filter(Boolean).join(' · ') || 'Reserva'), cuando(dias(r.fechaInicio))), 5) + mas(salidas, 5, 'gestioninterna.html#calendario', 'Ver en el calendario'))
+    + card('Saldo a cobrar', n, false, vt('gestioninterna.html#cartera', 'Cartera'),
+      lista(conSaldo, 'Sin saldos pendientes.', x => fila(hrefRes(x.r), esc(`${x.r.codigo || ''} ${x.r.cliente || ''}`.trim()), esc(x.r.concepto || 'Reserva aceptada'), fmt(x.s, x.r.moneda === 'USD' ? 'USD' : 'ARS')), 4) + mas(conSaldo, 4, 'gestioninterna.html#cartera'))
+    + (Object.keys(PROVS).length ? card('Pagos a proveedores', pagos.length, atras, '',
+      lista(pagos, 'Nada vencido ni en los próximos 15 días.', x => { const d = dias(x.fecha); return fila(hrefGrupo(x.gid), esc(x.nombre), esc([x.grupo, d < 0 ? 'vencida' : d === 0 ? 'vence hoy' : 'vence ' + cuando(d)].filter(Boolean).join(' · ')), fmt(x.v, x.mon), d < 0); }, 4) + mas(pagos, 4, 'grupos.html', 'Ver en Grupos')) : '');
   ajustarLinksCot($('res'));
   $('resumen').classList.remove('hidden');
   pintarCalendario();
 }
+function pintarHoy(){ const el = $('hoy-txt'); if (!el) return; const t = new Date().toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long' }); el.textContent = t.charAt(0).toUpperCase() + t.slice(1); }
 // Cuenta cotizador con acceso a Grupos: solo las reservas que le compartieron y los compromisos de los grupos que ve
 let REFS_COT = {};
 // La cuenta cotizador no entra a Gestión interna: sus reservas (propias y compartidas) se ven en "Mis reservas"
@@ -355,14 +428,14 @@ auth.onAuthStateChanged(user => {
   AdminNav.acceso(verif, user.email).then(acc => {
     const s = acc ? acc.x : { val: () => null, exists: () => false };
     $('app').classList.remove('hidden');
-    $('nombre').textContent = ' ' + (((s.val() || {}).nombre) || (user.displayName || user.email).split(' ')[0]);
+    $('nombre').textContent = ', ' + (((s.val() || {}).nombre) || (user.displayName || user.email).split(' ')[0]);
     if (!s.exists()){
       $('aviso').innerHTML = `La cuenta <strong>${esc(user.email)}</strong> no está habilitada para el panel interno. Pedile a un administrador que la agregue a la lista de usuarios, o salí y entrá con otra cuenta.`;
       $('aviso').classList.remove('hidden'); $('botones').innerHTML = ''; return;
     }
     const perfil = s.val() || {};
     ROL = perfil.rol || 'agente'; GRUPOS_OK = perfil.grupos === true;
-    botones();
+    botones(); pintarHoy();
     if (ROL !== 'cotizador') $('bus').classList.remove('hidden');
     if (ROL !== 'cotizador' && !escuchando){ escuchando = true; escucharResumen(); }
     if (ROL === 'cotizador' && GRUPOS_OK && !escuchando){ escuchando = true; $('bus').classList.remove('hidden'); escucharResumenCot(AdminNav.emailEfectivo || user.email); }
