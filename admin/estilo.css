@@ -32,3 +32,18 @@
 /* Cifras de las tarjetas del resumen: verde de marca (el bronce queda como acento); las alertas siguen en rojo */
 .stat-card:not(.alert) .stat-amount{color:var(--teal)!important}
 .stat-card .stat-amount.empty{color:rgba(43,43,43,.4)!important}
+/* Tabla de recibos (Gestión interna), misma vista que Mis reservas */
+.rcb-tabla{background:#fff;border-radius:12px;overflow:auto}
+.rcb-tabla table{width:100%;border-collapse:collapse;font-size:12px}
+.rcb-tabla th{text-align:left;font-weight:600;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:rgba(43,43,43,.55);padding:10px 12px;border-bottom:1px solid var(--ui-linea);white-space:nowrap;background:transparent}
+.rcb-tabla td{padding:10px 12px;border-bottom:1px solid rgba(213,206,195,.4);vertical-align:middle;line-height:1.35}
+.rcb-tabla tr:last-child td{border-bottom:0}
+.rcb-tabla tbody tr{cursor:pointer}
+.rcb-tabla tbody tr:hover td{background:rgba(15,61,62,.03)}
+.rcb-tabla td:nth-child(1),.rcb-tabla td:nth-child(2),.rcb-tabla td:nth-child(5){white-space:nowrap}
+.rcb-tabla td:nth-child(4){max-width:260px}
+.rcb-tabla .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rcb-tabla .acc{white-space:nowrap;text-align:right}
+.rcb-b{font:inherit;font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--beige-d,#d5cec3);background:#fff;color:var(--teal,#0F3D3E);cursor:pointer}
+.rcb-b:hover{border-color:var(--teal,#0F3D3E)}
+.rcb-b.rojo{color:#b3261e;border-color:rgba(179,38,30,.35)}
