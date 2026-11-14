@@ -324,7 +324,7 @@ let REFS_COT = {};
 // La cuenta cotizador no entra a Gestión interna: sus reservas (propias y compartidas) se ven en "Mis reservas"
 function ajustarLinksCot(raiz){
   if (ROL !== 'cotizador' || !raiz) return;
-  raiz.querySelectorAll('a[href^="gestioninterna.html"]').forEach(a => { if (/#calendario$/.test(a.getAttribute('href')) && a.classList.contains('cal-f')) a.remove(); else a.setAttribute('href', 'mis-reservas.html'); });
+  raiz.querySelectorAll('a[href^="gestioninterna.html"]').forEach(a => { a.setAttribute('href', /#calendario$/.test(a.getAttribute('href')) ? 'mis-reservas.html#calendario' : 'mis-reservas.html'); });
 }
 function escucharResumenCot(email){
   let propias = new Set();

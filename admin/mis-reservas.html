@@ -51,6 +51,15 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);di
 .lista th{text-align:left;font-weight:600;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:rgba(43,43,43,.55);padding:9px 12px;border-bottom:1px solid var(--beige-d);white-space:nowrap}
 .lista td{padding:9px 12px;border-bottom:1px solid rgba(213,206,195,.5);vertical-align:middle}
 .lista tr.fila{cursor:pointer}
+.cal-g{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal-w{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:rgba(43,43,43,.5);padding:4px 6px}
+.cal-c{background:#fff;border-radius:8px;min-height:92px;padding:6px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.cal-c.hoy{box-shadow:inset 0 0 0 2px var(--teal)}
+.cal-n{font-size:11px;color:rgba(43,43,43,.55);font-weight:600}
+.cal-i{font-size:10.5px;line-height:1.3;padding:2px 5px;border-radius:4px;background:rgba(15,61,62,.08);color:var(--teal);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-i.t{background:#fdf3e2;color:#8a5a00}
+.cal-mas{font-size:10px;color:rgba(43,43,43,.55)}
+@media(max-width:640px){.cal-c{min-height:64px;padding:4px}.cal-i{font-size:9.5px}}
 .lista tr.fila:hover{background:var(--teal-l)}
 .vacio{padding:30px;text-align:center;font-size:12px;color:rgba(43,43,43,.5)}
 .pill{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--teal-l);color:var(--teal);white-space:nowrap}
@@ -244,7 +253,7 @@ function showBanner(msg){ const b = document.getElementById('banner'); b.textCon
 
 // ── DATOS ──────────────────────────────────────────────────────────────────
 const RES = {}, REFS = {}, NOMBRES_GRUPO = {}, PROPIAS = new Set(), COMPARTIDAS = new Set();
-let CARGADO = false, TAB = 'resumen', BUSCA = '', NOTA_STAFF = '';
+let CARGADO = false, TAB = location.hash === '#calendario' ? 'cal' : 'resumen', BUSCA = '', NOTA_STAFF = '';
 const RES_REF = db.ref('finanzas/reservas'), CODIGO_REF = db.ref('finanzas/meta/reservaCodigoCounter');
 const ESTADOS = { cotizado:'Cotizado', aceptado:'Aceptado', pagado:'Pagado', cancelado:'Cancelado', perdida:'Pérdida' };
 function attachListeners(){
@@ -301,11 +310,12 @@ function setTab(t){ TAB = t; render(); }
 function render(){
   sincronizarSub();
   setTimeout(refrescarModal, 0);
-  document.getElementById('tabs').innerHTML = [['resumen', 'Resumen'], ['res', 'Reservas'], ['pax', 'Pasajeros'], ['rec', 'Recibos']].filter(([k]) => TABS_ON.includes(k)).map(([k, l]) => `<button class="${TAB === k ? 'on' : ''}" onclick="setTab('${k}')">${l}</button>`).join('');
+  document.getElementById('tabs').innerHTML = [['resumen', 'Resumen'], ['res', 'Reservas'], ['pax', 'Pasajeros'], ['rec', 'Recibos'], ['cal', 'Calendario']].filter(([k]) => TABS_ON.includes(k)).map(([k, l]) => `<button class="${TAB === k ? 'on' : ''}" onclick="setTab('${k}')">${l}</button>`).join('');
   const v = document.getElementById('vista');
   if (TAB === 'resumen' && window.vistaResumen) { v.innerHTML = vistaResumen(); return; }
   if (TAB === 'pax' && window.vistaPasajeros) { v.innerHTML = vistaPasajeros(); return; }
   if (TAB === 'rec' && window.vistaRecibos) { v.innerHTML = vistaRecibos(); return; }
+  if (TAB === 'cal') { v.innerHTML = vistaCalendario(); return; }
   const q = BUSCA.toLowerCase();
   const ids = Object.keys(RES).filter(id => !q || [RES[id].codigo, RES[id].cliente, RES[id].concepto].join(' ').toLowerCase().includes(q)).sort((a, b) => String(RES[b].fechaInicio || '').localeCompare(String(RES[a].fechaInicio || '')));
   let h = `<div class="section-head"><h2>Mis reservas</h2><div class="row-btns"><input type="search" placeholder="Buscar…" value="${esc(BUSCA)}" oninput="BUSCA=this.value;render();this.focus()" style="font-family:'Inter',sans-serif;font-size:12px;border:1px solid var(--beige-d);border-radius:7px;padding:7px 9px">${CURRENT_USER.rol === 'cotizador' ? '<button class="btn" onclick="editarReserva()">+ Nueva reserva</button>' : ''}</div></div>`
@@ -316,7 +326,38 @@ function render(){
     return `<tr class="fila" onclick="${mia ? `editarReserva('${esc(id)}')` : `verReserva('${esc(id)}')`}"><td>${esc(r.codigo || '—')}</td><td><strong>${esc(r.cliente || '—')}</strong></td><td>${esc(r.concepto || '')}</td><td>${fecha(r.fechaInicio)}</td><td><span class="pill">${esc(ESTADOS[r.estado] || r.estado || '—')}</span></td><td class="num">${money(t.cot, r.moneda)}</td><td class="num">${money(t.pag, r.moneda)}</td><td class="num"><strong style="color:${t.saldo > 0.005 ? 'var(--red)' : 'var(--green)'}">${money(t.saldo, r.moneda)}</strong></td><td>${mia ? '<span class="pill ok">Mía</span>' : '<span class="pill">Compartida</span>'}</td></tr>`;
   }).join('') + '</tbody></table></div>';
 }
-let TABS_ON = ['resumen', 'res', 'pax', 'rec'];
+let TABS_ON = ['resumen', 'res', 'pax', 'rec', 'cal'];
+// ── CALENDARIO: viajes de las reservas propias y compartidas, y vencimientos de tarjeta pendientes ──
+let CAL_MES = '';
+const MESES_CAL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const isoDe = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function calMover(n){ if (n === 0) CAL_MES = isoDe(new Date()).slice(0, 7); else { const [y, m] = CAL_MES.split('-').map(Number); CAL_MES = isoDe(new Date(y, m - 1 + n, 1)).slice(0, 7); } render(); }
+function eventosCalendario(){
+  const ev = {}, add = (f, o) => (ev[f] = ev[f] || []).push(o);
+  Object.keys(RES).forEach(id => {
+    const r = RES[id]; if (r.estado === 'cancelado' || r.estado === 'perdida') return;
+    const abrir = PROPIAS.has(id) ? `editarReserva('${esc(id)}')` : `verReserva('${esc(id)}')`;
+    if (r.fechaInicio){
+      const fin = r.fechaFin && r.fechaFin >= r.fechaInicio ? r.fechaFin : r.fechaInicio;
+      for (let d = new Date(r.fechaInicio + 'T00:00:00'), n = 0; isoDe(d) <= fin && n < 62; d.setDate(d.getDate() + 1), n++)
+        add(isoDe(d), { k: 'r', t: [r.concepto, r.cliente].filter(Boolean).join(' · ') || r.codigo || '—', abrir });
+    }
+    arr(r.costos).forEach(c => { if (c.medio === 'tarjeta' && !c.pagado && c.fechaVencimiento) add(c.fechaVencimiento, { k: 't', t: `Vence tarjeta · ${c.proveedor || 'sin proveedor'} · ${money(c.monto, c.moneda || r.moneda)}`, abrir }); });
+  });
+  return ev;
+}
+function vistaCalendario(){
+  if (!CAL_MES) CAL_MES = isoDe(new Date()).slice(0, 7);
+  const [y, m] = CAL_MES.split('-').map(Number), ev = eventosCalendario(), hoy = isoDe(new Date());
+  let c = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(d => `<div class="cal-w">${d}</div>`).join('') + '<div></div>'.repeat(new Date(y, m - 1, 1).getDay());
+  for (let d = 1, n = new Date(y, m, 0).getDate(); d <= n; d++){
+    const f = `${CAL_MES}-${String(d).padStart(2, '0')}`, it = ev[f] || [];
+    c += `<div class="cal-c${f === hoy ? ' hoy' : ''}"><div class="cal-n">${d}</div>${it.slice(0, 3).map(x => `<div class="cal-i ${x.k}" onclick="${x.abrir}" title="${esc(x.t)}">${esc(x.t)}</div>`).join('')}${it.length > 3 ? `<div class="cal-mas" title="${esc(it.slice(3).map(x => x.t).join('\n'))}">+${it.length - 3} más</div>` : ''}</div>`;
+  }
+  return `<div class="section-head"><h2>Calendario</h2><div class="row-btns"><button class="btn outline small" onclick="calMover(-1)">‹</button><strong style="min-width:140px;text-align:center">${MESES_CAL[m - 1]} ${y}</strong><button class="btn outline small" onclick="calMover(1)">›</button><button class="btn outline small" onclick="calMover(0)">Hoy</button></div></div>`
+    + `<div class="hint">Viajes de tus reservas y de las que te compartieron, y vencimientos de tarjeta pendientes. Tocá un evento para abrir la reserva.</div>`
+    + `<div class="cal-g">${c}</div>`;
+}
 // ── EDITOR de las reservas propias (solo los campos que maneja la cuenta: nunca reparto ni facturación) ──
 let ED = null;
 const uid = () => 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
