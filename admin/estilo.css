@@ -1,0 +1,34 @@
+/* Capa visual común de la app interna (rediseño): se carga después de los estilos propios de cada página.
+   Criterio: superficies blancas sin bordes marcados sobre el beige, jerarquía por tamaño y peso (no por cajas),
+   botones secundarios silenciosos, el verde como color principal y el bronce solo como acento. */
+:root{--ui-linea:rgba(213,206,195,.55)}
+
+/* Superficies */
+#tab-body{background:transparent!important;border-top-color:transparent!important}
+.card,.sec,.stat-card,.table-wrap,.alert-col{border-color:transparent!important;box-shadow:none!important}
+.card,.sec{border-radius:14px}
+.card{padding:16px 18px}
+.hab,.lista,.fq,.item-card{border-color:var(--ui-linea)!important;box-shadow:none!important}
+.card h3,.sec h3{font-size:14px;color:var(--dark);letter-spacing:-.1px}
+.section-head h2{font-size:17px;letter-spacing:-.2px}
+.hint{color:rgba(43,43,43,.55)}
+
+/* Botones: el principal en verde de marca; los secundarios con contorno suave */
+.btn.outline{border-width:1px;border-color:var(--beige-d)}
+.btn.outline:hover{border-color:var(--teal);background:rgba(15,61,62,.05)}
+.new-btn{background:var(--teal)}
+.new-btn:hover{background:#0c3233}
+
+/* Tablas: encabezado liviano, filas separadas por una línea fina, cifras alineadas */
+.data-table th,.lista th{background:transparent;border-bottom:1px solid var(--ui-linea)}
+.data-table td,.lista td{border-bottom:1px solid rgba(213,206,195,.4)}
+.data-table tbody tr:hover td{background:rgba(15,61,62,.03)}
+.money.usd{color:var(--teal)}
+.num,.money,.stat-amount,.alert-amount{font-variant-numeric:tabular-nums}
+
+/* Pestañas de Grupos y Mis reservas: pestaña activa al nivel del contenido */
+.tab.on{background:var(--board,#e8e3da);border-color:transparent}
+
+/* Cifras de las tarjetas del resumen: verde de marca (el bronce queda como acento); las alertas siguen en rojo */
+.stat-card:not(.alert) .stat-amount{color:var(--teal)!important}
+.stat-card .stat-amount.empty{color:rgba(43,43,43,.4)!important}
