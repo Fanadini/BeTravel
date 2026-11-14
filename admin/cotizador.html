@@ -80,8 +80,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .back-link{font-size:12px;color:var(--teal);text-decoration:none;font-weight:500;display:inline-flex;gap:6px;margin-bottom:12px;cursor:pointer;background:none;border:none;font-family:'Inter',sans-serif}
 .back-link:hover{text-decoration:underline}
 .card{background:var(--white);border-radius:10px;box-shadow:var(--shadow-s);padding:18px 20px;margin-bottom:14px}
-.card h3{font-size:10px;font-weight:600;color:rgba(43,43,43,.45);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
-.card h3::after{content:'';flex:1;height:1px;background:var(--beige-d)}
+.card h3{font-size:14px;font-weight:600;color:var(--dark);letter-spacing:-.1px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .card-hint{font-size:11px;color:rgba(43,43,43,.45);line-height:1.5;margin:-4px 0 12px}
 .fl{display:block;font-size:11px;font-weight:500;color:rgba(43,43,43,.5);margin-bottom:5px}
 .fi,.fsel,.fta{width:100%;font-family:'Inter',sans-serif;font-size:13px;color:var(--dark);background:var(--beige);border:1.5px solid var(--beige-d);border-radius:8px;padding:9px 12px;outline:none;transition:border-color .15s,background .15s}
@@ -246,7 +245,11 @@ input[type=date].fi::-webkit-date-and-time-value{text-align:left;min-height:1.2e
 .row-btns .add-item-btn{flex:1}
 
 /* Resumen lateral */
-.side{position:sticky;top:0}
+.side{position:sticky;top:12px;align-self:start}
+.mas-acc{position:relative}
+.mas-acc>summary{list-style:none;cursor:pointer;text-align:center}
+.mas-acc>summary::-webkit-details-marker{display:none}
+.mas-acc-pop{display:flex;flex-direction:column;gap:6px;margin-top:6px}
 .side .card{padding:16px 18px}
 .tot-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:12px;padding:5px 0;color:rgba(43,43,43,.65)}
 .tot-line b{font-size:13px;color:var(--dark);white-space:nowrap}
@@ -1416,11 +1419,14 @@ function renderEditor(){
           <div class="side-btns">
             <button class="new-btn" onclick="abrirDeck(false)">Vista previa</button>
             <button class="new-btn outline" onclick="abrirDeck(true)">Descargar PDF</button>
-            <button class="new-btn outline" onclick="convertirEnReserva()">${c.reservaId ? 'Ver reserva →' : 'Convertir en reserva'}</button>
-            <button class="new-btn outline" onclick="duplicarCotizacion()">Duplicar</button>
-            <button class="new-btn outline solo-admin" style="${CURRENT_USER.rol === 'admin' ? '' : 'display:none'}" onclick="abrirInformeContador()" title="Costo y venta de cada producto, para compartir con el contador">Informe para contador</button>
+            ${c.reservaId ? `<button class="new-btn outline" onclick="convertirEnReserva()">Ver reserva →</button>` : ''}
+            <details class="mas-acc"><summary class="new-btn outline">Más acciones ▾</summary><div class="mas-acc-pop">
+              ${c.reservaId ? '' : `<button class="new-btn outline" onclick="convertirEnReserva()">Convertir en reserva</button>`}
+              <button class="new-btn outline" onclick="duplicarCotizacion()">Duplicar</button>
+              <button class="new-btn outline solo-admin" style="${CURRENT_USER.rol === 'admin' ? '' : 'display:none'}" onclick="abrirInformeContador()" title="Costo y venta de cada producto, para compartir con el contador">Informe para contador</button>
+              <div style="text-align:center"><button class="link-danger" onclick="eliminarCotizacion()">Eliminar cotización</button></div>
+            </div></details>
           </div>
-          <div style="text-align:center"><button class="link-danger" onclick="eliminarCotizacion()">Eliminar cotización</button></div>
           <div class="save-status" id="save-status"></div>
         </div>
       </div>

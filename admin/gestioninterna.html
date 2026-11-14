@@ -177,6 +177,25 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
 .pagos-resumen .pr-total{border-bottom:0;border-top:1.5px solid var(--beige-d);margin-top:2px;font-weight:600}
 .panel-pleg{flex-shrink:0;display:flex;gap:8px;align-items:center;font-size:12px;padding:8px max(24px,3vw);background:var(--beige);border-bottom:1px solid var(--beige-d);color:rgba(43,43,43,.65)}
 .panel-pleg a{color:var(--teal);cursor:pointer;text-decoration:underline}
+.res-kpis{flex-shrink:0;display:flex;flex-wrap:wrap;gap:6px 22px;align-items:flex-end;padding:12px max(24px,3vw);background:#fff;border-bottom:1px solid var(--beige-d)}
+.res-kpis:empty{display:none}
+.res-kpis .rk{display:flex;flex-direction:column;gap:2px}
+.res-kpis .rk span{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:rgba(43,43,43,.5)}
+.res-kpis .rk b{font-size:17px;font-weight:600;color:var(--dark);font-variant-numeric:tabular-nums}
+.res-kpis .rk.pos b{color:var(--teal)} .res-kpis .rk.neg b{color:var(--red)}
+.res-kpis .rk.foco b{color:var(--bronze)} .res-kpis .rk.ok b{color:var(--teal)}
+.res-kpis .rk-avisos{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.res-kpis .rk-avisos span{font-size:11px;background:#fdf3e2;color:#8a5a00;border-radius:20px;padding:4px 10px}
+#reserva-panel .linea-1{display:grid;grid-template-columns:110px minmax(0,1fr) 110px 76px;gap:8px}
+#reserva-panel .linea-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:6px}
+@media(max-width:640px){#reserva-panel .linea-1{grid-template-columns:1fr 1fr}}
+#reserva-panel details.mas-op{margin-top:6px}
+#reserva-panel details.mas-op>summary,details.mas-datos>summary{cursor:pointer;font-size:11px;color:var(--teal);list-style:none;user-select:none}
+#reserva-panel details.mas-op>summary::before,details.mas-datos>summary::before{content:'▸ ';color:rgba(43,43,43,.4)}
+#reserva-panel details[open].mas-op>summary::before,details[open].mas-datos>summary::before{content:'▾ '}
+details.mas-datos{margin:6px 0 12px;padding:10px 0 0;border-top:1px solid var(--ui-linea,rgba(213,206,195,.55))}
+details.mas-datos>summary{font-size:12px;font-weight:600;margin-bottom:8px}
+details.mas-datos>summary span{font-weight:400;color:rgba(43,43,43,.5);margin-left:4px}
 #reserva-panel .pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,430px),1fr));gap:22px;align-items:start;max-width:1900px;margin:0 auto}
 #reserva-panel .pcol{min-width:0}
 #reserva-panel .psec{background:var(--white);border:1px solid var(--beige-d);border-radius:12px;padding:16px 18px;margin-bottom:18px}
@@ -535,6 +554,7 @@ body{font-family:'Inter',sans-serif;background:var(--board);color:var(--dark);he
     <button class="panel-close" onclick="closeReserva()">✕</button>
   </div>
   <div class="panel-last-edit" id="panel-last-edit"></div>
+  <div class="res-kpis" id="res-kpis"></div>
   <div class="panel-pleg" id="reserva-pleg"><span>Tarjetas de la reserva:</span><a onclick="plegarTodoReserva(true)">Plegar todo</a> · <a onclick="plegarTodoReserva(false)">Desplegar todo</a></div>
   <div class="panel-body" id="reserva-panel-body"></div>
   <div class="panel-footer">
@@ -2571,8 +2591,13 @@ function costoRowHtml(c, monedaReserva){
   const showVencimientoTarjeta = medio==='tarjeta';
   return `<div class="item-card costo-row" data-row-id="${c.id}" data-pagado="${c.pagado?'true':'false'}">
     <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="pleg-t" onclick="togglePlegar(this)" title="Plegar / desplegar">▾</span><span class="item-card-label pleg-t" onclick="togglePlegar(this)">Costo</span><span class="item-card-sum" onclick="togglePlegar(this)"></span><button type="button" class="item-delete-btn" onclick="this.closest('.costo-row').remove();recalcDerived();saveReserva()">✕</button></div>
-    <div class="item-fields cols3">
+    <div class="linea-1">
       <div class="item-field"><span class="item-field-label">Tipo</span><select class="costo-tipo" onchange="onCostoRowChange(this)">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,c.tipo||'Otro')}</select></div>
+      <div class="item-field"><span class="item-field-label">Concepto</span><input class="costo-concepto" value="${escHtml(c.concepto)}" placeholder="Ej: Hotel Llao Llao, 3 noches"></div>
+      <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="costo-monto" value="${c.monto??''}" oninput="pppUpdate(this)" ${c.modo==='pp'||c.modo==='hab'?'readonly':''}></div>
+      <div class="item-field"><span class="item-field-label">Moneda</span><select class="costo-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],cMoneda)}</select></div>
+    </div>
+    <div class="linea-2">
       <div class="item-field"><span class="item-field-label">Medio de pago</span><select class="costo-medio" onchange="onCostoRowChange(this)">${selOpts(MEDIO_PAGO_TIPOS,MEDIO_PAGO_TIPOS.map(m=>MEDIO_PAGO_LABELS[m]),medio)}</select></div>
       <div class="item-field"><span class="item-field-label">Proveedor</span>
         <div style="display:flex;gap:4px">
@@ -2580,17 +2605,14 @@ function costoRowHtml(c, monedaReserva){
           <button type="button" class="mini-add-btn" onclick="addNuevoProveedor(this)" title="Agregar proveedor nuevo a la lista">+</button>
         </div>
       </div>
+      <div class="item-field costo-fechaemision-wrap" style="${showFechaEmision?'':'display:none'}"><span class="item-field-label">Fecha de emisión del billete (para BSP)</span><input type="date" class="costo-fecha-emision" value="${c.fechaEmision||''}"></div>
+      <div class="item-field costo-vencimiento-tarjeta-wrap" style="${showVencimientoTarjeta?'':'display:none'}"><span class="item-field-label">Vencimiento de la tarjeta</span><input type="date" class="costo-vencimiento-tarjeta" value="${c.fechaVencimiento||''}"></div>
+      <div class="item-field"><span class="item-field-label">Fecha de pago (si ya se pagó)</span><input type="date" class="costo-fecha-pago" value="${c.fechaPago||''}"></div>
     </div>
-    <div class="item-field" style="margin-top:6px"><span class="item-field-label">Concepto</span><input class="costo-concepto" value="${escHtml(c.concepto)}" placeholder="Ej: Hotel Llao Llao, 3 noches"></div>
-    <div class="item-fields cols3" style="margin-top:6px">
-      <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="costo-monto" value="${c.monto??''}" oninput="pppUpdate(this)" ${c.modo==='pp'||c.modo==='hab'?'readonly':''}></div>
-      <div class="item-field"><span class="item-field-label">Moneda</span><select class="costo-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],cMoneda)}</select></div>
-      <div class="item-field"><span class="item-field-label">T.C. (si es otra moneda)</span><input type="number" step="0.01" class="costo-tc" value="${c.tipoCambio??''}" oninput="recalcDerived()" placeholder="Ej: 1050"></div>
-    </div>
-    ${pppHtml(c, 'costo')}
-    <div class="item-field costo-fechaemision-wrap" style="margin-top:6px;${showFechaEmision?'':'display:none'}"><span class="item-field-label">Fecha de emisión del billete (para BSP)</span><input type="date" class="costo-fecha-emision" value="${c.fechaEmision||''}"></div>
-    <div class="item-field costo-vencimiento-tarjeta-wrap" style="margin-top:6px;${showVencimientoTarjeta?'':'display:none'}"><span class="item-field-label">Fecha de vencimiento de la tarjeta</span><input type="date" class="costo-vencimiento-tarjeta" value="${c.fechaVencimiento||''}"></div>
-    <div class="item-field" style="margin-top:6px"><span class="item-field-label">Fecha de pago (para la Caja, si ya se pagó)</span><input type="date" class="costo-fecha-pago" value="${c.fechaPago||''}"></div>
+    <details class="mas-op" ${(c.modo && c.modo!=='total') || c.tipoCambio ? 'open' : ''}><summary>Tipo de cambio y valor por persona o habitación</summary>
+      <div class="item-field" style="margin-top:6px;max-width:220px"><span class="item-field-label">T.C. (si es otra moneda)</span><input type="number" step="0.01" class="costo-tc" value="${c.tipoCambio??''}" oninput="recalcDerived()" placeholder="Ej: 1050"></div>
+      ${pppHtml(c, 'costo')}
+    </details>
     <div class="costo-equiv" style="font-size:11px;margin-top:6px"></div>
   </div>`;
 }
@@ -2688,16 +2710,16 @@ function cotizadoRowHtml(c, monedaReserva){
   const cMoneda = c.moneda || monedaReserva || 'ARS';
   return `<div class="item-card cotizado-row" data-row-id="${c.id}">
     <div class="item-card-header"><span class="drag-h" title="Arrastrar para cambiar el orden">⋮⋮</span><span class="pleg-t" onclick="togglePlegar(this)" title="Plegar / desplegar">▾</span><span class="item-card-label pleg-t" onclick="togglePlegar(this)">Ítem cotizado</span><span class="item-card-sum" onclick="togglePlegar(this)"></span><button type="button" class="item-delete-btn" onclick="this.closest('.cotizado-row').remove();recalcDerived();saveReserva()">✕</button></div>
-    <div class="item-fields cols3">
+    <div class="linea-1">
       <div class="item-field"><span class="item-field-label">Tipo</span><select class="cotizado-tipo" onchange="pppUpdate(this)">${selOpts(SERVICIO_TIPOS,SERVICIO_TIPOS,c.tipo||'Otro')}</select></div>
+      <div class="item-field"><span class="item-field-label">Concepto</span><input class="cotizado-concepto" value="${escHtml(c.concepto)}" placeholder="Ej: Hotel Llao Llao, 3 noches"></div>
       <div class="item-field"><span class="item-field-label">Monto</span><input type="number" step="0.01" class="cotizado-monto" value="${c.monto??''}" oninput="pppUpdate(this)" ${c.modo==='pp'||c.modo==='hab'?'readonly':''}></div>
       <div class="item-field"><span class="item-field-label">Moneda</span><select class="cotizado-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],cMoneda)}</select></div>
     </div>
-    <div class="item-fields" style="margin-top:6px">
-      <div class="item-field"><span class="item-field-label">Concepto</span><input class="cotizado-concepto" value="${escHtml(c.concepto)}" placeholder="Ej: Hotel Llao Llao, 3 noches"></div>
-      <div class="item-field"><span class="item-field-label">T.C. (si es otra moneda)</span><input type="number" step="0.01" class="cotizado-tc" value="${c.tipoCambio??''}" oninput="recalcDerived()" placeholder="Ej: 1050"></div>
-    </div>
-    ${pppHtml(c, 'cotizado')}
+    <details class="mas-op" ${(c.modo && c.modo!=='total') || c.tipoCambio ? 'open' : ''}><summary>Tipo de cambio y valor por persona o habitación</summary>
+      <div class="item-field" style="margin-top:6px;max-width:220px"><span class="item-field-label">T.C. (si es otra moneda)</span><input type="number" step="0.01" class="cotizado-tc" value="${c.tipoCambio??''}" oninput="recalcDerived()" placeholder="Ej: 1050"></div>
+      ${pppHtml(c, 'cotizado')}
+    </details>
     <div class="cotizado-equiv" style="font-size:11px;margin-top:6px"></div>
   </div>`;
 }
@@ -2902,6 +2924,25 @@ function recalcDerived(){
   if (sEl) sEl.textContent = valorConv.note==='falta-tc' ? '⚠ Falta TC' : fmtMoney(saldo, moneda);
 
   recalcReparto(margen, moneda);
+  pintarKpisReserva({ moneda, ok, margen, valor: valorConv, pagos: pagosTotal + cobradoDirectoTotal, saldo });
+}
+// Barra fija arriba del editor: si la reserva cierra, sin bajar hasta el final
+function pintarKpisReserva(x){
+  const box = document.getElementById('res-kpis'); if (!box) return;
+  const faltaTc = x.valor.note === 'falta-tc' || !x.ok;
+  const costos = x.ok && x.valor.note !== 'falta-tc' ? x.valor.value - x.margen : null;
+  const k = (l, v, cls) => `<div class="rk ${cls || ''}"><span>${l}</span><b>${v}</b></div>`;
+  const avisos = [];
+  const nTc = [...document.querySelectorAll('#reserva-panel .pago-equiv,#reserva-panel .costo-equiv,#reserva-panel .cotizado-equiv')].filter(e => e.textContent.trim().startsWith('⚠')).length;
+  if (nTc) avisos.push(`${nTc} línea${nTc > 1 ? 's' : ''} sin tipo de cambio`);
+  const pw = document.getElementById('pct-warning');
+  if (pw && pw.textContent.trim() && !pw.classList.contains('ok')) avisos.push('Reparto: ' + pw.textContent.trim().replace(/^⚠\s*/, ''));
+  box.innerHTML = k('Cotizado', x.valor.note === 'falta-tc' ? '—' : fmtMoney(x.valor.value, x.moneda))
+    + k('Costos', costos == null ? '—' : fmtMoney(costos, x.moneda))
+    + k('Margen', faltaTc ? '—' : fmtMoney(x.margen, x.moneda), x.margen < 0 ? 'neg' : 'pos')
+    + k('Cobrado', fmtMoney(x.pagos, x.moneda))
+    + k('Saldo a cobrar', x.valor.note === 'falta-tc' ? '—' : fmtMoney(x.saldo, x.moneda), x.saldo > 0.005 ? 'foco' : 'ok')
+    + (avisos.length ? `<div class="rk-avisos">${avisos.map(a => `<span>⚠ ${escHtml(a)}</span>`).join('')}</div>` : '');
 }
 function recalcReparto(margenOverride, monedaOverride){
   const current = getCurrentMargen();
@@ -3151,9 +3192,21 @@ function renderReservaPanel(){
     <div class="pcol">
     <div class="psec">
       <div class="psec-title">Datos generales</div>
+      <div class="frow2">
+        <div><label class="fl">Cliente</label><input class="fi" id="r-cliente" value="${escHtml(d.cliente)}" placeholder="Nombre del cliente / empresa"></div>
+        <div><label class="fl">Concepto / Destino</label><input class="fi" id="r-concepto" value="${escHtml(d.concepto)}" placeholder="Ej: Grupo Bariloche · 40 pax"></div>
+      </div>
+      <div class="frow2">
+        <div><label class="fl">Inicio de viaje</label><input class="fi" id="r-fecha-inicio" type="date" value="${d.fechaInicio||''}"></div>
+        <div><label class="fl">Fin de viaje</label><input class="fi" id="r-fecha-fin" type="date" value="${d.fechaFin||''}"></div>
+      </div>
+      <div class="frow2">
+        <div><label class="fl">Moneda de referencia</label><select class="fsel" id="r-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],d.moneda||'ARS')}</select></div>
+        <div><label class="fl">Estado</label><select class="fsel" id="r-estado">${selOpts(['cotizado','aceptado','pagado','cancelado','perdida'],['Cotizado','Aceptado','Pagado','Cancelado','Pérdida'],d.estado||'cotizado')}</select></div>
+      </div>
+      <details class="mas-datos" ${d.grupoId || d.pasajeros ? '' : ''}>
+        <summary>Más datos <span>código, grupo, dueño, servicios, pasajeros, fecha de cotización</span></summary>
       <div class="frow"><label class="fl">Código interno</label><input class="fi" id="r-codigo" value="${escHtml(d.codigo)}" placeholder="Se asigna automáticamente (BeT#) si lo dejás vacío"></div>
-      <div class="frow"><label class="fl">Cliente</label><input class="fi" id="r-cliente" value="${escHtml(d.cliente)}" placeholder="Nombre del cliente / empresa"></div>
-      <div class="frow"><label class="fl">Concepto / Destino</label><input class="fi" id="r-concepto" value="${escHtml(d.concepto)}" placeholder="Ej: Grupo Bariloche · 40 pax"></div>
       <div class="frow"><label class="fl">Grupo de pasajeros (página Grupos)</label>
         <select class="fsel" id="r-grupo" onchange="onGrupoChange()">${grupoOptionsHtml(d.grupoId)}</select>
         <div class="upload-hint" style="margin-top:4px">Al vincularlo, cada pago puede asignarse a los pasajeros del grupo y se ve en su lista.</div></div>
@@ -3168,17 +3221,10 @@ function renderReservaPanel(){
         <input class="fi" id="r-servicio-otro" style="margin-top:8px;${(d.servicios||[]).includes('Otro')?'':'display:none'}" value="${escHtml(d.servicioOtroTexto)}" placeholder="Especificar el servicio">
       </div>
       <div class="frow2">
-        <div><label class="fl">Moneda de referencia</label><select class="fsel" id="r-moneda" onchange="recalcDerived()">${selOpts(['ARS','USD'],['ARS','USD'],d.moneda||'ARS')}</select></div>
-        <div><label class="fl">Estado</label><select class="fsel" id="r-estado">${selOpts(['cotizado','aceptado','pagado','cancelado','perdida'],['Cotizado','Aceptado','Pagado','Cancelado','Pérdida'],d.estado||'cotizado')}</select></div>
-      </div>
-      <div class="frow2">
         <div><label class="fl">Fecha de cotización</label><input class="fi" id="r-fecha-cotizacion" type="date" value="${d.fechaCotizacion||''}"></div>
         <div><label class="fl">Cantidad de pasajeros</label><input class="fi" id="r-pasajeros" type="number" step="1" min="0" value="${d.pasajeros??''}" placeholder="Ej: 40"></div>
       </div>
-      <div class="frow2">
-        <div><label class="fl">Inicio de viaje</label><input class="fi" id="r-fecha-inicio" type="date" value="${d.fechaInicio||''}"></div>
-        <div><label class="fl">Fin de viaje</label><input class="fi" id="r-fecha-fin" type="date" value="${d.fechaFin||''}"></div>
-      </div>
+      </details>
       <div class="frow"><label class="fl">Notas</label><textarea class="fta" id="r-notas" placeholder="Detalle, itinerario, condiciones…">${escHtml(d.notas)}</textarea></div>
     </div>
 
@@ -3200,10 +3246,6 @@ function renderReservaPanel(){
       <div class="upload-hint" style="margin-bottom:8px">Una línea por cada servicio cotizado al cliente (igual que Costos), para desglosar de qué se compone el total.</div>
       <div id="cotizado-list">${(d.cotizado||[]).map(c => cotizadoRowHtml(c, d.moneda)).join('')}</div>
       <button type="button" class="add-item-btn" onclick="addCotizado()">+ Agregar ítem cotizado</button>
-      <div class="derived-box" style="margin-top:14px">
-        <div class="derived-item">Margen<b id="derived-margen">${fmtMoney(reservaMargenLocal(d), d.moneda)}</b></div>
-        <div class="derived-item">Saldo pendiente<b id="derived-saldo">${fmtMoney(objToArr(d.cotizado).reduce((s,c)=>s+(Number(c.monto)||0),0)-pagosEquivSum(d.pagos, d.moneda)-objToArr(d.reparto).reduce((s,rep)=>s+(Number(rep.montoCobradoDirecto)||0),0), d.moneda)}</b></div>
-      </div>
     </div>
 
     <div class="psec">
