@@ -274,6 +274,13 @@ section { padding: 96px 48px; }
   overflow: hidden;
 }
 
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 200px;
+  background: linear-gradient(to top, rgba(15,61,62,0.8), transparent);
+}
 
 .hero-content {
   position: relative;
@@ -287,50 +294,9 @@ section { padding: 96px 48px; }
   color: var(--beige);
   letter-spacing: -2px;
   line-height: 1;
-  margin-bottom: 28px;
+  margin-bottom: 40px;
   opacity: 0;
   animation: fadeUp 0.8s 0.4s forwards;
-}
-
-/* Propuesta de valor bajo el logo y acceso a las tres unidades */
-.hero-claim {
-  font-size: clamp(16px, 1.6vw, 19px);
-  line-height: 1.55;
-  color: rgba(230,225,216,0.78);
-  max-width: 520px;
-  margin: 0 auto 44px;
-  opacity: 0;
-  animation: fadeUp 0.8s 0.6s forwards;
-}
-
-.hero-units {
-  position: absolute;
-  bottom: 40px;
-  left: 0; right: 0;
-  z-index: 2;
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px 36px;
-  padding: 0 24px;
-  opacity: 0;
-  animation: fadeUp 0.8s 1.1s forwards;
-}
-
-.hero-units a {
-  font-size: 12px;
-  letter-spacing: .4px;
-  color: rgba(230,225,216,0.6);
-  text-decoration: none;
-  padding-bottom: 4px;
-  border-bottom: 1px solid rgba(230,225,216,0.18);
-  transition: color .2s, border-color .2s;
-}
-
-.hero-units a:hover { color: var(--beige); border-color: var(--bronze); }
-
-@media (max-width: 600px) {
-  .hero-units { position: static; margin-top: 56px; flex-direction: column; align-items: center; gap: 14px; }
 }
 
 .hero-brand span { color: var(--bronze); }
@@ -771,7 +737,7 @@ section { padding: 96px 48px; }
   background: var(--white);
   padding: 48px;
   border-radius: 3px;
-  border: 1px solid rgba(15,61,62,0.08);
+  box-shadow: 0 2px 24px rgba(15,61,62,0.07);
 }
 
 .form-header { margin-bottom: 36px; }
@@ -814,8 +780,8 @@ section { padding: 96px 48px; }
   font-family: 'Inter', sans-serif;
   font-size: 14px;
   color: var(--dark);
-  background: var(--white);
-  border: 1px solid rgba(15,61,62,0.16);
+  background: var(--beige);
+  border: 1px solid rgba(15,61,62,0.15);
   border-radius: 2px;
   outline: none;
   transition: border-color 0.2s;
