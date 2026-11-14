@@ -80,7 +80,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 <link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="favicon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -117,12 +117,13 @@
 <section class="hero" id="inicio">
   <div class="hero-content">
     <h1 class="hero-brand">Be<span>•</span>Travel</h1>
+    <p class="hero-claim">Turismo de grupos y corporativo. Diseñamos, coordinamos y operamos programas con criterio.</p>
     <div class="hero-actions">
       <a href="#contacto" class="btn-primary">Iniciar consulta</a>
       <a href="#unidades" class="btn-secondary">Ver servicios</a>
     </div>
   </div>
-  <div class="hero-scroll"><span>Scroll</span><div class="scroll-line"></div></div>
+  <div class="hero-units" role="navigation" aria-label="Unidades de negocio"><a href="becorporate.html">Be•Corporate</a><a href="vacacional.html">Be•Travel · Vacacional</a><a href="becommunity.html">Be•Community</a></div>
 </section>
 
 <section id="quienes">
@@ -175,7 +176,7 @@
     <div class="process-left">
       <div class="section-label">Cómo trabajamos</div>
       <h2 class="section-title">De la consulta al regreso.</h2>
-      <p class="section-body">Vos definís el objetivo. Nosotros resolvemos el resto.</p>
+      <p class="section-body">Ustedes definen el objetivo. Nosotros resolvemos el resto.</p>
     </div>
     <div class="process-steps">
       <div class="process-step"><div class="step-number">01</div><div class="step-content"><h4>Entendemos el objetivo</h4><p>Antes de cotizar, consultamos. ¿Cuál es el propósito del viaje? ¿Qué tiene que lograr el grupo al regresar? Sin objetivo claro, no existe propuesta correcta.</p></div></div>
@@ -187,7 +188,7 @@
 </section>
 
 <div class="closing-band">
-  <h2>Viajá con <em>criterio</em>.</h2>
+  <h2>Viaje con <em>criterio</em>.</h2>
   <a href="#contacto" class="btn-primary">Iniciar una consulta</a>
 </div>
 
@@ -195,8 +196,8 @@
   <div class="contact-inner container">
     <div class="contact-left">
       <div class="section-label">Contacto</div>
-      <h2 class="section-title">Contanos sobre tu próximo programa.</h2>
-      <p class="section-body">Te respondemos con una propuesta concreta, no con un catálogo. Para eso necesitamos entender tu objetivo antes de cotizar.</p>
+      <h2 class="section-title">Cuéntenos sobre su próximo programa.</h2>
+      <p class="section-body">Respondemos con una propuesta concreta, no con un catálogo. Para eso necesitamos entender su objetivo antes de cotizar.</p>
       <div class="contact-info">
         <div class="contact-info-item"><span class="info-label">Email</span><a href="mailto:info@betravel.com.ar" class="info-value">info@betravel.com.ar</a></div>
         <div class="contact-info-item"><span class="info-label">Sede</span><span class="info-value" style="cursor:default;">Buenos Aires, Argentina</span></div>
@@ -204,10 +205,10 @@
       </div>
     </div>
     <div class="contact-form">
-      <div class="form-header"><h3>Inicia una consulta</h3><p>Completa los datos para que podamos contactarte y armar una propuesta adecuada a tu objetivo.</p></div>
+      <div class="form-header"><h3>Iniciar una consulta</h3><p>Complete los datos para que podamos contactarlo y armar una propuesta adecuada a su objetivo.</p></div>
       <form id="contacto-form">
         <div class="form-row">
-          <div class="form-group"><label class="form-label">Nombre <span class="required">*</span></label><input type="text" name="nombre" class="form-input" placeholder="Tu nombre" required></div>
+          <div class="form-group"><label class="form-label">Nombre <span class="required">*</span></label><input type="text" name="nombre" class="form-input" placeholder="Nombre y apellido" required></div>
           <div class="form-group"><label class="form-label">Empresa / Organización</label><input type="text" name="empresa" class="form-input" placeholder="Nombre de la empresa"></div>
         </div>
         <div class="form-row">
@@ -217,7 +218,7 @@
         <div class="form-group">
           <label class="form-label">Tipo de programa <span class="required">*</span></label>
           <select name="programa" class="form-select" required>
-            <option value="" disabled selected>Seleccioná una opción</option>
+            <option value="" disabled selected>Seleccione una opción</option>
             <option>Be•Corporate · MICE — Viaje corporativo / congreso / incentivo</option>
             <option>Be•Travel · Vacacional — Viaje vacacional premium</option>
             <option>Be•Community — Viaje grupal de comunidad</option>
@@ -229,10 +230,10 @@
           <div class="form-group"><label class="form-label">Fecha estimada de viaje</label><input type="text" name="fecha" class="form-input" placeholder="Ej: Junio 2025"></div>
         </div>
         <div class="form-group"><label class="form-label">Destino o idea de destino</label><input type="text" name="destino" class="form-input" placeholder="Ej: Europa, Brasil, o aún sin definir"></div>
-        <div class="form-group"><label class="form-label">Objetivo del viaje</label><textarea name="objetivo" class="form-textarea" placeholder="Contanos brevemente qué querés lograr con este viaje. Esa información nos ayuda a diseñar una propuesta correcta."></textarea></div>
+        <div class="form-group"><label class="form-label">Objetivo del viaje</label><textarea name="objetivo" class="form-textarea" placeholder="Cuéntenos brevemente qué quiere lograr con este viaje. Esa información nos ayuda a diseñar una propuesta correcta."></textarea></div>
         <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off">
         <button type="submit" class="form-submit">Enviar consulta</button>
-        <p class="form-note">Te respondemos dentro de las 24 horas hábiles. Sin catálogos, sin presión.</p>
+        <p class="form-note">Respondemos dentro de las 24 horas hábiles. Sin catálogos, sin presión.</p>
         <div id="form-status"></div>
       </form>
     </div>
@@ -311,7 +312,7 @@
   <div class="modal" role="dialog" aria-modal="true">
     <div class="modal-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
     <h3>Consulta recibida</h3>
-    <p>Gracias, <span id="modal-nombre"></span>. Recibimos tu consulta y te respondemos dentro de las <strong>24 horas hábiles</strong> con una propuesta concreta.</p>
+    <p>Gracias, <span id="modal-nombre"></span>. Recibimos su consulta y respondemos dentro de las <strong>24 horas hábiles</strong> con una propuesta concreta.</p>
     <button class="modal-close" onclick="closeModal()">Entendido</button>
   </div>
 </div>
@@ -406,11 +407,11 @@
           form.reset();
         } else {
           statusDiv.style.cssText = "margin-top:16px;padding:14px 16px;background:#fdf0e6;border-radius:2px;font-size:13px;color:#8a4a1a;font-family:Inter,sans-serif;";
-          statusDiv.textContent = "Hubo un error al enviar. Escribinos directamente a info@betravel.com.ar";
+          statusDiv.textContent = "Hubo un error al enviar. Escríbanos directamente a info@betravel.com.ar";
         }
       } catch {
         statusDiv.style.cssText = "margin-top:16px;padding:14px 16px;background:#fdf0e6;border-radius:2px;font-size:13px;color:#8a4a1a;font-family:Inter,sans-serif;";
-        statusDiv.textContent = "Hubo un error al enviar. Escribinos directamente a info@betravel.com.ar";
+        statusDiv.textContent = "Hubo un error al enviar. Escríbanos directamente a info@betravel.com.ar";
       } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = "Enviar consulta";
