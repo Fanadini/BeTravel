@@ -435,7 +435,8 @@ function pagosPorPasajero(gid){
     });
     return out;
   }
-  // Imputación de cada pago: se reparte en partes iguales entre los pasajeros marcados, pero ninguno recibe más de lo que debe.
+  // Imputación de cada pago con varios pasajeros: completa la cuota 1 de cada uno (a todos los que alcance) y lo que sobra adelanta las cuotas siguientes en proporción.
+  // Si quedan pasajeros sin datos para calcular lo que deben, el resto se reparte en partes iguales, pero ninguno recibe más de lo que debe.
   // Lo que sobra pasa a los otros marcados que todavía deben y, si no alcanza, a los pasajeros de las mismas habitaciones.
   // Lo que ni así tiene dónde ir queda como excedente a favor de quien lo pagó (y se avisa en Warnings).
   const g = GRUPOS[gid], conTope = !!(g && tieneCobros(g)), pmon = conTope ? ((g.meta.precios || {}).moneda || 'USD') : '';
@@ -452,6 +453,23 @@ function pagosPorPasajero(gid){
     const total = conTope ? aPrecio(monto, mon, p.tipoCambio) : NaN;
     if (conTope && !isNaN(total) && total > 0 && ks.every(k => resps[k])){
       const a = {}; let resto = total, abiertos = ks.slice();
+      // Por cuotas: primero completa la cuota 1 de cada pasajero marcado (en orden alfabético, a todos los que alcance);
+      // lo que sobra adelanta la cuota siguiente de todos en forma proporcional a lo que debe cada uno, y así sucesivamente.
+      const cuotasG = planCuotas(g), ordenAlf = respuestasOrdenadas(g).map(([id]) => id).filter(id => ks.includes(id) && isFinite(need[id]));
+      if (cuotasG.length && ordenAlf.length){
+        const totK = {}, acumK = {};
+        ordenAlf.forEach(id => { const t = aPagar(g, id, resps[id], ref, asg).total; totK[id] = t; let ac = 0; acumK[id] = repartirCuotas(t, cuotasG).map(v => (ac += v)); });
+        for (let i = 0; i < cuotasG.length && resto > 0.005; i++){
+          const def = {}; let D = 0;
+          ordenAlf.forEach(id => { const pagado = totK[id] - need[id], d = Math.max(0, Math.min(acumK[id][i] - pagado, need[id])); if (d > 0.005){ def[id] = d; D += d; } });
+          if (D < 0.005) continue;
+          const dar = (id, t) => { a[id] = (a[id] || 0) + t; need[id] -= t; resto -= t; };
+          if (resto >= D - 0.005) Object.keys(def).forEach(id => dar(id, def[id]));
+          else if (i === 0) ordenAlf.forEach(id => { if (def[id] && resto > 0.005) dar(id, Math.min(def[id], resto)); });   // cuota 1: completa a los que alcance
+          else { const f = resto / D; Object.keys(def).forEach(id => dar(id, def[id] * f)); }   // adelanto proporcional
+        }
+        abiertos = ks.filter(k => need[k] > 0.005);
+      }
       for (let it = 0; it < 50 && resto > 0.005 && abiertos.length; it++){   // reparto parejo con tope
         const parte = resto / abiertos.length; let usado = 0; const sig = [];
         abiertos.forEach(k => { const t = Math.min(parte, need[k]); a[k] = (a[k] || 0) + t; need[k] -= t; usado += t; if (need[k] > 0.005) sig.push(k); });
