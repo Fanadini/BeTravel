@@ -962,6 +962,8 @@ function verPlanPagos(){
 }
 // ── REPORTE DE CUENTA DEL GRUPO (interno): lo que se cobra, lo cobrado, los pagos recibidos, los compromisos con proveedores y la posición ──
 let REP_VISTA = 'pax', REP_SALDO = 'con';
+const REP_CUOTA_ABIERTA = new Set();   // cuotas desplegadas en el Reporte de cuenta (detalle por pasajero)
+function toggleRepCuota(i){ REP_CUOTA_ABIERTA.has(i) ? REP_CUOTA_ABIERTA.delete(i) : REP_CUOTA_ABIERTA.add(i); verReporteCuenta(); }
 function setRepVista(v){ REP_VISTA = v; verReporteCuenta(); }
 function setRepSaldo(v){ REP_SALDO = v; verReporteCuenta(); }
 function compromisosTablaHtml(provs, hoy){
@@ -1016,12 +1018,18 @@ function reporteCuentaHtml(g){
     : `<div class="hint">${conSaldo && REP_SALDO === 'con' ? 'Todos los pasajeros ya pagaron el total.' : 'Ningún pasajero coincide con el filtro.'}</div>`;
   // Cuotas restantes: a cobrar a los pasajeros y a pagar a proveedores
   const cuotas = planCuotas(g);
-  const porCuota = cuotas.map(() => ({ monto: 0, cub: 0 }));
-  filas.forEach(f => { const ms = repartirCuotas(f.c.total, cuotas); let resto = conSaldo ? f.c.pagado : 0; ms.forEach((v, i) => { const c1 = Math.min(v, Math.max(0, resto)); resto -= v; porCuota[i].monto += v; porCuota[i].cub += c1; }); });
+  const porCuota = cuotas.map(() => ({ monto: 0, cub: 0, pax: [] }));
+  filas.forEach(f => { const ms = repartirCuotas(f.c.total, cuotas); let resto = conSaldo ? f.c.pagado : 0; ms.forEach((v, i) => { const c1 = Math.min(v, Math.max(0, resto)); resto -= v; porCuota[i].monto += v; porCuota[i].cub += c1; if (v - c1 > 0.005) porCuota[i].pax.push({ f, v, c1 }); }); });
+  // Detalle de una cuota: quiénes deben y cuánto (lo pagado se imputa primero a las cuotas más viejas)
+  const detCuota = x => { const ps = x.pax.slice().sort((a, b) => (b.v - b.c1) - (a.v - a.c1)), prop = ps.filter(p => !cubDe(p.f.rid)), nov = ps.filter(p => cubDe(p.f.rid));
+    const fl = p => `<tr><td style="padding-left:22px">${esc(p.f.r.apellido)}, ${esc(p.f.r.nombre)}${p.f.c.falta.length ? ' *' : ''}</td><td></td><td class="num">${m(p.v)}</td><td class="num">${m(p.c1)}</td><td class="num">${m(p.v - p.c1)}</td><td></td></tr>`;
+    const gr = (t, arr) => arr.length ? `<tr><td colspan="6" style="padding-left:22px;font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;color:rgba(43,43,43,.6)">${t} · ${arr.length} · falta ${m(arr.reduce((a, p) => a + p.v - p.c1, 0))}</td></tr>` + arr.map(fl).join('') : '';
+    return ps.length ? `<tbody class="rep-det" style="background:rgba(15,61,62,.03)">${gr('Pagan por su cuenta', prop)}${gr('Los cubren los novios', nov)}</tbody>` : `<tbody class="rep-det"><tr><td colspan="6" class="hint" style="padding-left:22px">Nadie debe esta cuota.</td></tr></tbody>`; };
   let proxima = porCuota.findIndex((x, i) => x.monto - x.cub > 0.005 && (!cuotas[i].fecha || cuotas[i].fecha >= hoy));
-  h += sec('Cuotas restantes a cobrar') + `<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th>Cuota</th><th>Fecha</th><th class="num">A cobrar</th><th class="num">Cobrado</th><th class="num">Falta cobrar</th><th></th></tr></thead><tbody>${cuotas.map((c, i) => {
+  h += sec('Cuotas restantes a cobrar') + (conSaldo ? '<div class="hint" style="margin:0 0 6px">Toque una cuota para ver quién la debe y cuánto. Lo que pagó cada pasajero se imputa primero a la cuota más vieja.</div>' : '') + `<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th>Cuota</th><th>Fecha</th><th class="num">A cobrar</th><th class="num">Cobrado</th><th class="num">Falta cobrar</th><th></th></tr></thead><tbody>${cuotas.map((c, i) => {
     const x = porCuota[i], falta = x.monto - x.cub, venc = conSaldo && falta > 0.005 && c.fecha && c.fecha < hoy;
-    return `<tr><td>${i + 1} · ${esc(String(c.pct))}%</td><td>${c.fecha ? esc(fmtFecha(c.fecha)) : 'Sin fecha'}</td><td class="num">${m(x.monto)}</td><td class="num">${conSaldo ? m(x.cub) : '—'}</td><td class="num"><strong>${conSaldo ? m(falta) : '—'}</strong></td><td>${!conSaldo ? '' : falta <= 0.005 ? '<span class="pill ok">Cubierta</span>' : venc ? '<span class="pill bad">Vencida</span>' : i === proxima ? '<span class="pill warn">Próxima</span>' : ''}</td></tr>`;
+    const ab = REP_CUOTA_ABIERTA.has(i), puede = conSaldo && falta > 0.005;
+    return `<tr ${puede ? `onclick="toggleRepCuota(${i})" style="cursor:pointer" title="Ver quién debe esta cuota"` : ''}><td>${puede ? `<span style="color:var(--teal)">${ab ? '▾' : '▸'}</span> ` : ''}${i + 1} · ${esc(String(c.pct))}%${puede ? ` <span class="hint" style="margin:0">(${x.pax.length} pasajero${x.pax.length === 1 ? '' : 's'})</span>` : ''}</td><td>${c.fecha ? esc(fmtFecha(c.fecha)) : 'Sin fecha'}</td><td class="num">${m(x.monto)}</td><td class="num">${conSaldo ? m(x.cub) : '—'}</td><td class="num"><strong>${conSaldo ? m(falta) : '—'}</strong></td><td>${!conSaldo ? '' : falta <= 0.005 ? '<span class="pill ok">Cubierta</span>' : venc ? '<span class="pill bad">Vencida</span>' : i === proxima ? '<span class="pill warn">Próxima</span>' : ''}</td></tr>` + (ab && puede ? `</tbody>${detCuota(x)}<tbody>` : '');
   }).join('')}<tr style="font-weight:600"><td colspan="2">Total que falta cobrar</td><td class="num">${m(porCuota.reduce((a, x) => a + x.monto, 0))}</td><td class="num">${conSaldo ? m(porCuota.reduce((a, x) => a + x.cub, 0)) : '—'}</td><td class="num">${conSaldo ? m(porCuota.reduce((a, x) => a + x.monto - x.cub, 0)) : '—'}</td><td></td></tr></tbody></table>`;
   const { provs: provsR } = resumenCompromisos(g);
   const pend = [];
