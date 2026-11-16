@@ -922,6 +922,10 @@ function htmlPlanTabla0(g){
   const tot = (et, o, fs) => `<tr style="font-weight:600"><td colspan="2">${et}${fs ? `<div style="font-weight:400;font-size:11px;color:rgba(43,43,43,.7)">${cuentaPax(fs)}</div>` : ''}</td><td class="num">${m(o.total)}</td>${o.cuotas.map(v => `<td class="num">${m(v)}</td>`).join('')}</tr>`;
   const sec = t => `<tr><td colspan="${3 + N}" style="background:var(--beige,#E6E1D8);font-weight:600;font-size:11px;letter-spacing:.5px;text-transform:uppercase">${t}</td></tr>`;
   const propios = P.filas.filter(f => !f.cub), novios = P.filas.filter(f => f.cub);
+  // Si hay filtros (por defecto "Solo con saldo a pagar"), una línea con el total de todo el grupo para que cierre con el Reporte de cuenta
+  const totGrupo = (() => { const ref = refViaje(g), asg = asignaciones(g), pp = veSaldo() ? pagosPorPasajero(GID_ABIERTO) : {}, all = respuestasOrdenadas(g);
+    const o = { total: 0, cuotas: P.cuotas.map(() => 0) }; all.forEach(([rid, r]) => { const t = cobroDe(g, rid, r, ref, asg, pp).total; o.total += t; repartirCuotas(t, P.cuotas).forEach((v, i) => { o.cuotas[i] += v; }); });
+    return Math.abs(o.total - P.todos.total) > 0.005 ? `<tr style="color:rgba(43,43,43,.75)"><td colspan="2">Total del grupo (incluye a los que no se muestran por los filtros)<div style="font-size:11px">${all.length} persona${all.length === 1 ? '' : 's'} · coincide con el Reporte de cuenta</div></td><td class="num">${m(o.total)}</td>${o.cuotas.map(v => `<td class="num">${m(v)}</td>`).join('')}</tr>` : ''; })();
   if (PLAN_VISTA === 'hab'){
     const asg = asignaciones(g), porRid = Object.fromEntries(P.filas.map(f => [f.rid, f])), suma = fs => ({ total: fs.reduce((a, f) => a + f.total, 0), cuotas: P.cuotas.map((_, i) => fs.reduce((a, f) => a + f.cuotas[i], 0)) });
     const nom = f => `${esc(f.r.apellido)}, ${esc(f.r.nombre)}${f.t && f.t !== 'ADT' ? ' (' + f.t + ')' : ''}`;
@@ -932,13 +936,13 @@ function htmlPlanTabla0(g){
         + (nv.length ? `<tr style="color:rgba(43,43,43,.7)"><td></td><td colspan="${2 + N}">Los cubren los novios: ${nv.map(nom).join(', ')} (${m(suma(nv).total)})</td></tr>` : ''); };
     return `<table style="width:100%;border-collapse:collapse;font-size:12px">${head}<tbody>`
       + habs.map(x => filaHab(`Hab. ${x.n} · ${esc(x.h.tipo)}`, x.fs)).join('') + (sinHab.length ? filaHab('Sin habitación', sinHab) : '')
-      + sec('Total del grupo') + tot('Total a cobrar a los pasajeros', P.propios, propios) + (novios.length ? tot('A cargo de los novios', P.novios, novios) : '') + `<tr><td colspan="${3 + N}" style="font-size:11px;color:rgba(43,43,43,.7)">${habs.length} ${habs.length === 1 ? 'habitación' : 'habitaciones'} con pasajeros${sinHab.length ? ' + ' + sinHab.length + ' persona' + (sinHab.length === 1 ? '' : 's') + ' sin habitación' : ''} · ${cuentaPax(P.filas)}</td></tr>` + '</tbody></table>'
+      + sec('Total del grupo') + tot('Total a cobrar a los pasajeros', P.propios, propios) + (novios.length ? tot('A cargo de los novios', P.novios, novios) : '') + totGrupo + `<tr><td colspan="${3 + N}" style="font-size:11px;color:rgba(43,43,43,.7)">${habs.length} ${habs.length === 1 ? 'habitación' : 'habitaciones'} con pasajeros${sinHab.length ? ' + ' + sinHab.length + ' persona' + (sinHab.length === 1 ? '' : 's') + ' sin habitación' : ''} · ${cuentaPax(P.filas)}</td></tr>` + '</tbody></table>'
       + (P.filas.some(f => f.falta) ? '<div class="hint" style="margin-top:6px">* Faltan datos para calcular el total de algún pasajero de esa habitación.</div>' : '');
   }
   return `<table style="width:100%;border-collapse:collapse;font-size:12px">${head}<tbody>`
     + (propios.length ? sec('Pagan por su cuenta') + propios.map(fila).join('') + tot('Subtotal por su cuenta', P.propios, propios) : '')
     + (novios.length ? sec('Los cubren los novios') + novios.map(fila).join('') + tot('Subtotal a cargo de los novios', P.novios, novios) : '')
-    + sec('Total del grupo') + tot('Total a cobrar', P.todos, P.filas) + '</tbody></table>'
+    + sec('Total del grupo') + tot('Total a cobrar', P.todos, P.filas) + totGrupo + '</tbody></table>'
     + (P.filas.some(f => f.falta) ? '<div class="hint" style="margin-top:6px">* Faltan datos para calcular el total de ese pasajero (precio, habitación o fecha de nacimiento).</div>' : '')
     + (!novios.length && !PLAN_MEDIO ? '<div class="hint" style="margin-top:6px">Todavía no marcó a nadie como cubierto por los novios: se marca en la ficha de cada pasajero.</div>' : '');
 }
