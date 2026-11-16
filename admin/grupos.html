@@ -1093,7 +1093,7 @@ function verReporteCuenta(){
   const g = GRUPOS[GID_ABIERTO];
   document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal" style="max-width:980px"><h3>Reporte de cuenta · ${esc(g.meta.nombre || 'Grupo')}</h3>
     <div class="hint">Uso interno de la agencia. Al ${esc(fmtFecha(hoyISO()))}.</div>${reporteCuentaHtml(g)}
-    <div class="row-btns" style="justify-content:flex-end;margin-top:10px"><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+    <div class="row-btns" style="justify-content:flex-end;margin-top:10px"><button class="btn outline small" onclick="imprimir('cuenta')">Descargar PDF</button><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
 }
 function guardarCuotas(n){
   const arr = [];
@@ -2179,6 +2179,10 @@ const conPagos = hayPagos(GID_ABIERTO), pp = conPagos ? pagosPorPasajero(GID_ABI
 function imprimir(tipo){
   const g = GRUPOS[GID_ABIERTO], resps = g.respuestas || {};
   let html = `<h1>${esc(g.meta.nombre)}</h1><div class="sub">${tipo === 'plan' ? 'Plan de pagos' : tipo === 'rooming' ? 'Rooming list' : 'Listado de pasajeros'} · ${new Date().toLocaleDateString('es-AR')}</div>`;
+  if (tipo === 'cuenta'){ document.getElementById('print-area').innerHTML = `<h1>${esc(g.meta.nombre)}</h1><div class="sub">Reporte de cuenta · Uso interno de la agencia · Al ${esc(fmtFecha(hoyISO()))}</div><div class="rep-cuenta">${reporteCuentaHtml(g)}</div>`;
+    // En el PDF los selectores de vista se reemplazan por el texto de lo elegido
+    document.querySelectorAll('#print-area .rep-cuenta .filtros').forEach(f => { const t = [...f.querySelectorAll('select')].map(x => x.options[x.selectedIndex] ? x.options[x.selectedIndex].text : '').filter(Boolean).join(' · '); f.outerHTML = t ? `<div class="sub">Vista: ${esc(t)}</div>` : ''; });
+    window.print(); return; }
   if (tipo === 'plan'){ document.getElementById('print-area').innerHTML = html.replace('Plan de pagos', 'Plan de pagos' + (PLAN_VISTA === 'hab' ? ' por habitación' : '')) + (PLAN_CUB ? `<div class="sub">${PLAN_CUB === 'si' ? 'Solo pasajeros cubiertos por los novios' : 'Solo pasajeros que no cubren los novios'}</div>` : '') + (PLAN_MEDIO ? `<div class="sub">Filtrado por medio de pago: ${esc(PLAN_MEDIO.slice(2))}</div>` : '') + (planSelRids(g) ? `<div class="sub">Selección: ${esc(planSelTxt())}</div>` : '') + (veSaldo() && PLAN_SALDO ? `<div class="sub">${PLAN_SALDO === 'con' ? 'Solo pasajeros con saldo a pagar' : 'Solo pasajeros que ya pagaron todo'}</div>` : '') + htmlPlanTabla(g); window.print(); return; }
   if (tipo === 'rooming'){
     const refR2 = refViaje(g);
