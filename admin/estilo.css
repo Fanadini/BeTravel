@@ -72,3 +72,9 @@
 .comp-t .num{text-align:right} .comp-t .cen{text-align:center}
 .comp-t input[type=number]{width:100%!important;box-sizing:border-box}
 .comp-t input[type=date]{width:160px!important;max-width:100%;margin-right:6px}
+/* Grupos · Habitaciones: tabla de distribución por tipo y cama */
+.hab-dist{width:100%;max-width:640px;border-collapse:collapse;font-size:12.5px}
+.hab-dist th{text-align:left;font-weight:600;font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:rgba(43,43,43,.5);padding:4px 10px;border-bottom:1px solid var(--ui-linea)}
+.hab-dist td{padding:5px 10px;border-bottom:1px solid rgba(213,206,195,.35)}
+.hab-dist .num{text-align:right;font-variant-numeric:tabular-nums}
+.hab-dist tr.tot td{border-bottom:0;border-top:1px solid var(--ui-linea)}

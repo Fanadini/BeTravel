@@ -503,7 +503,7 @@ function nuevoGrupo(){
   GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email, form: limpiarForm(window.FORM_DEFAULT) })
     .then(() => { IDX_REF.child(gid).set({ nombre }).catch(() => {}); abrirGrupo(gid); }, handleWriteError);
 }
-function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'', ast:'' }; SEL_LABEL = ''; HAB_TIPO = ''; HAB_Q = ''; HAB_CAMA = ''; PLAN_MEDIO = ''; PLAN_VISTA = 'pax'; PLAN_CUB = ''; PLAN_SEL = { modo:'pax', pax:new Set(), hab:new Set() }; PLAN_SALDO = 'con'; COLAPSADAS.clear(); render(); }
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'', ast:'' }; SEL_LABEL = ''; HAB_TIPO = ''; HAB_Q = ''; HAB_CAMA = ''; HAB_EST = ''; PLAN_MEDIO = ''; PLAN_VISTA = 'pax'; PLAN_CUB = ''; PLAN_SEL = { modo:'pax', pax:new Set(), hab:new Set() }; PLAN_SALDO = 'con'; COLAPSADAS.clear(); render(); }
 function volverLista(){ GID_ABIERTO = null; render(); }
 function setTab(t){ if (TAB === 'form' && t !== 'form' && DIRTY && !confirm('Hay cambios sin guardar en el formulario. ¿Salir igualmente?')) return; TAB = t; FORM_RENDER = true; render(); }
 function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
@@ -1805,7 +1805,9 @@ function verRespuesta(rid){
 function cerrarModal(){ EDIT_FICHA = null; MODAL_VIVO = null; document.getElementById('modal-root').innerHTML = ''; }
 
 const COLAPSADAS = new Set();
-let HAB_TIPO = '', HAB_Q = '', HAB_CAMA = '';
+let HAB_TIPO = '', HAB_Q = '', HAB_CAMA = '', HAB_EST = '', HAB_ESTADOS = {};
+function setHabEst(v){ HAB_EST = v; render(); }
+function setHabFiltros(tipo, cama, est){ HAB_TIPO = tipo; HAB_CAMA = cama; HAB_EST = est; render(); }
 function setHabQ(v){
   HAB_Q = v; render();
   const el = document.getElementById('hab-q'); if (el){ el.focus(); const n = el.value.length; el.setSelectionRange(n, n); }
@@ -1842,12 +1844,40 @@ function htmlHabitaciones(g){
   if (!Object.keys(resps).length) return '<div class="vacio">Cuando lleguen respuestas, acá se arman las habitaciones.</div>';
   const roomOptions = (actual) => (actual ? '<option value="__sin">— Sin habitación</option>' : '') + lista.map(([hid, h], i) => `<option value="${esc(hid)}" ${hid === actual ? 'selected' : ''}>Hab. ${i + 1} · ${esc(nombreHab(h, resps) || h.tipo)}</option>`).join('') + '<option value="__nueva">+ Nueva habitación</option>';
   let html = `<div class="section-head"><h2>${hay ? 'Habitaciones' : 'Habitaciones sugeridas'}</h2><div class="row-btns">`
-    + `<input type="text" id="hab-q" placeholder="Buscar pasajero…" value="${esc(HAB_Q)}" oninput="setHabQ(this.value)" style="width:190px" title="Escribí el nombre de un pasajero para ver su habitación">`
-    + `<select title="Filtrar por tipo de habitación" onchange="setHabTipo(this.value)"><option value="">Todos los tipos (${lista.length})</option>${TIPOS.filter(t => lista.some(([, h]) => h.tipo === t)).map(t => `<option value="${t}" ${HAB_TIPO === t ? 'selected' : ''}>${t} (${lista.filter(([, h]) => h.tipo === t).length})</option>`).join('')}</select>`
-    + (() => { const cm = h => camaHab(h, resps) || '-', n = c => lista.filter(([, h]) => cm(h) === c).length; return `<select title="Filtrar por tipo de cama" onchange="setHabCama(this.value)"><option value="">Twin y matrimonial</option>${CAMAS.slice().reverse().map(c => `<option value="${c}" ${HAB_CAMA === c ? 'selected' : ''}>${c} (${n(c)})</option>`).join('')}<option value="-" ${HAB_CAMA === '-' ? 'selected' : ''}>Sin cama definida (${n('-')})</option></select>`; })()
     + `<button class="btn outline small" onclick="plegarTodas(true)">Plegar todas</button><button class="btn outline small" onclick="plegarTodas(false)">Desplegar todas</button>`
     + (hay ? `<button class="btn outline small" onclick="ordenarHabAZ()" title="Renumerar por el apellido del primer ocupante">Ordenar A–Z</button><button class="btn outline small" onclick="agregarHabitacion()">+ Habitación vacía</button><button class="btn outline small" onclick="regenerarHabitaciones()">Volver a sugerir</button>`
            : `<button class="btn" onclick="guardarSugeridas()">Guardar habitaciones sugeridas</button>`) + '</div></div>';
+  // Resumen arriba: distribución por tipo y cama (cada número filtra la lista) e información clave
+  {
+    const cmH = h => camaHab(h, resps) || '-', estH = {}; let nPax = 0, nInf = 0, nChd = 0, conAl = 0, conSal = 0;
+    lista.forEach(([hid, h]) => { const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]), o = ocupacion(h, ids); nPax += ids.length; ids.forEach(x => { const t = tp(x); if (t === 'INF') nInf++; if (t === 'CHD') nChd++; });
+      estH[hid] = o.vacia ? 'vacia' : o.faltan ? 'incompleta' : o.sobran ? 'sobra' : 'completa'; if (alertasHabitacion(h, resps, idx).length) conAl++;
+      if (conSaldoH && ids.length){ const t = totalHab(ids); if (t.saldo > 0.005 || t.falta) conSal++; } });
+    HAB_ESTADOS = estH;
+    const sinHab = Object.keys(resps).filter(x => !lista.some(([, h]) => (h.pasajeros || {})[x])).length;
+    const cnt = (tipo, cama) => lista.filter(([, h]) => (!tipo || h.tipo === tipo) && (!cama || cmH(h) === cama)).length;
+    const cel = (n, tipo, cama) => n ? `<a href="#" class="lnk" onclick="setHabFiltros('${tipo}','${cama}','');return false" title="Ver estas habitaciones">${n}</a>` : '<span style="color:rgba(43,43,43,.3)">—</span>';
+    const tiposUsados = TIPOS.filter(t => lista.some(([, h]) => h.tipo === t)), camasCol = [...CAMAS, '-'].filter(c => c !== '-' || lista.some(([, h]) => CAPACIDAD[h.tipo] > 1 && cmH(h) === '-'));
+    const nEst = e => Object.values(estH).filter(x => x === e).length;
+    const kpi = (l, v, sub, onc, cls) => `<div class="gk ${cls || ''}" ${onc ? `onclick="${onc}" role="button"` : 'style="cursor:default"'}><span>${l}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+    html += `<div class="gkpis">`
+      + kpi('Habitaciones', lista.length, `${nEst('completa')} completas`, "setHabFiltros('','','')")
+      + kpi('Pasajeros ubicados', nPax, `${nPax - nInf - nChd} ADT · ${nChd} CHD · ${nInf} INF`)
+      + kpi('Sin habitación', sinHab, sinHab ? 'pasajeros' : 'todos ubicados', sinHab ? "irA('resp',{hab:'sin'})" : '', sinHab ? 'rojo' : '')
+      + kpi('Incompletas', nEst('incompleta') + nEst('sobra'), `${nEst('incompleta')} falta gente · ${nEst('sobra')} sobra`, nEst('incompleta') + nEst('sobra') ? "setHabFiltros('','','problema')" : '', nEst('incompleta') + nEst('sobra') ? 'rojo' : '')
+      + kpi('Con alertas', conAl, '', conAl ? "setHabFiltros('','','alerta')" : '', conAl ? 'foco' : '')
+      + (conSaldoH ? kpi('Con saldo pendiente', conSal, 'habitaciones', conSal ? "setHabFiltros('','','saldo')" : '') : '')
+      + `</div>`
+      + `<div class="card" style="margin:0 0 12px;padding:12px 16px"><table class="hab-dist"><thead><tr><th>Distribución</th>${camasCol.map(c => `<th class="num">${c === '-' ? 'Cama sin definir' : c}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>`
+      + tiposUsados.map(t => `<tr><td>${esc(t)}</td>${camasCol.map(c => `<td class="num">${CAPACIDAD[t] > 1 ? cel(cnt(t, c), t, c) : (c === camasCol[0] ? '' : '')}</td>`).join('')}<td class="num"><strong>${cel(cnt(t, ''), t, '')}</strong></td></tr>`).join('')
+      + `<tr class="tot"><td>Total</td>${camasCol.map(c => `<td class="num"><strong>${cel(lista.filter(([, h]) => CAPACIDAD[h.tipo] > 1 && cmH(h) === c).length, '', c)}</strong></td>`).join('')}<td class="num"><strong>${lista.length}</strong></td></tr></tbody></table></div>`;
+  }
+  html += `<div class="filtros" style="margin-bottom:10px;align-items:center">`
+    + `<input type="text" id="hab-q" placeholder="Buscar pasajero…" value="${esc(HAB_Q)}" oninput="setHabQ(this.value)" style="width:190px" title="Escribí el nombre de un pasajero para ver su habitación">`
+    + `<select title="Filtrar por tipo de habitación" onchange="setHabTipo(this.value)"><option value="">Todos los tipos (${lista.length})</option>${TIPOS.filter(t => lista.some(([, h]) => h.tipo === t)).map(t => `<option value="${t}" ${HAB_TIPO === t ? 'selected' : ''}>${t} (${lista.filter(([, h]) => h.tipo === t).length})</option>`).join('')}</select>`
+    + (() => { const cm = h => camaHab(h, resps) || '-', n = c => lista.filter(([, h]) => cm(h) === c).length; return `<select title="Filtrar por tipo de cama" onchange="setHabCama(this.value)"><option value="">Twin y matrimonial</option>${CAMAS.slice().reverse().map(c => `<option value="${c}" ${HAB_CAMA === c ? 'selected' : ''}>${c} (${n(c)})</option>`).join('')}<option value="-" ${HAB_CAMA === '-' ? 'selected' : ''}>Sin cama definida (${n('-')})</option></select>`; })()
+    + `<select title="Filtrar por estado" onchange="setHabEst(this.value)"><option value="">Todos los estados</option>${[['completa', 'Completas'], ['problema', 'Incompletas o con de más'], ['vacia', 'Vacías'], ['alerta', 'Con alertas']].concat(conSaldoH ? [['saldo', 'Con saldo pendiente']] : []).map(([v, l]) => `<option value="${v}" ${HAB_EST === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`
+    + (HAB_TIPO || HAB_CAMA || HAB_EST || HAB_Q ? `<button class="btn outline small" onclick="HAB_Q='';setHabFiltros('','','')">Limpiar filtros</button>` : '') + `</div>`;
   if (!hay) html += '<div class="hint">Armadas automáticamente a partir de los vínculos "comparte con". Revisalas y guardalas para poder ajustarlas a mano.</div>';
   const asignados = new Set(), qtH = tokens(HAB_Q);
   const coincideNombre = (qt, r) => { const hay = norm(nombreDe(r) + ' ' + (r.apellido || '') + ' ' + (r.nombre || '')); return qt.every(t => hay.includes(t)); };
@@ -1862,6 +1892,8 @@ function htmlHabitaciones(g){
     const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]); ids.forEach(x => asignados.add(x));
     if (HAB_TIPO && h.tipo !== HAB_TIPO) return;
     if (HAB_CAMA && (camaHab(h, resps) || '-') !== HAB_CAMA) return;
+    if (HAB_EST){ const e = HAB_ESTADOS[hid];
+      if (HAB_EST === 'problema' ? !(e === 'incompleta' || e === 'sobra') : HAB_EST === 'alerta' ? !alertasHabitacion(h, resps, idx).length : HAB_EST === 'saldo' ? !(ids.length && (t => t.saldo > 0.005 || t.falta)(totalHab(ids))) : e !== HAB_EST) return; }
     if (qtH.length && !ids.some(x => coincideNombre(qtH, resps[x]))) return;
     const al = alertasHabitacion(h, resps, idx), col = COLAPSADAS.has(hid) && !qtH.length, cap = CAPACIDAD[h.tipo] || 0, cama = camaHab(h, resps);
     const nombres = ids.map(x => `${resps[x].apellido}, ${resps[x].nombre}${tp(x) ? ' (' + tp(x) + ')' : ''}`).join(' · ');
