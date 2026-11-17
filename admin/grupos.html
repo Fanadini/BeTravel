@@ -503,7 +503,7 @@ function nuevoGrupo(){
   GRUPOS_REF.child(gid + '/meta').set({ nombre, activo:true, creado: Date.now(), creadoPor: CURRENT_USER.email, form: limpiarForm(window.FORM_DEFAULT) })
     .then(() => { IDX_REF.child(gid).set({ nombre }).catch(() => {}); abrirGrupo(gid); }, handleWriteError);
 }
-function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'', ast:'' }; SEL_LABEL = ''; HAB_TIPO = ''; HAB_Q = ''; HAB_CAMA = ''; HAB_EST = ''; PLAN_MEDIO = ''; PLAN_VISTA = 'pax'; PLAN_CUB = ''; PLAN_SEL = { modo:'pax', pax:new Set(), hab:new Set() }; PLAN_SALDO = 'con'; COLAPSADAS.clear(); render(); }
+function abrirGrupo(gid){ GID_ABIERTO = gid; TAB = 'res'; DRAFT_GID = null; FILTRO = { q:'', vinc:'', hab:'', ped:'', pago:'', medio:'', tipo:'', saldo:'', sel:'', cub:'', aer:'', ast:'' }; SEL_LABEL = ''; HAB_TIPO = ''; HAB_Q = ''; HAB_CAMA = ''; HAB_EST = ''; HAB_CAT = ''; PLAN_MEDIO = ''; PLAN_VISTA = 'pax'; PLAN_CUB = ''; PLAN_SEL = { modo:'pax', pax:new Set(), hab:new Set() }; PLAN_SALDO = 'con'; COLAPSADAS.clear(); render(); }
 function volverLista(){ GID_ABIERTO = null; render(); }
 function setTab(t){ if (TAB === 'form' && t !== 'form' && DIRTY && !confirm('Hay cambios sin guardar en el formulario. ¿Salir igualmente?')) return; TAB = t; FORM_RENDER = true; render(); }
 function setActivo(v){ GRUPOS_REF.child(GID_ABIERTO + '/meta/activo').set(v).catch(handleWriteError); }
@@ -1521,6 +1521,8 @@ function htmlResumen(g){
   html += `<div class="card"><h3>Habitaciones</h3>`
     + `<div class="ocu"><div class="nom"><strong>${guardadas ? 'Confirmadas (completas)' : 'Completas (sugeridas)'}</strong></div><div style="display:flex;align-items:center;gap:10px"><strong>${completas} de ${lista.length}</strong><button class="btn outline small" onclick="setTab('hab')">Ver</button></div></div>`
     + TIPOS.filter(t => estado[t]).map(t => `<div class="ocu"><div class="nom">${esc(t)}</div><div style="display:flex;align-items:center;gap:10px"><strong>${estado[t].completas} de ${estado[t].total}</strong><button class="btn outline small" onclick="setTab('hab')">Ver</button></div></div>`).join('')
+    + (() => { const cats = {}; lista.forEach(([, h]) => { const c = h.categoria || ''; cats[c] = (cats[c] || 0) + 1; }); const ks = catsHab(g).filter(c => cats[c]).concat(Object.keys(cats).filter(c => c && !catsHab(g).includes(c)));
+        return ks.length ? `<div class="hint" style="margin:6px 0 2px"><strong>Por categoría</strong></div>` + ks.map(c => fila(esc(c), cats[c], `setTab('hab');setHabFiltros('','','','${esc(c)}')`)).join('') + (cats[''] ? fila('Sin categoría', cats[''], "setTab('hab');setHabFiltros('','','','-')") : '') : ''; })()
     + fila('Pasajeros sin habitación', sinHab, sinHab ? "irA('resp',{hab:'sin'})" : '')
     + aviso(incompletas, `${incompletas} ${incompletas === 1 ? 'habitación' : 'habitaciones'} incompleta${incompletas === 1 ? '' : 's'} (falta gente): no se cuentan como confirmadas.`, 'bad', "setTab('hab')") + aviso(sobran, `${sobran} ${sobran === 1 ? 'habitación' : 'habitaciones'} con más gente de la que admite.`, 'bad', "setTab('hab')") + aviso(vacias, `${vacias} ${vacias === 1 ? 'habitación' : 'habitaciones'} vacía${vacias === 1 ? '' : 's'}.`, 'warn')
     + aviso(!guardadas && n, 'Las habitaciones todavía son una sugerencia: guardalas en la pestaña Habitaciones para confirmarlas.', 'warn', "setTab('hab')") + `</div>`;
@@ -1805,9 +1807,10 @@ function verRespuesta(rid){
 function cerrarModal(){ EDIT_FICHA = null; MODAL_VIVO = null; document.getElementById('modal-root').innerHTML = ''; }
 
 const COLAPSADAS = new Set();
-let HAB_TIPO = '', HAB_Q = '', HAB_CAMA = '', HAB_EST = '', HAB_ESTADOS = {};
+let HAB_TIPO = '', HAB_Q = '', HAB_CAMA = '', HAB_EST = '', HAB_ESTADOS = {}, HAB_CAT = '';
+function setHabCat(v){ HAB_CAT = v; render(); }
 function setHabEst(v){ HAB_EST = v; render(); }
-function setHabFiltros(tipo, cama, est){ HAB_TIPO = tipo; HAB_CAMA = cama; HAB_EST = est; render(); }
+function setHabFiltros(tipo, cama, est, cat){ HAB_TIPO = tipo; HAB_CAMA = cama; HAB_EST = est; HAB_CAT = cat || ''; render(); }
 function setHabQ(v){
   HAB_Q = v; render();
   const el = document.getElementById('hab-q'); if (el){ el.focus(); const n = el.value.length; el.setSelectionRange(n, n); }
@@ -1816,6 +1819,37 @@ function setHabTipo(v){ HAB_TIPO = v; render(); }
 function setHabCama(v){ HAB_CAMA = v; render(); }
 function toggleHab(hid){ COLAPSADAS.has(hid) ? COLAPSADAS.delete(hid) : COLAPSADAS.add(hid); render(); }
 function plegarTodas(v){ listaHab(GRUPOS[GID_ABIERTO]).forEach(([hid]) => v ? COLAPSADAS.add(hid) : COLAPSADAS.delete(hid)); render(); }
+// Categoría de habitación (Jr. Suite, etc.): lista editable por grupo en meta/categoriasHab
+const CATS_DEF = ['Jr. Suite', 'Premium Jr. Suite', 'Superior Jr. Suite'];
+const catsHab = g => Array.isArray(g.meta.categoriasHab) ? g.meta.categoriasHab.filter(Boolean) : CATS_DEF.slice();
+function guardarCats(arr){ return GRUPOS_REF.child(`${GID_ABIERTO}/meta/categoriasHab`).set(arr.length ? arr : []).catch(handleWriteError); }
+function cambiarCategoria(hid, v, sel){
+  if (v === '__nueva'){ const n = (prompt('Nombre de la nueva categoría (ej. Ocean View Jr. Suite):') || '').trim(); if (sel) sel.value = (GRUPOS[GID_ABIERTO].habitaciones[hid] || {}).categoria || ''; if (!n) return;
+    const cs = catsHab(GRUPOS[GID_ABIERTO]); if (!cs.includes(n)) cs.push(n); guardarCats(cs).then(() => GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}/categoria`).set(n).catch(handleWriteError)); return; }
+  if (v === '__gestionar'){ if (sel) sel.value = (GRUPOS[GID_ABIERTO].habitaciones[hid] || {}).categoria || ''; return verCategorias(); }
+  GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}/categoria`).set(v || null).catch(handleWriteError);
+}
+function verCategorias(){
+  modalVivo(verCategorias);
+  const g = GRUPOS[GID_ABIERTO], cs = catsHab(g), uso = c => Object.values(g.habitaciones || {}).filter(h => h.categoria === c).length;
+  document.getElementById('modal-root').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)cerrarModal()"><div class="modal" style="max-width:480px"><h3>Categorías de habitación</h3>
+    <div class="hint">Las que se pueden elegir en cada habitación de este grupo.</div>
+    ${cs.length ? cs.map((c, i) => `<div class="ocu"><div class="nom">${esc(c)} <span class="hint" style="margin:0">· ${uso(c)} hab.</span></div><div style="display:flex;gap:6px"><button class="btn outline small" onclick="renombrarCat(${i})">Renombrar</button><button class="btn outline small" onclick="quitarCat(${i})">Quitar</button></div></div>`).join('') : '<div class="hint">No hay categorías.</div>'}
+    <div class="filtros" style="margin-top:10px"><input type="text" id="cat-nueva" placeholder="Nueva categoría" style="flex:1" onkeydown="if(event.key==='Enter')agregarCat()"><button class="btn small" onclick="agregarCat()">Agregar</button></div>
+    <div class="row-btns" style="justify-content:flex-end;margin-top:10px"><button class="btn small" onclick="cerrarModal()">Cerrar</button></div></div></div>`;
+}
+function agregarCat(){ const el = document.getElementById('cat-nueva'), n = (el && el.value || '').trim(); if (!n) return; const cs = catsHab(GRUPOS[GID_ABIERTO]); if (!cs.includes(n)) cs.push(n); guardarCats(cs); }
+function quitarCat(i){
+  const g = GRUPOS[GID_ABIERTO], cs = catsHab(g), c = cs[i], usan = Object.entries(g.habitaciones || {}).filter(([, h]) => h.categoria === c);
+  if (usan.length && !confirm(`${usan.length} habitación${usan.length === 1 ? '' : 'es'} tiene${usan.length === 1 ? '' : 'n'} "${c}". Si la quita, esas habitaciones quedan sin categoría. ¿Seguir?`)) return;
+  const up = {}; usan.forEach(([hid]) => { up[`habitaciones/${hid}/categoria`] = null; }); cs.splice(i, 1); up['meta/categoriasHab'] = cs;
+  GRUPOS_REF.child(GID_ABIERTO).update(up).catch(handleWriteError);
+}
+function renombrarCat(i){
+  const g = GRUPOS[GID_ABIERTO], cs = catsHab(g), c = cs[i], n = (prompt('Nuevo nombre:', c) || '').trim(); if (!n || n === c) return;
+  const up = {}; Object.entries(g.habitaciones || {}).forEach(([hid, h]) => { if (h.categoria === c) up[`habitaciones/${hid}/categoria`] = n; }); cs[i] = n; up['meta/categoriasHab'] = cs;
+  GRUPOS_REF.child(GID_ABIERTO).update(up).catch(handleWriteError);
+}
 function cambiarCama(hid, v){ GRUPOS_REF.child(`${GID_ABIERTO}/habitaciones/${hid}/cama`).set(v || null).catch(handleWriteError); }
 // Habitación incompleta: tiene menos ocupantes que su capacidad (ej. una doble con una sola persona), vacía o con de más
 function ocupacion(h, ids){
@@ -1870,14 +1904,23 @@ function htmlHabitaciones(g){
       + `</div>`
       + `<div class="card" style="margin:0 0 12px;padding:12px 16px"><table class="hab-dist"><thead><tr><th>Distribución</th>${camasCol.map(c => `<th class="num">${c === '-' ? 'Cama sin definir' : c}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>`
       + tiposUsados.map(t => `<tr><td>${esc(t)}</td>${camasCol.map(c => `<td class="num">${CAPACIDAD[t] > 1 ? cel(cnt(t, c), t, c) : (c === camasCol[0] ? '' : '')}</td>`).join('')}<td class="num"><strong>${cel(cnt(t, ''), t, '')}</strong></td></tr>`).join('')
-      + `<tr class="tot"><td>Total</td>${camasCol.map(c => `<td class="num"><strong>${cel(lista.filter(([, h]) => CAPACIDAD[h.tipo] > 1 && cmH(h) === c).length, '', c)}</strong></td>`).join('')}<td class="num"><strong>${lista.length}</strong></td></tr></tbody></table></div>`;
+      + `<tr class="tot"><td>Total</td>${camasCol.map(c => `<td class="num"><strong>${cel(lista.filter(([, h]) => CAPACIDAD[h.tipo] > 1 && cmH(h) === c).length, '', c)}</strong></td>`).join('')}<td class="num"><strong>${lista.length}</strong></td></tr></tbody></table>`
+      + (() => { const cs = catsHab(g), extra = [...new Set(lista.map(([, h]) => h.categoria).filter(c => c && !cs.includes(c)))], filas = cs.concat(extra).concat(lista.some(([, h]) => !h.categoria) ? ['-'] : []);
+          const cc = (cat, tipo) => lista.filter(([, h]) => (h.categoria || '-') === cat && (!tipo || h.tipo === tipo)).length;
+          const c2 = (n, cat, tipo) => n ? `<a href="#" class="lnk" onclick="setHabFiltros('${tipo}','','','${esc(cat).replace(/'/g, "\\'")}');return false">${n}</a>` : '<span style="color:rgba(43,43,43,.3)">—</span>';
+          return `<table class="hab-dist" style="margin-top:12px"><thead><tr><th>Categoría</th>${tiposUsados.map(t => `<th class="num">${esc(t)}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>`
+            + filas.map(cat => `<tr><td>${cat === '-' ? 'Sin categoría' : esc(cat)}</td>${tiposUsados.map(t => `<td class="num">${c2(cc(cat, t), cat, t)}</td>`).join('')}<td class="num"><strong>${c2(cc(cat, ''), cat, '')}</strong></td></tr>`).join('') + '</tbody></table>'; })()
+      + `</div>`;
   }
   html += `<div class="filtros" style="margin-bottom:10px;align-items:center">`
     + `<input type="text" id="hab-q" placeholder="Buscar pasajero…" value="${esc(HAB_Q)}" oninput="setHabQ(this.value)" style="width:190px" title="Escribí el nombre de un pasajero para ver su habitación">`
     + `<select title="Filtrar por tipo de habitación" onchange="setHabTipo(this.value)"><option value="">Todos los tipos (${lista.length})</option>${TIPOS.filter(t => lista.some(([, h]) => h.tipo === t)).map(t => `<option value="${t}" ${HAB_TIPO === t ? 'selected' : ''}>${t} (${lista.filter(([, h]) => h.tipo === t).length})</option>`).join('')}</select>`
     + (() => { const cm = h => camaHab(h, resps) || '-', n = c => lista.filter(([, h]) => cm(h) === c).length; return `<select title="Filtrar por tipo de cama" onchange="setHabCama(this.value)"><option value="">Twin y matrimonial</option>${CAMAS.slice().reverse().map(c => `<option value="${c}" ${HAB_CAMA === c ? 'selected' : ''}>${c} (${n(c)})</option>`).join('')}<option value="-" ${HAB_CAMA === '-' ? 'selected' : ''}>Sin cama definida (${n('-')})</option></select>`; })()
     + `<select title="Filtrar por estado" onchange="setHabEst(this.value)"><option value="">Todos los estados</option>${[['completa', 'Completas'], ['problema', 'Incompletas o con de más'], ['vacia', 'Vacías'], ['alerta', 'Con alertas']].concat(conSaldoH ? [['saldo', 'Con saldo pendiente']] : []).map(([v, l]) => `<option value="${v}" ${HAB_EST === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`
-    + (HAB_TIPO || HAB_CAMA || HAB_EST || HAB_Q ? `<button class="btn outline small" onclick="HAB_Q='';setHabFiltros('','','')">Limpiar filtros</button>` : '') + `</div>`;
+    + (() => { const cs = catsHab(g), n = c => lista.filter(([, h]) => (h.categoria || '-') === c).length, extra = [...new Set(lista.map(([, h]) => h.categoria).filter(c => c && !cs.includes(c)))];
+      return `<select title="Filtrar por categoría" onchange="setHabCat(this.value)"><option value="">Todas las categorías</option>${cs.concat(extra).map(c => `<option value="${esc(c)}" ${HAB_CAT === c ? 'selected' : ''}>${esc(c)} (${n(c)})</option>`).join('')}<option value="-" ${HAB_CAT === '-' ? 'selected' : ''}>Sin categoría (${n('-')})</option></select>`; })()
+    + (hay ? `<button class="btn outline small" onclick="verCategorias()">Categorías</button>` : '')
+    + (HAB_TIPO || HAB_CAMA || HAB_EST || HAB_CAT || HAB_Q ? `<button class="btn outline small" onclick="HAB_Q='';setHabFiltros('','','','')">Limpiar filtros</button>` : '') + `</div>`;
   if (!hay) html += '<div class="hint">Armadas automáticamente a partir de los vínculos "comparte con". Revisalas y guardalas para poder ajustarlas a mano.</div>';
   const asignados = new Set(), qtH = tokens(HAB_Q);
   const coincideNombre = (qt, r) => { const hay = norm(nombreDe(r) + ' ' + (r.apellido || '') + ' ' + (r.nombre || '')); return qt.every(t => hay.includes(t)); };
@@ -1892,6 +1935,7 @@ function htmlHabitaciones(g){
     const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]); ids.forEach(x => asignados.add(x));
     if (HAB_TIPO && h.tipo !== HAB_TIPO) return;
     if (HAB_CAMA && (camaHab(h, resps) || '-') !== HAB_CAMA) return;
+    if (HAB_CAT && (h.categoria || '-') !== HAB_CAT) return;
     if (HAB_EST){ const e = HAB_ESTADOS[hid];
       if (HAB_EST === 'problema' ? !(e === 'incompleta' || e === 'sobra') : HAB_EST === 'alerta' ? !alertasHabitacion(h, resps, idx).length : HAB_EST === 'saldo' ? !(ids.length && (t => t.saldo > 0.005 || t.falta)(totalHab(ids))) : e !== HAB_EST) return; }
     if (qtH.length && !ids.some(x => coincideNombre(qtH, resps[x]))) return;
@@ -1908,6 +1952,7 @@ function htmlHabitaciones(g){
       + '<span style="display:flex;gap:8px;align-items:center" onclick="event.stopPropagation()">'
       + (hay ? `<select onchange="cambiarTipo('${esc(hid)}', this.value)">${TIPOS.map(t => `<option ${t === h.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select>` : `<span class="pill">${esc(h.tipo)}</span>`)
       + (cap > 1 ? (hay ? `<select title="Tipo de cama" onchange="cambiarCama('${esc(hid)}', this.value)"><option value="">Cama: sin definir</option>${CAMAS.map(c => `<option ${c === h.cama ? 'selected' : ''}>${c}</option>`).join('')}</select>` : (cama ? `<span class="pill">${esc(cama)}</span>` : '')) : '')
+      + (hay ? (() => { const cs = catsHab(g), act = h.categoria || ''; return `<select title="Categoría de habitación" onchange="cambiarCategoria('${esc(hid)}', this.value, this)"><option value="">Categoría: sin definir</option>${cs.concat(act && !cs.includes(act) ? [act] : []).map(c => `<option ${c === act ? 'selected' : ''}>${esc(c)}</option>`).join('')}<option value="__nueva">+ Nueva categoría…</option><option value="__gestionar">Editar categorías…</option></select>`; })() : '')
       + (hay && cap > 1 && !h.cama && pedida ? `<span class="pill" title="Lo que pidieron los ocupantes">Pedida: ${esc(pedida)}</span>` : '')
       + (hay && !ids.length ? `<button class="btn danger small" onclick="borrarHabitacion('${esc(hid)}')">Eliminar</button>` : '') + '</span></div>';
     if (!col){
@@ -2166,7 +2211,7 @@ function filasHabitaciones(g){
   const resps = g.respuestas || {}, filas = [], asignados = new Set();
   listaHab(g).forEach(([, h], i) => {
     const ids = Object.keys(h.pasajeros || {}).filter(x => resps[x]), cama = camaHab(h, resps);
-    ids.forEach(x => { asignados.add(x); filas.push({ hnota: h.nota || '', n: i + 1, tipo: h.tipo, cama, primero: filas.length === 0 || filas[filas.length - 1].n !== i + 1, r: resps[x], rid: x }); });
+    ids.forEach(x => { asignados.add(x); filas.push({ hnota: h.nota || '', n: i + 1, tipo: h.tipo + (h.categoria ? ' · ' + h.categoria : ''), cama, primero: filas.length === 0 || filas[filas.length - 1].n !== i + 1, r: resps[x], rid: x }); });
   });
   Object.keys(resps).filter(x => !asignados.has(x)).forEach(x => filas.push({ n:'—', tipo:'Sin asignar', cama:'', primero:true, r: resps[x], rid: x }));
   return filas;
