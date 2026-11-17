@@ -1914,15 +1914,15 @@ function htmlHabitaciones(g){
   }
   html += `<div class="filtros" style="margin-bottom:10px;align-items:center">`
     + `<input type="text" id="hab-q" placeholder="Buscar pasajero…" value="${esc(HAB_Q)}" oninput="setHabQ(this.value)" style="width:190px" title="Escribí el nombre de un pasajero para ver su habitación">`
-    + `<select title="Filtrar por tipo de habitación" onchange="setHabTipo(this.value)"><option value="">Todos los tipos (${lista.length})</option>${TIPOS.filter(t => lista.some(([, h]) => h.tipo === t)).map(t => `<option value="${t}" ${HAB_TIPO === t ? 'selected' : ''}>${t} (${lista.filter(([, h]) => h.tipo === t).length})</option>`).join('')}</select>`
-    + (() => { const cm = h => camaHab(h, resps) || '-', n = c => lista.filter(([, h]) => cm(h) === c).length; return `<select title="Filtrar por tipo de cama" onchange="setHabCama(this.value)"><option value="">Twin y matrimonial</option>${CAMAS.slice().reverse().map(c => `<option value="${c}" ${HAB_CAMA === c ? 'selected' : ''}>${c} (${n(c)})</option>`).join('')}<option value="-" ${HAB_CAMA === '-' ? 'selected' : ''}>Sin cama definida (${n('-')})</option></select>`; })()
+    + `<select title="Filtrar por tipo de habitación" onchange="setHabTipo(this.value)"><option value="">Todos los tipos</option>${TIPOS.filter(t => lista.some(([, h]) => h.tipo === t)).map(t => `<option value="${t}" ${HAB_TIPO === t ? 'selected' : ''}>${t}</option>`).join('')}</select>`
+    + (() => { const cm = h => camaHab(h, resps) || '-', n = c => lista.filter(([, h]) => cm(h) === c).length; return `<select title="Filtrar por tipo de cama" onchange="setHabCama(this.value)"><option value="">Twin y matrimonial</option>${CAMAS.slice().reverse().map(c => `<option value="${c}" ${HAB_CAMA === c ? 'selected' : ''}>${c}</option>`).join('')}<option value="-" ${HAB_CAMA === '-' ? 'selected' : ''}>Sin cama definida</option></select>`; })()
     + `<select title="Filtrar por estado" onchange="setHabEst(this.value)"><option value="">Todos los estados</option>${[['completa', 'Completas'], ['problema', 'Incompletas o con de más'], ['vacia', 'Vacías'], ['alerta', 'Con alertas']].concat(conSaldoH ? [['saldo', 'Con saldo pendiente']] : []).map(([v, l]) => `<option value="${v}" ${HAB_EST === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`
     + (() => { const cs = catsHab(g), n = c => lista.filter(([, h]) => (h.categoria || '-') === c).length, extra = [...new Set(lista.map(([, h]) => h.categoria).filter(c => c && !cs.includes(c)))];
-      return `<select title="Filtrar por categoría" onchange="setHabCat(this.value)"><option value="">Todas las categorías</option>${cs.concat(extra).map(c => `<option value="${esc(c)}" ${HAB_CAT === c ? 'selected' : ''}>${esc(c)} (${n(c)})</option>`).join('')}<option value="-" ${HAB_CAT === '-' ? 'selected' : ''}>Sin categoría (${n('-')})</option></select>`; })()
+      return `<select title="Filtrar por categoría" onchange="setHabCat(this.value)"><option value="">Todas las categorías</option>${cs.concat(extra).map(c => `<option value="${esc(c)}" ${HAB_CAT === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}<option value="-" ${HAB_CAT === '-' ? 'selected' : ''}>Sin categoría</option></select>`; })()
     + (hay ? `<button class="btn outline small" onclick="verCategorias()">Categorías</button>` : '')
-    + (HAB_TIPO || HAB_CAMA || HAB_EST || HAB_CAT || HAB_Q ? `<button class="btn outline small" onclick="HAB_Q='';setHabFiltros('','','','')">Limpiar filtros</button>` : '') + `</div>`;
+    + (HAB_TIPO || HAB_CAMA || HAB_EST || HAB_CAT || HAB_Q ? `<button class="btn outline small" onclick="HAB_Q='';setHabFiltros('','','','')">Limpiar filtros</button>` : '') + `</div>@@HABN@@`;
   if (!hay) html += '<div class="hint">Armadas automáticamente a partir de los vínculos "comparte con". Revisalas y guardalas para poder ajustarlas a mano.</div>';
-  const asignados = new Set(), qtH = tokens(HAB_Q);
+  const asignados = new Set(), qtH = tokens(HAB_Q); let MOSTRADAS = 0;
   const coincideNombre = (qt, r) => { const hay = norm(nombreDe(r) + ' ' + (r.apellido || '') + ' ' + (r.nombre || '')); return qt.every(t => hay.includes(t)); };
   if (qtH.length){
     const res = [];
@@ -1939,6 +1939,7 @@ function htmlHabitaciones(g){
     if (HAB_EST){ const e = HAB_ESTADOS[hid];
       if (HAB_EST === 'problema' ? !(e === 'incompleta' || e === 'sobra') : HAB_EST === 'alerta' ? !alertasHabitacion(h, resps, idx).length : HAB_EST === 'saldo' ? !(ids.length && (t => t.saldo > 0.005 || t.falta)(totalHab(ids))) : e !== HAB_EST) return; }
     if (qtH.length && !ids.some(x => coincideNombre(qtH, resps[x]))) return;
+    MOSTRADAS++;
     const al = alertasHabitacion(h, resps, idx), col = COLAPSADAS.has(hid) && !qtH.length, cap = CAPACIDAD[h.tipo] || 0, cama = camaHab(h, resps);
     const nombres = ids.map(x => `${resps[x].apellido}, ${resps[x].nombre}${tp(x) ? ' (' + tp(x) + ')' : ''}`).join(' · ');
     const pedida = camaDeOcupantes(ids, resps);
@@ -1968,14 +1969,16 @@ function htmlHabitaciones(g){
     }
     html += '</div>';
   });
-  const sin = Object.keys(resps).filter(x => !asignados.has(x) && (!qtH.length || coincideNombre(qtH, resps[x])));
+  const filtrosHab = HAB_TIPO || HAB_CAMA || HAB_EST || HAB_CAT;
+  if (filtrosHab && !MOSTRADAS) html += '<div class="vacio">Ninguna habitación cumple todos los filtros elegidos.</div>';
+  const sin = filtrosHab ? [] : Object.keys(resps).filter(x => !asignados.has(x) && (!qtH.length || coincideNombre(qtH, resps[x])));
   if (sin.length){
     html += `<div class="card"><h3>Sin habitación (${sin.length})</h3>` + sin.map(rid => {
       const r = resps[rid];
       return `<div class="ocu"><div class="nom"><strong class="lnk" onclick="verRespuesta('${esc(rid)}')" title="Ver todos los datos">${esc(r.apellido)}, ${esc(r.nombre)}</strong> ${pillTipo(g, rid, r, refH)}</div>` + (hay ? `<select onchange="moverPasajero('${esc(rid)}', this.value)"><option value="">Asignar a…</option>${roomOptions('')}</select>` : '') + '</div>';
     }).join('') + '</div>';
   }
-  return html;
+  return html.replace('@@HABN@@', (HAB_TIPO || HAB_CAMA || HAB_EST || HAB_CAT || HAB_Q) ? `<div class="hint" style="margin:-4px 0 8px">Mostrando ${MOSTRADAS} de ${lista.length} habitaciones.</div>` : '');
 }
 function vincularReserva(resId){ if (!resId) return; db.ref('finanzas/reservas/' + resId + '/grupoId').set(GID_ABIERTO).catch(handleWriteError); }
 function desvincularReserva(resId){
