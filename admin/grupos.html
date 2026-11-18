@@ -1902,14 +1902,14 @@ function htmlHabitaciones(g){
       + kpi('Con alertas', conAl, '', conAl ? "setHabFiltros('','','alerta')" : '', conAl ? 'foco' : '')
       + (conSaldoH ? kpi('Con saldo pendiente', conSal, 'habitaciones', conSal ? "setHabFiltros('','','saldo')" : '') : '')
       + `</div>`
-      + `<div class="card" style="margin:0 0 12px;padding:12px 16px"><table class="hab-dist"><thead><tr><th>Distribución</th>${camasCol.map(c => `<th class="num">${c === '-' ? 'Cama sin definir' : c}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>`
+      + `<div class="hab-dists"><div class="card hab-dist-c"><h3>Por tipo de cama</h3><table class="hab-dist"><thead><tr><th>Tipo</th>${camasCol.map(c => `<th class="num">${c === '-' ? 'Cama sin definir' : c}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>`
       + tiposUsados.map(t => `<tr><td>${esc(t)}</td>${camasCol.map(c => `<td class="num">${CAPACIDAD[t] > 1 ? cel(cnt(t, c), t, c) : (c === camasCol[0] ? '' : '')}</td>`).join('')}<td class="num"><strong>${cel(cnt(t, ''), t, '')}</strong></td></tr>`).join('')
-      + `<tr class="tot"><td>Total</td>${camasCol.map(c => `<td class="num"><strong>${cel(lista.filter(([, h]) => CAPACIDAD[h.tipo] > 1 && cmH(h) === c).length, '', c)}</strong></td>`).join('')}<td class="num"><strong>${lista.length}</strong></td></tr></tbody></table>`
+      + `<tr class="tot"><td>Total</td>${camasCol.map(c => `<td class="num"><strong>${cel(lista.filter(([, h]) => CAPACIDAD[h.tipo] > 1 && cmH(h) === c).length, '', c)}</strong></td>`).join('')}<td class="num"><strong>${lista.length}</strong></td></tr></tbody></table></div>`
       + (() => { const cs = catsHab(g), extra = [...new Set(lista.map(([, h]) => h.categoria).filter(c => c && !cs.includes(c)))], filas = cs.concat(extra).concat(lista.some(([, h]) => !h.categoria) ? ['-'] : []);
           const cc = (cat, tipo) => lista.filter(([, h]) => (h.categoria || '-') === cat && (!tipo || h.tipo === tipo)).length;
           const c2 = (n, cat, tipo) => n ? `<a href="#" class="lnk" onclick="setHabFiltros('${tipo}','','','${esc(cat).replace(/'/g, "\\'")}');return false">${n}</a>` : '<span style="color:rgba(43,43,43,.3)">—</span>';
-          return `<table class="hab-dist" style="margin-top:12px"><thead><tr><th>Categoría</th>${tiposUsados.map(t => `<th class="num">${esc(t)}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>`
-            + filas.map(cat => `<tr><td>${cat === '-' ? 'Sin categoría' : esc(cat)}</td>${tiposUsados.map(t => `<td class="num">${c2(cc(cat, t), cat, t)}</td>`).join('')}<td class="num"><strong>${c2(cc(cat, ''), cat, '')}</strong></td></tr>`).join('') + '</tbody></table>'; })()
+          return `<div class="card hab-dist-c"><h3>Por categoría</h3><table class="hab-dist"><thead><tr><th>Categoría</th>${tiposUsados.map(t => `<th class="num">${esc(t)}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>`
+            + filas.map(cat => `<tr><td>${cat === '-' ? 'Sin categoría' : esc(cat)}</td>${tiposUsados.map(t => `<td class="num">${c2(cc(cat, t), cat, t)}</td>`).join('')}<td class="num"><strong>${c2(cc(cat, ''), cat, '')}</strong></td></tr>`).join('') + '</tbody></table></div>'; })()
       + `</div>`;
   }
   html += `<div class="filtros" style="margin-bottom:10px;align-items:center">`
