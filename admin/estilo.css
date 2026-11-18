@@ -78,7 +78,8 @@
 .hab-dist td{padding:5px 10px;border-bottom:1px solid rgba(213,206,195,.35)}
 .hab-dist .num{text-align:right;font-variant-numeric:tabular-nums}
 .hab-dist tr.tot td{border-bottom:0;border-top:1px solid var(--ui-linea)}
-.hab-dists{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin:0 0 12px;align-items:start}
+.hab-dists{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin:0 0 12px;align-items:stretch}
+.hab-dist th:first-child,.hab-dist td:first-child{width:38%}
 .hab-dist-c{padding:12px 16px!important;margin:0!important}
 .hab-dist-c h3{margin:0 0 8px}
 .hab-dist{max-width:none}
