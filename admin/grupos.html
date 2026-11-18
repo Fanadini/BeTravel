@@ -152,6 +152,35 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
   #print-area td.g{border-top:1px solid #000;font-weight:600}
 }
 @media(max-width:700px){.nav-user{display:none}.scroll{padding:12px}.det{grid-template-columns:1fr}}
+/* Celular: barras que se deslizan en una línea (como una app), filtros a dos columnas y controles de cada habitación sin desbordar */
+@media(max-width:700px){
+  .toolbar{flex-wrap:wrap;gap:6px 8px}
+  .toolbar .grow{display:none}
+  .toolbar .gtitle{flex:1 1 calc(100% - 110px);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .toolbar .btn{order:5;flex:1 1 0;padding:7px 6px;font-size:11px;white-space:nowrap}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:10px 12px 0}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto}
+  .section-head .row-btns{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;width:100%;padding-bottom:2px}
+  .section-head .row-btns::-webkit-scrollbar{display:none}
+  .section-head .row-btns .btn{flex:0 0 auto;white-space:nowrap}
+  .filtros{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .filtros>input[type=text],.filtros>input[type=search]{grid-column:1/-1}
+  .filtros>select,.filtros>.btn{width:100%;min-width:0}
+  .gkpis{grid-template-columns:1fr 1fr;gap:8px}
+  .gkpis .gk{padding:10px 12px}
+  .gkpis .gk b{font-size:16px}
+  .hab-dists{grid-template-columns:1fr}
+  .hab-dist{font-size:12px}
+  .hab-dist th,.hab-dist td{padding:5px 6px}
+  .hab-head{gap:6px 8px}
+  .hab-head>span:last-child{display:grid!important;grid-template-columns:1fr 1fr;width:100%;gap:6px}
+  .hab-head>span:last-child select{width:100%;min-width:0}
+  .hab-head>span:last-child select:nth-of-type(3){grid-column:1/-1}
+  .hab textarea{min-height:52px;height:52px}
+  #hab-q{width:100%!important}
+  .filtros>.btn{grid-column:1/-1}
+}
 </style>
 <link rel="icon" type="image/png" sizes="192x192" href="../favicon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="../favicon-512.png">
@@ -1902,7 +1931,7 @@ function htmlHabitaciones(g){
       + kpi('Con alertas', conAl, '', conAl ? "setHabFiltros('','','alerta')" : '', conAl ? 'foco' : '')
       + (conSaldoH ? kpi('Con saldo pendiente', conSal, 'habitaciones', conSal ? "setHabFiltros('','','saldo')" : '') : '')
       + `</div>`
-      + `<div class="hab-dists"><div class="card hab-dist-c"><h3>Por tipo de cama</h3><table class="hab-dist"><thead><tr><th>Tipo</th>${camasCol.map(c => `<th class="num">${c === '-' ? 'Cama sin definir' : c}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>`
+      + `<div class="hab-dists"><div class="card hab-dist-c"><h3>Por tipo de cama</h3><table class="hab-dist"><thead><tr><th>Tipo</th>${camasCol.map(c => `<th class="num">${c === '-' ? 'Sin definir' : c}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>`
       + tiposUsados.map(t => `<tr><td>${esc(t)}</td>${camasCol.map(c => `<td class="num">${CAPACIDAD[t] > 1 ? cel(cnt(t, c), t, c) : (c === camasCol[0] ? '' : '')}</td>`).join('')}<td class="num"><strong>${cel(cnt(t, ''), t, '')}</strong></td></tr>`).join('')
       + `<tr class="tot"><td>Total</td>${camasCol.map(c => `<td class="num"><strong>${cel(lista.filter(([, h]) => CAPACIDAD[h.tipo] > 1 && cmH(h) === c).length, '', c)}</strong></td>`).join('')}<td class="num"><strong>${lista.length}</strong></td></tr></tbody></table></div>`
       + (() => { const cs = catsHab(g), extra = [...new Set(lista.map(([, h]) => h.categoria).filter(c => c && !cs.includes(c)))], filas = cs.concat(extra).concat(lista.some(([, h]) => !h.categoria) ? ['-'] : []);
