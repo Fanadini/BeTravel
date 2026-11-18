@@ -1909,7 +1909,8 @@ function htmlHabitaciones(g){
           const cc = (cat, tipo) => lista.filter(([, h]) => (h.categoria || '-') === cat && (!tipo || h.tipo === tipo)).length;
           const c2 = (n, cat, tipo) => n ? `<a href="#" class="lnk" onclick="setHabFiltros('${tipo}','','','${esc(cat).replace(/'/g, "\\'")}');return false">${n}</a>` : '<span style="color:rgba(43,43,43,.3)">—</span>';
           return `<div class="card hab-dist-c"><h3>Por categoría</h3><table class="hab-dist"><thead><tr><th>Categoría</th>${tiposUsados.map(t => `<th class="num">${esc(t)}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>`
-            + filas.map(cat => `<tr><td>${cat === '-' ? 'Sin categoría' : esc(cat)}</td>${tiposUsados.map(t => `<td class="num">${c2(cc(cat, t), cat, t)}</td>`).join('')}<td class="num"><strong>${c2(cc(cat, ''), cat, '')}</strong></td></tr>`).join('') + '</tbody></table></div>'; })()
+            + filas.map(cat => `<tr><td>${cat === '-' ? 'Sin categoría' : esc(cat)}</td>${tiposUsados.map(t => `<td class="num">${c2(cc(cat, t), cat, t)}</td>`).join('')}<td class="num"><strong>${c2(cc(cat, ''), cat, '')}</strong></td></tr>`).join('')
+            + `<tr class="tot"><td>Total</td>${tiposUsados.map(t => `<td class="num"><strong>${lista.filter(([, h]) => h.tipo === t).length}</strong></td>`).join('')}<td class="num"><strong>${lista.length}</strong></td></tr>` + '</tbody></table></div>'; })()
       + `</div>`;
   }
   html += `<div class="filtros" style="margin-bottom:10px;align-items:center">`
