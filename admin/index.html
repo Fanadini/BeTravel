@@ -58,11 +58,13 @@ body{font-family:'Inter',sans-serif;background:var(--beige);color:var(--dark);-w
 .cal-p i{width:6px;height:6px;border-radius:99px;background:var(--teal);display:block}
 .cal-p i.b{background:#C97A1A}
 .cal-p i.t{background:var(--red,#B83232)}
+.cal-p i.p{background:#7A4FA0}
 .cal-d.sel .cal-p i{outline:1px solid var(--white)}
 .cal-l{margin-top:10px;display:grid;gap:4px}
 .cal-l a{display:block;font-size:13px;padding:7px 9px;border-radius:8px;background:var(--beige);color:var(--teal);text-decoration:none;line-height:1.3}
 .cal-l a.b{background:rgba(201,122,26,.14);color:#C97A1A}
 .cal-l a.t{background:rgba(184,50,50,.12);color:var(--red,#B83232)}
+.cal-l a.p{background:rgba(122,79,160,.12);color:#7A4FA0}
 .cal-l .nada{font-size:13px;color:rgba(43,43,43,.55)}
 .cal-f{display:block;margin-top:8px;font-size:12px;color:var(--teal)}
 .bus{position:relative;margin:0 0 18px}
@@ -394,6 +396,10 @@ function eventosCal(){
     }
     arr(r.costos).forEach(c => { if (c.medio === 'tarjeta' && !c.pagado && c.fechaVencimiento) add(c.fechaVencimiento, { k:'t', t: `Vence tarjeta · ${c.proveedor || 'Sin proveedor especificado'}`, href: `gestioninterna.html?reserva=${encodeURIComponent(r.id)}` }); });
   });
+  // Cuotas a proveedores de los grupos (Compromisos con proveedores) que todavía no se pagaron
+  Object.keys(PROVS).forEach(gid => Object.keys(PROVS[gid] || {}).forEach(pid => { const p = PROVS[gid][pid] || {}; Object.keys(p.cuotas || {}).forEach(cid => { const c = p.cuotas[cid] || {}; if (c.pagado || !c.fecha) return;
+    const v = (c.monto != null && c.monto !== '') ? Number(c.monto) || 0 : (Number(p.total) || 0) * (Number(c.pct) || 0) / 100, gn = (IDXG[gid] || {}).nombre || '';
+    add(c.fecha, { k:'p', t: `Pago a ${p.nombre || 'proveedor'}${gn ? ' (' + gn + ')' : ''} · ${fmtM(v, p.moneda || 'USD')}`, href: `grupos.html?g=${encodeURIComponent(gid)}` }); }); }));
   Object.keys(REC).forEach(id => { const x = REC[id] || {}; if (x.tipo === 'BSP' && !x.resuelto && x.fecha) add(x.fecha, { k:'b', t: `Vence BSP · ${fmtM(x.monto, x.moneda)}`, href: 'gestioninterna.html#recordatorios' }); });
   return ev;
 }
@@ -407,7 +413,7 @@ function pintarCalendario(){
   if (!CAL_DIA) CAL_DIA = hoy.slice(0, 7) === CAL_MES ? hoy : '';
   let celdas = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(x => `<div class="cal-w">${x}</div>`).join('') + '<div class="cal-d vacio" style="visibility:hidden"></div>'.repeat(vacios);
   for (let d = 1; d <= n; d++){
-    const f = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`, it = ev[f] || [], ks = ['r', 'b', 't'].filter(k => it.some(x => x.k === k));
+    const f = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`, it = ev[f] || [], ks = ['r', 'p', 'b', 't'].filter(k => it.some(x => x.k === k));
     celdas += `<button type="button" class="cal-d${f === hoy ? ' hoy' : ''}${f === CAL_DIA ? ' sel' : ''}" onclick="calDia('${f}')" aria-label="${d} de ${MESES_L[m - 1]}${it.length ? ', ' + it.length + ' eventos' : ''}">${d}<span class="cal-p">${ks.map(k => `<i class="${k === 'r' ? '' : k}"></i>`).join('')}</span></button>`;
   }
   const dia = CAL_DIA && CAL_DIA.slice(0, 7) === CAL_MES ? (ev[CAL_DIA] || []) : null;
