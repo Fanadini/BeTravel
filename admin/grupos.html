@@ -154,10 +154,30 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
 @media(max-width:700px){.nav-user{display:none}.scroll{padding:12px}.det{grid-template-columns:1fr}}
 /* Celular: barras que se deslizan en una línea (como una app), filtros a dos columnas y controles de cada habitación sin desbordar */
 @media(max-width:700px){
-  .toolbar{flex-wrap:wrap;gap:6px 8px}
+  .toolbar{display:grid!important;grid-template-columns:1fr 1fr;gap:6px 8px;align-items:center}
   .toolbar .grow{display:none}
-  .toolbar .gtitle{flex:1 1 calc(100% - 110px);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .toolbar .btn{order:5;flex:1 1 0;padding:7px 6px;font-size:11px;white-space:nowrap}
+  .toolbar .gtitle{grid-column:1/-1;grid-row:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .toolbar .pill{grid-column:1/-1;grid-row:2;justify-self:start}
+  .toolbar .btn{width:100%;padding:8px 6px;font-size:12px;white-space:nowrap}
+  /* Compromisos con proveedores: cada cuota como una fila-tarjeta (sin columnas apretadas) */
+  .comp-t,.comp-t tbody{display:block;width:100%}
+  .comp-t colgroup,.comp-t thead{display:none}
+  .comp-t tr{display:grid;grid-template-columns:54px 1fr 1fr;grid-template-areas:"n pct mon" "n fec fec" "n pag del";gap:6px 8px;padding:10px 0;border-bottom:1px solid rgba(213,206,195,.5);align-items:center}
+  .comp-t td{border:0!important;padding:0!important;display:block}
+  .comp-t td:nth-child(1){grid-area:n;font-weight:600;color:var(--teal)}
+  .comp-t td:nth-child(1)::before{content:'Cuota ';font-size:10px;font-weight:500;display:block;color:rgba(43,43,43,.5);text-transform:uppercase;letter-spacing:.5px}
+  .comp-t td:nth-child(2){grid-area:pct}.comp-t td:nth-child(3){grid-area:fec}.comp-t td:nth-child(4){grid-area:mon}
+  .comp-t td:nth-child(5){grid-area:pag;text-align:left!important;font-size:12px}.comp-t td:nth-child(5)::after{content:' Pagada';color:rgba(43,43,43,.7)}
+  .comp-t td:nth-child(6){grid-area:del;text-align:right}
+  .comp-t td:nth-child(2)::before{content:'%';font-size:10px;color:rgba(43,43,43,.5);display:block}
+  .comp-t td:nth-child(4)::before{content:'Monto';font-size:10px;color:rgba(43,43,43,.5);display:block;text-align:left}
+  .comp-t input[type=date]{width:100%!important;margin:0}
+  #comp-card .card .filtros{display:grid;grid-template-columns:18px 1fr 1fr;gap:6px}
+  #comp-card .card .filtros>select:nth-of-type(1){grid-column:2}
+  #comp-card .card .filtros>select:nth-of-type(2){grid-column:3}
+  #comp-card .card .filtros>input:first-of-type{grid-column:2/-1}
+  #comp-card .card .filtros>input[type=number]{grid-column:1/-1;width:100%!important}
+  #comp-card .card .filtros>.btn.danger{grid-column:1/-1}
   .tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:10px 12px 0}
   .tabs::-webkit-scrollbar{display:none}
   .tab{flex:0 0 auto}
@@ -166,6 +186,7 @@ textarea{width:100%;min-height:140px;resize:vertical;line-height:1.5}
   .section-head .row-btns .btn{flex:0 0 auto;white-space:nowrap}
   .filtros{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .filtros>input[type=text],.filtros>input[type=search]{grid-column:1/-1}
+  .filtros>*{width:100%!important;min-width:0!important;max-width:none!important}
   .filtros>select,.filtros>.btn{width:100%;min-width:0}
   .gkpis{grid-template-columns:1fr 1fr;gap:8px}
   .gkpis .gk{padding:10px 12px}
