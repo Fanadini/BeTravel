@@ -3733,7 +3733,7 @@ function buildSlides(c){
         filas.push({ k:'f', tipo:s.tipo, concepto: s.concepto || s.tipo, monto: v });
         s.tarifas.filter(x => num(x.cantidad) > 0).forEach(x => {
           const mon = s.moneda || m, tot = convertir(tarTotalPrecio(x), mon, m, c.tipoCambio), unit = convertir(num(x.precio), mon, m, c.tipoCambio);
-          if (tot.ok && unit.ok) filas.push({ k:'h', txt: `${fmtNum(num(x.cantidad))} × ${paxEtiqueta(x.tipo)} · ${fmtMoney(unit.value, m)} c/u`, monto: tot.value });
+          if (tot.ok && unit.ok) filas.push({ k:'h', txt: `${fmtNum(num(x.cantidad))} × ${paxEtiqueta(x.tipo)}` + (num(x.cantidad) > 1 && s.tarUnidad !== 'total' ? ` · ${fmtMoney(unit.value, m)} por persona` : ''), monto: tot.value });
         });
         return;
       }
@@ -3741,7 +3741,9 @@ function buildSlides(c){
       filas.push({ k:'f', tipo:s.tipo, concepto: s.concepto || s.tipo, monto: v });
       s.habitaciones.filter(h => num(h.cantidad) > 0).forEach(h => {
         const mon = s.moneda || m, tot = convertir(habTotalPrecio(h, s), mon, m, c.tipoCambio), unit = convertir(num(h.precio), mon, m, c.tipoCambio);
-        if (tot.ok && unit.ok) filas.push({ k:'h', txt: `${fmtNum(num(h.cantidad))} × ${habNombre(h)} · ${fmtMoney(unit.value, m)} ${habPorNoche(s) ? 'por noche × ' + habNoches(s) + ' noche' + (habNoches(s) === 1 ? '' : 's') : 'c/u'}`, monto: tot.value });
+        // Precio unitario solo cuando aporta: por noche, por persona o más de una habitación (nunca "c/u")
+        const uTxt = s.habUnidad === 'total' ? '' : habPorNoche(s) ? `${fmtMoney(unit.value, m)} por noche × ${habNoches(s)} noche${habNoches(s) === 1 ? '' : 's'}` : s.habUnidad === 'persona' ? `${fmtMoney(convertir(num(h.precioP), mon, m, c.tipoCambio).value, m)} por persona` : num(h.cantidad) > 1 ? `${fmtMoney(unit.value, m)} por habitación` : '';
+        if (tot.ok && unit.ok) filas.push({ k:'h', txt: `${fmtNum(num(h.cantidad))} × ${habNombre(h)}${uTxt ? ' · ' + uTxt : ''}`, monto: tot.value });
       });
     });
     const pushTotal = (txt, tt, lista) => {
