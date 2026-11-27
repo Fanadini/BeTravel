@@ -1355,7 +1355,7 @@ function renderReservasTable(){
     let av = sortCol.get(a), bv = sortCol.get(b);
     if (sortCol.type==='number'){ return ((Number(av)||0) - (Number(bv)||0)) * reservasSort.dir; }
     av = String(av||''); bv = String(bv||'');
-    return av.localeCompare(bv) * reservasSort.dir;
+    return String(av).localeCompare(String(bv), 'es', { numeric: true }) * reservasSort.dir;
   });
 
   if (!items.length){
@@ -1450,7 +1450,7 @@ function renderPasajerosTable(){
   const sortCol = PASAJEROS_COLS.find(c => c.key===pasajerosSort.key) || PASAJEROS_COLS[1];
   items.sort((a,b) => {
     const av = String(sortCol.get(a)||''), bv = String(sortCol.get(b)||'');
-    return av.localeCompare(bv) * pasajerosSort.dir;
+    return String(av).localeCompare(String(bv), 'es', { numeric: true }) * pasajerosSort.dir;
   });
 
   if (!items.length){
@@ -1543,7 +1543,7 @@ function renderClientesTable(){
   items.sort((a,b) => {
     const av = sortCol.get(a), bv = sortCol.get(b);
     if (sortCol.type==='number') return (Number(av)-Number(bv)) * clientesSort.dir;
-    return String(av||'').localeCompare(String(bv||'')) * clientesSort.dir;
+    return String(av||'').localeCompare(String(bv||''), 'es', { numeric: true }) * clientesSort.dir;
   });
   if (!items.length){
     const msg = STATE.reservas.length ? 'Ningún resultado con estos filtros.' : 'Todavía no hay reservas cargadas.';
